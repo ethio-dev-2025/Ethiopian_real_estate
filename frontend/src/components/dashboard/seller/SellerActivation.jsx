@@ -1,4 +1,3 @@
-// src/components/dashboard/seller/SellerActivation.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
@@ -383,7 +382,7 @@ const SellerActivation = () => {
   };
 
   const handleGoToSubscription = () => {
-    navigate('/subscription');
+    navigate('/dashboard/subscription');
   };
 
   const roleOptions = [
@@ -416,19 +415,20 @@ const SellerActivation = () => {
   }
 
   // ============ STATUS-BASED RENDERING ============
-  // Show different UI based on activation status
   
-  // Case 1: Fully activated
+  // Case 1: Fully activated with active subscription
   if (activationStatus?.status === 'fully_activated') {
+    const daysRemaining = activationStatus?.days_remaining || 0;
     return (
       <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <BadgeCheck className="w-10 h-10 text-green-600" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Fully Activated!</h2>
-        <p className="text-gray-600 mb-6">Your account is now fully activated. You can start creating listings.</p>
+        <p className="text-gray-600 mb-2">Your account is fully activated with {daysRemaining} days remaining.</p>
+        <p className="text-gray-500 mb-6">You can start creating listings.</p>
         <button
-          onClick={() => navigate('/create-listing')}
+          onClick={() => navigate('/dashboard/create-listing')}
           className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
         >
           Create Your First Listing <ArrowRight className="w-5 h-5" />
@@ -437,21 +437,32 @@ const SellerActivation = () => {
     );
   }
 
-  // Case 2: Documents approved - Show Subscribe button
+  // Case 2: Documents approved OR subscription expired - Show Subscribe button
   if (activationStatus?.status === 'documents_approved') {
+    const isExpired = activationStatus?.needs_renewal === true;
     return (
       <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle className="w-10 h-10 text-green-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Documents Approved!</h2>
-        <p className="text-gray-600 mb-4">Your documents have been approved by the admin.</p>
-        <p className="text-gray-600 mb-6">Please subscribe to activate your account and start listing properties.</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          {isExpired ? 'Subscription Expired' : 'Documents Approved!'}
+        </h2>
+        <p className="text-gray-600 mb-4">
+          {isExpired 
+            ? 'Your subscription has expired. Please renew to continue.'
+            : 'Your documents have been approved by the admin.'}
+        </p>
+        <p className="text-gray-600 mb-6">
+          {isExpired 
+            ? 'Renew your subscription to reactivate your account and start listing properties.'
+            : 'Please subscribe to activate your account and start listing properties.'}
+        </p>
         <button
           onClick={handleGoToSubscription}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
         >
-          <CreditCard className="w-5 h-5" /> Subscribe Now
+          <CreditCard className="w-5 h-5" /> {isExpired ? 'Renew Subscription' : 'Subscribe Now'}
         </button>
       </div>
     );

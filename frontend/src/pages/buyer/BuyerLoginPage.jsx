@@ -1,7 +1,7 @@
 // src/pages/buyer/BuyerLoginPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, User, Lock, LogIn, ArrowLeft, Home, Shield } from 'lucide-react';
+import { Eye, EyeOff, User, Lock, LogIn, Home, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000';
@@ -102,25 +102,16 @@ const BuyerLoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        {/* Back to Home Button */}
-        <button
-          onClick={() => navigate('/')}
-          className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl text-gray-700 hover:bg-white transition-all duration-300 border border-gray-200 shadow-sm group"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-sm font-medium">Back to Home</span>
-        </button>
-
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-teal-600 to-emerald-600 p-6 text-center">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+          {/* Header - White/Black theme */}
+          <div className="bg-white p-6 text-center border-b border-gray-100">
+            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-3">
               <Home className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white">Buyer Login</h1>
-            <p className="text-teal-100 text-sm mt-1">Sign in to explore properties</p>
+            <h1 className="text-2xl font-bold text-gray-900">Buyer Login</h1>
+            <p className="text-gray-500 text-sm mt-1">Sign in to explore properties</p>
           </div>
 
           {/* Form */}
@@ -143,7 +134,7 @@ const BuyerLoginPage = () => {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                     placeholder="Enter your username"
                     disabled={loading}
                   />
@@ -160,7 +151,7 @@ const BuyerLoginPage = () => {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                     placeholder="Enter your password"
                     disabled={loading}
                   />
@@ -180,12 +171,12 @@ const BuyerLoginPage = () => {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                    className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                   />
                   <span className="text-sm text-gray-600">Remember me</span>
                 </label>
                 
-                <Link to="/forgot-password" className="text-sm text-teal-600 hover:text-teal-700">
+                <Link to="/forgot-password" className="text-sm text-gray-600 hover:text-gray-900">
                   Forgot Password?
                 </Link>
               </div>
@@ -193,7 +184,7 @@ const BuyerLoginPage = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -212,7 +203,7 @@ const BuyerLoginPage = () => {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Don't have a buyer account?{' '}
-                <Link to="/buyer/register" className="text-teal-600 hover:text-teal-700 font-semibold">
+                <Link to="/buyer/register" className="text-gray-900 hover:text-gray-700 font-semibold">
                   Sign Up
                 </Link>
               </p>

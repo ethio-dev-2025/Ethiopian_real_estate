@@ -1,3 +1,4 @@
+# backend/app/routers/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -131,7 +132,7 @@ async def get_current_buyer_user(current_user: User = Depends(get_current_user))
         raise HTTPException(status_code=403, detail="Buyer access required")
     return current_user
 
-# ============ REGISTER ENDPOINT - FIXED ============
+# ============ REGISTER ENDPOINT ============
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     try:
@@ -159,7 +160,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             is_activated = False
             can_create_listings = False
             payment_approved = False
-            is_verified = False  # FIXED: was True, now False
+            is_verified = False
         
         db_user = User(
             email=user_data.email,
@@ -216,8 +217,6 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============ LOGIN ENDPOINT ============
-# app/routers/auth.py - Update the login endpoint
-
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
@@ -249,6 +248,10 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
             user.is_activated = True
             user.can_create_listings = True
             user.payment_approved = True
+            user.has_active_subscription = True
+            if not user.subscription_end_date:
+                user.subscription_start_date = datetime.utcnow()
+                user.subscription_end_date = datetime.utcnow() + timedelta(days=180)
         
         db.commit()
         db.refresh(user)
@@ -276,8 +279,12 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
                 "address": user.address,
                 "city": user.city,
                 "bio": user.bio,
-                "position": getattr(user, 'position', 'Administrator'),      # ← ADD THIS
-                "department": getattr(user, 'department', 'Management')     # ← ADD THIS
+                "position": getattr(user, 'position', 'Administrator'),
+                "department": getattr(user, 'department', 'Management'),
+                "has_active_subscription": user.has_active_subscription,
+                "subscription_plan": user.subscription_plan,
+                "subscription_start_date": user.subscription_start_date.isoformat() if user.subscription_start_date else None,
+                "subscription_end_date": user.subscription_end_date.isoformat() if user.subscription_end_date else None
             }
         }
         
@@ -286,10 +293,11 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": "Internal server error"}
-# app/routers/auth.py - Update the /me endpoint
 
+# ============ GET CURRENT USER (ME) ENDPOINT - FIXED ============
 @router.get("/me")
 async def get_current_user_endpoint(current_user: User = Depends(get_current_user)):
+    """Get current user information"""
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -303,6 +311,9 @@ async def get_current_user_endpoint(current_user: User = Depends(get_current_use
         "is_activated": current_user.is_activated,
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
         "has_active_subscription": current_user.has_active_subscription,
+        "subscription_plan": current_user.subscription_plan,
+        "subscription_start_date": current_user.subscription_start_date.isoformat() if current_user.subscription_start_date else None,
+        "subscription_end_date": current_user.subscription_end_date.isoformat() if current_user.subscription_end_date else None,
         "seller_enabled": current_user.seller_enabled,
         "landlord_enabled": current_user.landlord_enabled,
         "can_create_listings": current_user.can_create_listings,
@@ -316,7 +327,40 @@ async def get_current_user_endpoint(current_user: User = Depends(get_current_use
         "department": getattr(current_user, 'department', 'Management')
     }
 
-# ============ GOOGLE OAUTH ENDPOINT - FIXED ============
+# ============ FORCE REFRESH USER ENDPOINT ============
+@router.get("/force-refresh")
+async def force_refresh_user(current_user: User = Depends(get_current_user)):
+    """Force refresh user data - returns complete user info"""
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.username,
+        "full_name": current_user.full_name,
+        "phone": current_user.phone,
+        "role_type": current_user.role_type,
+        "status": current_user.status,
+        "is_active": current_user.is_active,
+        "is_verified": current_user.is_verified,
+        "is_activated": current_user.is_activated,
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "has_active_subscription": current_user.has_active_subscription,
+        "subscription_plan": current_user.subscription_plan,
+        "subscription_start_date": current_user.subscription_start_date.isoformat() if current_user.subscription_start_date else None,
+        "subscription_end_date": current_user.subscription_end_date.isoformat() if current_user.subscription_end_date else None,
+        "seller_enabled": current_user.seller_enabled,
+        "landlord_enabled": current_user.landlord_enabled,
+        "can_create_listings": current_user.can_create_listings,
+        "payment_approved": current_user.payment_approved,
+        "avatar_url": current_user.avatar_url,
+        "date_of_birth": current_user.date_of_birth,
+        "address": current_user.address,
+        "city": current_user.city,
+        "bio": current_user.bio,
+        "position": getattr(current_user, 'position', 'Administrator'),
+        "department": getattr(current_user, 'department', 'Management')
+    }
+
+# ============ GOOGLE OAUTH ENDPOINT ============
 @router.post("/google-auth")
 async def google_auth(
     auth_data: GoogleAuthRequest,
@@ -377,7 +421,6 @@ async def google_auth(
             random_password = secrets.token_urlsafe(16)
             hashed_password = get_password_hash(random_password)
             
-            # FIXED: For Google users, is_verified = False (admin must approve documents)
             user = User(
                 email=email,
                 username=username,
@@ -387,7 +430,7 @@ async def google_auth(
                 role_type="dual",
                 status="pending",
                 is_active=True,
-                is_verified=False,  # FIXED: was True, now False
+                is_verified=False,
                 is_activated=False,
                 can_create_listings=False,
                 payment_approved=False,
@@ -437,7 +480,10 @@ async def google_auth(
                 "status": user.status,
                 "can_create_listings": user.can_create_listings,
                 "payment_approved": user.payment_approved,
-                "avatar_url": user.avatar_url or picture
+                "avatar_url": user.avatar_url or picture,
+                "has_active_subscription": user.has_active_subscription,
+                "subscription_plan": user.subscription_plan,
+                "subscription_end_date": user.subscription_end_date.isoformat() if user.subscription_end_date else None
             }
         }
         
@@ -550,3 +596,30 @@ async def get_pending_payment_users(
     except Exception as e:
         print(f"Error getting pending payment users: {e}")
         return []
+
+# ============ ADMIN: DEBUG USER ============
+@router.get("/debug-user/{user_id}")
+async def debug_user(
+    user_id: int,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to check user data (admin only)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {"error": "User not found"}
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "full_name": user.full_name,
+        "is_activated": user.is_activated,
+        "can_create_listings": user.can_create_listings,
+        "has_active_subscription": user.has_active_subscription,
+        "subscription_end_date": user.subscription_end_date.isoformat() if user.subscription_end_date else None,
+        "payment_approved": user.payment_approved,
+        "status": user.status
+    }
+
+print("✅ Auth router loaded successfully!")

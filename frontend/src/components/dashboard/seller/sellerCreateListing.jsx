@@ -1,14 +1,13 @@
-// src/components/dashboard/seller/sellerCreateListing.jsx - FIXED VERSION
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import {
   Home, MapPin, DollarSign, Bed, Bath, Square, Upload,
-  ChevronRight, ChevronLeft, Sparkles, Eye, X, Star, CheckCircle,
+  ChevronRight, ChevronLeft, Eye, X, Star, CheckCircle,
   Wifi, Wind, Thermometer, Coffee, Dumbbell, Tv,
   Microwave, Refrigerator, Car, Activity, Lock,
   TreePine, Heart, Zap, Sofa, Loader, Droplet,
-  Phone, Mail, Calendar, Trash2, Image, Shield, CreditCard
+  Phone, Mail, Calendar, Trash2, Image, Shield, CreditCard, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -31,6 +30,10 @@ const SellerCreateListing = () => {
   const [canCreateListings, setCanCreateListings] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
   const [statusError, setStatusError] = useState(null);
+  const [isFullyActivated, setIsFullyActivated] = useState(false);
+  const [isSubscriptionValid, setIsSubscriptionValid] = useState(false);
+  const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState(0);
+  
   const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
@@ -89,45 +92,41 @@ const SellerCreateListing = () => {
     return TEST_USERS.includes(user.email) || TEST_USERS.includes(user.username);
   };
 
-  // Check activation status against backend
+  // Get subscription info from user object
+  const getSubscriptionInfo = () => {
+    let daysRemaining = 0;
+    let hasActive = false;
+    
+    if (user?.subscription_end_date) {
+      const endDate = new Date(user.subscription_end_date);
+      const now = new Date();
+      daysRemaining = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+      hasActive = daysRemaining > 0;
+    }
+    
+    return {
+      has_active_subscription: hasActive || user?.has_active_subscription === true,
+      days_remaining: daysRemaining > 0 ? daysRemaining : 0,
+      subscription_plan: user?.subscription_plan || 'Active',
+      subscription_end_date: user?.subscription_end_date,
+      is_expiring_soon: daysRemaining > 0 && daysRemaining <= 30
+    };
+  };
+
+  // Check activation status
   useEffect(() => {
     const checkStatus = async () => {
       setStatusLoading(true);
       setStatusError(null);
 
       try {
-        // First check if user is test user
         if (isTestUser()) {
           console.log('✅ Test user detected - allowing listing creation');
-          setActivationStatus({ status: 'fully_activated', can_create_listings: true });
           setCanCreateListings(true);
+          setIsFullyActivated(true);
+          setIsSubscriptionValid(true);
           setStatusLoading(false);
           return;
-        }
-
-        // Check if user object exists and has activation flags
-        if (user) {
-          console.log('👤 User object:', {
-            email: user.email,
-            is_activated: user.is_activated,
-            can_create_listings: user.can_create_listings,
-            payment_approved: user.payment_approved,
-            status: user.status
-          });
-
-          // Check if user is already activated based on user object
-          const isUserActivated = user.is_activated === true || 
-                                  user.can_create_listings === true || 
-                                  user.payment_approved === true ||
-                                  user.status === 'active';
-
-          if (isUserActivated) {
-            console.log('✅ User already activated from user object - allowing listing creation');
-            setActivationStatus({ status: 'fully_activated', can_create_listings: true });
-            setCanCreateListings(true);
-            setStatusLoading(false);
-            return;
-          }
         }
 
         const token = localStorage.getItem('access_token');
@@ -138,7 +137,6 @@ const SellerCreateListing = () => {
           return;
         }
 
-        // Fetch activation status from backend
         const resp = await fetch(`${API_URL}/api/activation/status`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -148,41 +146,31 @@ const SellerCreateListing = () => {
         }
 
         const data = await resp.json();
-        console.log('📊 CreateListing activation status from backend:', data);
-
+        console.log('📊 Activation status:', data);
         setActivationStatus(data);
 
-        // CRITICAL FIX: Check multiple conditions for activation
-        const canCreate = 
-          data?.can_create_listings === true ||
-          data?.status === 'fully_activated' ||
-          data?.is_activated === true ||
-          data?.payment_approved === true ||
-          (data?.listing_creation_allowed === true) ||
-          (data?.user?.can_create_listings === true) ||
-          (data?.user?.is_activated === true);
-
-        console.log('🎯 Can create listings?', canCreate);
+        // Check if fully activated with valid subscription
+        const isFullyActivatedStatus = data?.status === 'fully_activated';
+        const hasActiveSubscription = data?.has_active_subscription === true;
+        const daysRemaining = data?.days_remaining || 0;
+        
+        setIsFullyActivated(isFullyActivatedStatus);
+        setIsSubscriptionValid(hasActiveSubscription && daysRemaining > 0);
+        setSubscriptionDaysLeft(daysRemaining);
+        
+        // User can create listings only if fully activated AND subscription is valid
+        const canCreate = isFullyActivatedStatus && hasActiveSubscription && daysRemaining > 0;
         setCanCreateListings(canCreate);
 
         if (canCreate && refreshUser) {
           await refreshUser();
         }
-
-        if (!canCreate) {
-          setStatusError('Your account is not activated yet.');
-        }
       } catch (err) {
-        console.error('Error checking activation status:', err);
-        setStatusError('Unable to verify activation status. Please try again later.');
-        
-        // FALLBACK: If we can't verify but user exists, allow creation (for testing)
-        if (user && (user.email || user.username)) {
-          console.log('⚠️ API error but user exists - allowing listing creation as fallback');
-          setCanCreateListings(true);
-        } else {
-          setCanCreateListings(false);
-        }
+        console.error('Error checking activation:', err);
+        setStatusError('Unable to verify activation status');
+        setCanCreateListings(false);
+        setIsFullyActivated(false);
+        setIsSubscriptionValid(false);
       } finally {
         setStatusLoading(false);
       }
@@ -191,113 +179,154 @@ const SellerCreateListing = () => {
     checkStatus();
   }, [user, refreshUser]);
 
+  const checkSubscriptionValid = () => {
+    if (isTestUser()) return true;
+    
+    // Check if user is fully activated
+    if (!isFullyActivated) {
+      toast.error('Your account is not activated. Please complete activation first.');
+      navigate('/dashboard/activation');
+      return false;
+    }
+    
+    // Check if subscription is valid
+    if (!isSubscriptionValid || subscriptionDaysLeft <= 0) {
+      toast.error('Your subscription has expired. Please renew to publish listings.');
+      navigate('/dashboard/subscription');
+      return false;
+    }
+    
+    return true;
+  };
+
   const ActivationRequiredView = () => {
-    const renderContent = () => {
-      if (statusLoading) {
-        return (
-          <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600">
-              <Loader className="w-6 h-6 animate-spin" />
-            </div>
-            <p className="mt-4 text-gray-600">Checking your activation status...</p>
-          </div>
-        );
-      }
-
-      if (canCreateListings) {
-        // This shouldn't happen as we're in ActivationRequiredView, but just in case
-        return (
-          <>
-            <h2 className="text-2xl font-bold text-green-600 mb-2">Account Active!</h2>
-            <p className="text-gray-600 mb-4">Your account is fully activated.</p>
-            <button onClick={() => window.location.reload()} className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-green-600 to-teal-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition">
-              Continue to Listing
-            </button>
-          </>
-        );
-      }
-
-      if (activationStatus?.status === 'payment_pending') {
-        return (
-          <>
-            <h2 className="text-2xl font-bold text-yellow-600 mb-2">Payment Under Review</h2>
-            <p className="text-gray-600 mb-4">Your subscription payment is being verified by the admin.</p>
-            <p className="text-sm text-gray-500">Once payment is approved, you will be able to create listings.</p>
-          </>
-        );
-      }
-
-      if (activationStatus?.status === 'documents_approved') {
-        return (
-          <>
-            <h2 className="text-2xl font-bold text-green-600 mb-2">Documents Approved!</h2>
-            <p className="text-gray-600 mb-4">Your documents have been approved. Please subscribe to activate your account.</p>
-            <button onClick={() => navigate('/subscription')} className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition">
-              Go to Subscription
-            </button>
-          </>
-        );
-      }
-
-      if (activationStatus?.status === 'documents_pending') {
-        return (
-          <>
-            <h2 className="text-2xl font-bold text-yellow-600 mb-2">Documents Under Review</h2>
-            <p className="text-gray-600 mb-4">Your activation documents are under admin review. Please wait for approval.</p>
-            <p className="text-sm text-gray-500">You will be notified once approved.</p>
-          </>
-        );
-      }
-
-      if (activationStatus?.status === 'rejected') {
-        return (
-          <>
-            <h2 className="text-2xl font-bold text-red-600 mb-2">Activation Request Rejected</h2>
-            <p className="text-gray-600 mb-4">{activationStatus.message || 'Your request was rejected. Please resubmit your documents.'}</p>
-            <button onClick={() => navigate('/activation')} className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition">
-              Go to Activation
-            </button>
-          </>
-        );
-      }
-
+    if (statusLoading) {
       return (
-        <>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Not Activated</h2>
-          <p className="text-gray-600 mb-4">Your account must be activated before you can create listings.</p>
-          <button onClick={() => navigate('/activation')} className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition">
-            Go to Activation
-          </button>
-        </>
+        <div className="max-w-3xl mx-auto px-4 py-16">
+          <div className="bg-white border border-gray-200 rounded-3xl shadow-sm p-10 text-center">
+            <Loader className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Checking your account status...</p>
+          </div>
+        </div>
       );
-    };
+    }
 
+    // User is fully activated with valid subscription - show the form
+    if (isFullyActivated && isSubscriptionValid && subscriptionDaysLeft > 0) {
+      return null;
+    }
+
+    // Check if subscription expired (was previously activated)
+    const isExpired = activationStatus?.status === 'documents_approved' && activationStatus?.needs_renewal === true;
+    
+    // Show activation required message
     return (
       <div className="max-w-3xl mx-auto px-4 py-16">
         <div className="bg-white border border-gray-200 rounded-3xl shadow-sm p-10 text-center">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100 text-yellow-700">
-            <Shield className="w-8 h-8" />
+            {isExpired ? <CreditCard className="w-8 h-8" /> : <Shield className="w-8 h-8" />}
           </div>
-          {renderContent()}
-          {statusError && <p className="mt-4 text-sm text-red-500">{statusError}</p>}
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            {isExpired ? 'Subscription Expired' : 'Account Not Activated'}
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {isExpired 
+              ? 'Your subscription has expired. Please renew to continue creating listings.'
+              : 'Your account must be activated before you can create listings.'}
+          </p>
+          <button 
+            onClick={() => navigate(isExpired ? '/dashboard/subscription' : '/dashboard/activation')} 
+            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition"
+          >
+            {isExpired ? 'Renew Subscription' : 'Go to Activation'}
+          </button>
         </div>
       </div>
     );
   };
 
-  // If still loading OR cannot create listings, show activation view
-  if (statusLoading) {
-    return <ActivationRequiredView />;
-  }
+  const SubscriptionWarningBanner = () => {
+    if (isTestUser()) return null;
+    if (!isFullyActivated) return null;
+    
+    if (!isSubscriptionValid || subscriptionDaysLeft <= 0) {
+      return (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CreditCard className="w-5 h-5 text-red-500" />
+            <div>
+              <p className="font-semibold text-red-700">Subscription Expired</p>
+              <p className="text-sm text-red-600">Your subscription has expired. Please renew to publish listings.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => navigate('/dashboard/subscription')}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition"
+          >
+            Renew Now
+          </button>
+        </div>
+      );
+    }
+    
+    if (subscriptionDaysLeft <= 30 && subscriptionDaysLeft > 0) {
+      const isUrgent = subscriptionDaysLeft <= 7;
+      
+      return (
+        <div className={`mb-6 rounded-xl p-4 flex items-center justify-between ${
+          isUrgent 
+            ? 'bg-orange-50 border border-orange-200' 
+            : 'bg-yellow-50 border border-yellow-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            <Clock className={`w-5 h-5 ${isUrgent ? 'text-orange-500' : 'text-yellow-600'}`} />
+            <div>
+              <p className={`font-semibold ${isUrgent ? 'text-orange-700' : 'text-yellow-800'}`}>
+                ⚠️ Subscription Expiring Soon!
+              </p>
+              <p className={`text-sm ${isUrgent ? 'text-orange-600' : 'text-yellow-700'}`}>
+                Your plan expires in {subscriptionDaysLeft} days. Renew to continue creating listings.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => navigate('/dashboard/subscription')}
+            className={`px-4 py-2 text-white rounded-lg text-sm font-semibold transition ${
+              isUrgent ? 'bg-orange-600 hover:bg-orange-700' : 'bg-yellow-600 hover:bg-yellow-700'
+            }`}
+          >
+            Renew Now
+          </button>
+        </div>
+      );
+    }
+    
+    // Show active subscription info banner
+    if (isSubscriptionValid && subscriptionDaysLeft > 30) {
+      return (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-green-600" />
+            <p className="text-sm text-green-700">
+              ✅ Active Subscription • {subscriptionDaysLeft} days remaining
+            </p>
+          </div>
+        </div>
+      );
+    }
+    
+    return null;
+  };
 
-  if (!canCreateListings) {
-    return <ActivationRequiredView />;
-  }
+  // Show activation view if not activated or subscription expired
+  const activationView = ActivationRequiredView();
+  if (activationView) return activationView;
 
   // If no listing type selected
   if (!listingType) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
+        <SubscriptionWarningBanner />
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Create New Listing</h1>
           <p className="text-gray-500 text-sm mt-1">Choose listing type</p>
@@ -485,7 +514,7 @@ const SellerCreateListing = () => {
       
       if (response.ok && data.success) {
         toast.success('Draft saved successfully!', { id: 'draft-toast' });
-        setTimeout(() => navigate('/listings'), 1500);
+        setTimeout(() => navigate('/dashboard/listings'), 1500);
       } else {
         toast.error(data.detail || 'Failed to save draft', { id: 'draft-toast' });
       }
@@ -498,9 +527,8 @@ const SellerCreateListing = () => {
   };
 
   const handlePublish = async () => {
-    if (!canCreateListings) {
-      toast.error('Your account is not activated. Please activate your account to publish listings.');
-      navigate('/activation');
+    // Check subscription before publishing
+    if (!checkSubscriptionValid()) {
       return;
     }
 
@@ -577,7 +605,7 @@ const SellerCreateListing = () => {
       
       if (response.ok && data.success) {
         toast.success('Listing published successfully!', { id: 'publish-toast' });
-        setTimeout(() => navigate('/listings'), 1500);
+        setTimeout(() => navigate('/dashboard/listings'), 1500);
       } else {
         const errorMsg = data.detail || data.message || 'Failed to publish listing';
         toast.error(typeof errorMsg === 'string' ? errorMsg : 'Failed to publish', { id: 'publish-toast' });
@@ -668,9 +696,13 @@ const SellerCreateListing = () => {
     );
   };
 
+  const canPublish = isFullyActivated && isSubscriptionValid && subscriptionDaysLeft > 0;
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
       {showPreview && <PreviewModal />}
+      
+      <SubscriptionWarningBanner />
 
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
@@ -870,8 +902,9 @@ const SellerCreateListing = () => {
           ) : (
             <button 
               onClick={handlePublish} 
-              disabled={isPublishing || !canCreateListings}
-              className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50"
+              disabled={isPublishing || !canPublish}
+              className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!canPublish ? "You need an active subscription to publish listings" : ""}
             >
               {isPublishing ? (
                 <>

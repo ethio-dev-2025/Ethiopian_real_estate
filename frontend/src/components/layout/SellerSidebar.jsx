@@ -1,4 +1,3 @@
-// src/components/layout/SellerSidebar.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -13,7 +12,7 @@ import { useLanguage } from '../../context/LanguageContext'
 const API_URL = 'http://localhost:8000';
 
 const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
-  const { user, logout, refreshUser, updateUser } = useAuth();
+  const { user, logout, refreshUser, updateUser, forceRefreshUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
@@ -39,7 +38,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     { id: 'appearance', labelKey: 'appearance', label: 'Appearance', icon: Monitor, tab: 'appearance' }
   ];
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (settingsDropdownRef.current && 
@@ -53,12 +51,10 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close dropdown on route change
   useEffect(() => {
     setIsSettingsDropdownOpen(false);
   }, [location.pathname]);
 
-  // ========== LISTEN FOR UNREAD COUNT UPDATES ==========
   useEffect(() => {
     const handleUnreadUpdate = (event) => {
       if (event.detail?.count !== undefined) {
@@ -67,10 +63,8 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
       }
     };
     
-    // Listen for custom event from SellerMessages
     window.addEventListener('seller_unread_update', handleUnreadUpdate);
     
-    // Also check localStorage for initial count
     const savedCount = localStorage.getItem('seller_unread_count');
     if (savedCount) {
       setTotalUnreadCount(parseInt(savedCount));
@@ -81,7 +75,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     };
   }, []);
 
-  // Fetch unread count - ONLY ONCE
   const fetchUnreadCount = async () => {
     if (hasFetchedRef.current) {
       return;
@@ -99,7 +92,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
       if (response.ok && isMountedRef.current) {
         const data = await response.json();
         setTotalUnreadCount(data.unread_count || data.count || 0);
-        // Save to localStorage
         localStorage.setItem('seller_unread_count', data.unread_count || data.count || 0);
       }
     } catch (error) {
@@ -107,7 +99,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     }
   };
 
-  // Fetch live activation status from backend
   const fetchLiveActivationStatus = async () => {
     const token = localStorage.getItem('access_token');
     if (!token) return;
@@ -130,7 +121,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     }
   };
 
-  // SINGLE EFFECT - runs ONCE
   useEffect(() => {
     isMountedRef.current = true;
     
@@ -165,13 +155,151 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     setImageError(false);
   }, [user?.avatar_url]);
 
+  // ============ FIXED: getUserName with proper validation ============
+  const getUserName = () => {
+    if (!user) return 'Seller';
+    
+    if (user.full_name && user.full_name !== 'vvvvv' && user.full_name !== 'vvvvvvv' && user.full_name.trim() !== '') {
+      return user.full_name;
+    }
+    
+    if (user.username && user.username !== 'vvvvv' && user.username !== 'vvvvvvv' && user.username.trim() !== '') {
+      return user.username;
+    }
+    
+    if (user.email) {
+      const emailName = user.email.split('@')[0];
+      if (emailName && emailName !== 'vvvvv' && emailName !== 'vvvvvvv' && emailName.trim() !== '') {
+        return emailName;
+      }
+    }
+    
+    return 'Seller';
+  };
+
+  const getUserInitial = () => {
+    const name = getUserName();
+    if (name && name !== 'Seller') {
+      return name.charAt(0).toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return 'S';
+  };
+
+  const getRoleDisplay = () => {
+    const role = user?.role_type;
+    if (role === 'dual') return 'Seller & Landlord';
+    if (role === 'seller') return 'Seller';
+    if (role === 'landlord') return 'Landlord';
+    return 'Seller';
+  };
+
+  // ============ FIXED: Get days remaining - NO HARDCODED VALUES ============
+  const getDaysRemaining = () => {
+    // First check subscription_end_date from user object
+    if (user?.subscription_end_date) {
+      const end = new Date(user.subscription_end_date);
+      const now = new Date();
+      const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+      if (diff > 0) return diff;
+      return 0;
+    }
+    
+    // Check from liveStatus API response
+    if (liveStatus?.days_remaining !== undefined) {
+      const days = parseInt(liveStatus.days_remaining);
+      if (days > 0) return days;
+    }
+    
+    // Check if user has active subscription but no end date
+    if (user?.has_active_subscription === true || user?.can_create_listings === true) {
+      return 0;
+    }
+    
+    return 0;
+  };
+
+  const daysRemaining = getDaysRemaining();
+
+// ============ FIXED: Get user status based on actual subscription ============
+const getUserStatus = () => {
+  // First check liveStatus from API (most reliable)
+  if (liveStatus) {
+    // Active user with valid subscription - show "Active"
+    if (liveStatus.status === 'fully_activated' && daysRemaining > 0) {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+    }
+    // User needs to subscribe (documents approved or expired)
+    if (liveStatus.status === 'documents_approved') {
+      return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
+    }
+    if (liveStatus.status === 'payment_pending') {
+      return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+    }
+    if (liveStatus.status === 'documents_pending') {
+      return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
+    }
+    if (liveStatus.status === 'rejected') {
+      return { text: 'Rejected', color: 'red', dotColor: 'bg-red-500' };
+    }
+    if (liveStatus.status === 'subscription_expired' && liveStatus.needs_renewal) {
+      return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
+    }
+    if (liveStatus.can_create_listings === true && daysRemaining === 0) {
+      return { text: 'Expired', color: 'orange', dotColor: 'bg-orange-500' };
+    }
+  }
+  
+  // Check user object if liveStatus not available
+  if (user?.role_type === 'admin') {
+    return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+  }
+
+  // Check for active user with valid subscription
+  if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining > 0) {
+    return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+  }
+
+  // Check if subscription expired (was active but now expired)
+  if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining === 0) {
+    return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
+  }
+
+  if (user?.is_activated === true && user?.payment_approved === true && daysRemaining > 0) {
+    return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+  }
+
+  if (user?.is_activated === true && user?.payment_approved === true && daysRemaining === 0) {
+    return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
+  }
+
+  if (user?.is_activated === true && user?.payment_approved === false) {
+    return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+  }
+
+  if (user?.is_activated === false || user?.can_create_listings === false) {
+    return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
+  }
+
+  return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+};
+
+const status = getUserStatus();
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    setIsSettingsDropdownOpen(!isSettingsDropdownOpen);
+  };
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', labelKey: 'dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { id: 'create-listing', label: 'Create Listing', labelKey: 'create_listing', icon: PlusCircle, path: '/create-listing' },
-    { id: 'my-listings', label: 'My Listings', labelKey: 'my_listings', icon: List, path: '/listings' },
-    { id: 'messages', label: 'Messages', labelKey: 'messages', icon: MessageSquare, path: '/messages', badge: totalUnreadCount },
-    { id: 'activation', label: 'Activation', labelKey: 'activation', icon: Shield, path: '/activation' },
-    { id: 'subscription', label: 'Subscription', labelKey: 'subscription', icon: CreditCard, path: '/subscription' }
+    { id: 'create-listing', label: 'Create Listing', labelKey: 'create_listing', icon: PlusCircle, path: '/dashboard/create-listing' },
+    { id: 'my-listings', label: 'My Listings', labelKey: 'my_listings', icon: List, path: '/dashboard/listings' },
+    { id: 'messages', label: 'Messages', labelKey: 'messages', icon: MessageSquare, path: '/dashboard/messages', badge: totalUnreadCount },
+    { id: 'activation', label: 'Activation', labelKey: 'activation', icon: Shield, path: '/dashboard/activation' },
+    { id: 'subscription', label: 'Subscription', labelKey: 'subscription', icon: CreditCard, path: '/dashboard/subscription' }
   ];
 
   const handleNavigation = (path) => {
@@ -181,7 +309,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   };
 
   const handleSettingsNavigation = (tab) => {
-    navigate(`/settings?tab=${tab}`);
+    navigate(`/dashboard/settings?tab=${tab}`);
     setIsSettingsDropdownOpen(false);
     if (isMobile) setSidebarOpen(false);
   };
@@ -248,79 +376,8 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     }
   };
 
-  const getUserInitial = () => {
-    if (user?.full_name) return user.full_name.charAt(0).toUpperCase();
-    if (user?.username) return user.username.charAt(0).toUpperCase();
-    return 'S';
-  };
-
-  const getUserName = () => {
-    if (user?.full_name) return user.full_name;
-    if (user?.username) return user.username;
-    return 'Seller';
-  };
-
-  const getRoleDisplay = () => {
-    const role = user?.role_type;
-    if (role === 'dual') return 'Seller & Landlord';
-    if (role === 'seller') return 'Seller';
-    if (role === 'landlord') return 'Landlord';
-    return 'Seller';
-  };
-
-  const getUserStatus = () => {
-    if (liveStatus) {
-      if (liveStatus.can_create_listings === true || liveStatus.is_activated === true) {
-        return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-      }
-      if (liveStatus.status === 'payment_pending') {
-        return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
-      }
-      if (liveStatus.status === 'documents_pending') {
-        return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
-      }
-      if (liveStatus.status === 'documents_approved') {
-        return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
-      }
-    }
-    
-    if (user?.role_type === 'admin') {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-    }
-
-    if (user?.status === 'active') {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-    }
-
-    if (user?.can_create_listings === true || user?.has_active_subscription === true) {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-    }
-
-    if (user?.is_activated === true && user?.payment_approved === true) {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-    }
-
-    if (user?.is_activated === true && user?.payment_approved === false) {
-      return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
-    }
-
-    if (user?.is_activated === false || user?.can_create_listings === false) {
-      return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
-    }
-
-    return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
-  };
-
-  const status = getUserStatus();
-
-  const toggleDropdown = (e) => {
-    e.stopPropagation();
-    setIsSettingsDropdownOpen(!isSettingsDropdownOpen);
-  };
-
   return (
     <>
-      {/* Mobile overlay */}
       {isMobile && sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300"
@@ -333,7 +390,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
         ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}
       `}>
         <div className="flex flex-col h-full">
-          {/* Logo Section */}
           <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigation('/dashboard')}>
@@ -358,7 +414,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
             </div>
           </div>
 
-          {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1 mt-4">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -396,13 +451,12 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
               );
             })}
 
-            {/* Settings Dropdown */}
             <div className="relative">
               <button
                 ref={settingsButtonRef}
                 onClick={toggleDropdown}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150
-                  ${location.pathname === '/settings'
+                  ${location.pathname === '/dashboard/settings'
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                   }`}
@@ -424,7 +478,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                   {settingsMenuItems.map((item) => {
                     const Icon = item.icon;
                     const currentTab = new URLSearchParams(location.search).get('tab') || 'profile';
-                    const isActive = location.pathname === '/settings' && currentTab === item.tab;
+                    const isActive = location.pathname === '/dashboard/settings' && currentTab === item.tab;
                     return (
                       <button
                         key={item.id}
@@ -446,7 +500,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
             </div>
           </nav>
 
-          {/* User Profile Section */}
           <div className="p-4 pt-0 pb-5 mt-auto">
             <div className={`flex items-center ${sidebarOpen ? 'gap-3' : 'flex-col gap-2'}`}>
               <div className="relative group">
@@ -493,12 +546,21 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                       {status.text}
                     </span>
                   </div>
+                  {daysRemaining > 0 && (
+                    <div className="text-xs text-green-400 mt-1">
+                      {daysRemaining} days left
+                    </div>
+                  )}
+                  {daysRemaining === 0 && status.text !== 'Active' && (
+                    <div className="text-xs text-red-400 mt-1">
+                      Expired
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
           
-          {/* Logout Button */}
           <div className="p-4 border-t border-white/10">
             <button 
               onClick={handleLogout} 

@@ -65,7 +65,7 @@ const AdminLayout = ({ children }) => {
     if (path === '/admin' || path === '/admin/dashboard') return 'Dashboard';
     if (path.includes('/users')) return 'User Management';
     if (path.includes('/verification-queue')) return 'Verification Queue';
-    if (path.includes('/payment-approvals')) return 'Payment Approvals';
+    if (path.includes('/payment-approvals')) return 'Payment History'; // Changed from 'Payment Approvals' to 'Payment History'
     if (path.includes('/reports')) return 'Reports & Analytics';
     if (path.includes('/messages')) return 'Admin Messages';
     if (path.includes('/settings')) return 'Settings';

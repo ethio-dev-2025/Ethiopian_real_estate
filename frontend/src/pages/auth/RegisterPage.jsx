@@ -1,7 +1,7 @@
 // src/pages/auth/RegisterPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, User, Mail, Phone, Lock, UserPlus, ArrowLeft, Building2, Shield, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, User, Mail, Phone, Lock, UserPlus, Building2, Shield, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000';
@@ -14,7 +14,6 @@ const RegisterPage = () => {
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
-    username: '',
     phone: '',
     password: '',
     confirm_password: ''
@@ -32,12 +31,26 @@ const RegisterPage = () => {
     if (!formData.full_name.trim()) newErrors.full_name = 'Full name is required';
     if (!formData.email.trim()) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email is invalid';
-    if (!formData.username.trim()) newErrors.username = 'Username is required';
+    
+    // Phone number validation
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    } else if (!/^[0-9+\-\s()]+$/.test(formData.phone)) {
+      newErrors.phone = 'Please enter a valid phone number';
+    } else if (formData.phone.replace(/[^0-9]/g, '').length < 9) {
+      newErrors.phone = 'Phone number must be at least 9 digits';
+    }
+    
     if (!formData.password) newErrors.password = 'Password is required';
     else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
     if (formData.password !== formData.confirm_password) newErrors.confirm_password = 'Passwords do not match';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Generate username from email (for backend)
+  const generateUsername = (email) => {
+    return email.split('@')[0];
   };
 
   const handleSubmit = async (e) => {
@@ -48,11 +61,13 @@ const RegisterPage = () => {
     const toastId = toast.loading('Creating seller account...');
     
     try {
+      const username = generateUsername(formData.email);
+      
       const requestBody = {
         full_name: formData.full_name,
         email: formData.email,
-        username: formData.username,
-        phone: formData.phone || '',
+        username: username,
+        phone: formData.phone,
         password: formData.password,
         role_type: 'dual'
       };
@@ -80,25 +95,16 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-      {/* Back to Home Button - Top Left Corner */}
-      <button
-        onClick={() => navigate('/')}
-        className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl text-gray-700 hover:bg-white transition-all duration-300 border border-gray-200 shadow-sm group"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-        <span className="text-sm font-medium">Back to Home</span>
-      </button>
-
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Header - Green/TEAL gradient */}
-          <div className="bg-gradient-to-r from-teal-600 to-emerald-600 p-6 text-center">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+          {/* Header - White/Black theme */}
+          <div className="bg-white p-6 text-center border-b border-gray-100">
+            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-3">
               <Building2 className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white">Create Account</h1>
-            <p className="text-teal-100 text-sm mt-1">Join as a seller to list properties</p>
+            <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
+            <p className="text-gray-500 text-sm mt-1">Join as a seller to list properties</p>
           </div>
 
           {/* Form */}
@@ -115,7 +121,7 @@ const RegisterPage = () => {
                     name="full_name"
                     value={formData.full_name}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border ${errors.full_name ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500`}
+                    className={`w-full pl-10 pr-4 py-3 border ${errors.full_name ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900`}
                     placeholder="Enter your full name"
                   />
                 </div>
@@ -133,7 +139,7 @@ const RegisterPage = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500`}
+                    className={`w-full pl-10 pr-4 py-3 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900`}
                     placeholder="Enter your email"
                   />
                 </div>
@@ -142,25 +148,7 @@ const RegisterPage = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Username <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border ${errors.username ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500`}
-                    placeholder="Choose a username"
-                  />
-                </div>
-                {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number <span className="text-gray-400 text-xs">(Optional)</span>
+                  Phone Number <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -169,10 +157,11 @@ const RegisterPage = () => {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                    placeholder="Enter your phone number"
+                    className={`w-full pl-10 pr-4 py-3 border ${errors.phone ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900`}
+                    placeholder="Enter your phone number (e.g., 0912345678)"
                   />
                 </div>
+                {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
               </div>
 
               <div>
@@ -186,7 +175,7 @@ const RegisterPage = () => {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-10 py-3 border ${errors.password ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500`}
+                    className={`w-full pl-10 pr-10 py-3 border ${errors.password ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900`}
                     placeholder="Create a password (min 6 characters)"
                   />
                   <button
@@ -211,7 +200,7 @@ const RegisterPage = () => {
                     name="confirm_password"
                     value={formData.confirm_password}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-10 py-3 border ${errors.confirm_password ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500`}
+                    className={`w-full pl-10 pr-10 py-3 border ${errors.confirm_password ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900`}
                     placeholder="Confirm your password"
                   />
                   <button
@@ -233,7 +222,7 @@ const RegisterPage = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+                className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
               >
                 {loading ? (
                   <>
@@ -252,7 +241,7 @@ const RegisterPage = () => {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}
-                <Link to="/login" className="text-teal-600 hover:text-teal-700 font-semibold">
+                <Link to="/login" className="text-gray-900 hover:text-gray-700 font-semibold">
                   Sign In
                 </Link>
               </p>

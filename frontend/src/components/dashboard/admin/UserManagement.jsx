@@ -1,9 +1,10 @@
+// src/components/dashboard/admin/UserManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react'
 import { 
   Search, UserX, Eye, Shield, CheckCircle, 
   XCircle, RefreshCw, Mail, Phone, Calendar, 
   User, Home, Briefcase, Users, TrendingUp,
-  Crown, Clock, FileText, AlertCircle
+  Crown, Clock, FileText, AlertCircle, Loader
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -40,12 +41,14 @@ const UserManagement = () => {
       const token = localStorage.getItem('access_token')
       if (!token) {
         toast.error('Authentication required')
+        setLoading(false)
         return
       }
       
+      // Try multiple endpoints to find which one works
       let url = `${API_URL}/api/admin/users?limit=200`
-      if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`
-      if (filterStatus !== 'all') url += `&status=${filterStatus}`
+      
+      console.log('📊 Fetching users from:', url)
       
       const response = await fetch(url, {
         headers: { 
@@ -55,18 +58,86 @@ const UserManagement = () => {
       })
       
       if (!response.ok) {
-        throw new Error('Failed to fetch users')
+        console.warn('Failed to fetch from /api/admin/users, trying /api/users/admin/all')
+        // Try alternative endpoint
+        const altResponse = await fetch(`${API_URL}/api/users/admin/all?limit=200`, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (!altResponse.ok) {
+          throw new Error('Failed to fetch users from all endpoints')
+        }
+        
+        const altData = await altResponse.json()
+        let usersData = altData.users || altData || []
+        
+        if (!Array.isArray(usersData)) {
+          usersData = []
+        }
+        
+        setUsers(usersData)
+        setTotalUsers(usersData.length)
+        
+        // Calculate counts
+        const allUsers = usersData
+        
+        const fullyActive = allUsers.filter(u => u.is_verified === true && u.payment_approved === true).length
+        const docApprovedWaitingPayment = allUsers.filter(u => u.is_verified === true && u.payment_approved !== true).length
+        const docsSubmittedPending = allUsers.filter(u => 
+          (u.seller_documents_submitted === true || u.landlord_documents_submitted === true) && 
+          u.is_verified !== true
+        ).length
+        const noDocuments = allUsers.filter(u => 
+          (u.seller_documents_submitted !== true && u.landlord_documents_submitted !== true) && 
+          u.is_verified !== true
+        ).length
+        const suspended = allUsers.filter(u => u.status === 'suspended').length
+        
+        const buyers = allUsers.filter(u => u.role_type === 'buyer').length
+        const sellers = allUsers.filter(u => u.role_type === 'seller').length
+        const landlords = allUsers.filter(u => u.role_type === 'landlord').length
+        const dual = allUsers.filter(u => u.role_type === 'dual').length
+        const usersCount = allUsers.filter(u => u.role_type === 'user').length
+        
+        setCounts({
+          total: allUsers.length,
+          fullyActive,
+          docApprovedWaitingPayment,
+          docsSubmittedPending,
+          noDocuments,
+          suspended,
+          buyers,
+          sellers,
+          landlords,
+          dual,
+          users: usersCount
+        })
+        
+        setLoading(false)
+        return
       }
       
       const data = await response.json()
-      let usersData = data.users || []
+      console.log('📊 Users data received:', data)
       
+      let usersData = data.users || data || []
+      
+      if (!Array.isArray(usersData)) {
+        usersData = []
+      }
+      
+      // Filter out agents and admins
       usersData = usersData.filter(u => u.role_type !== 'agent' && u.role_type !== 'admin')
       
+      // Apply role filter
       if (filterRole !== 'all') {
         usersData = usersData.filter(u => u.role_type === filterRole)
       }
       
+      // Apply verification filter
       if (filterVerification !== 'all') {
         if (filterVerification === 'fully_active') {
           usersData = usersData.filter(u => u.is_verified === true && u.payment_approved === true)
@@ -88,7 +159,8 @@ const UserManagement = () => {
       setUsers(usersData)
       setTotalUsers(usersData.length)
       
-      const allUsers = (data.users || []).filter(u => u.role_type !== 'agent' && u.role_type !== 'admin')
+      // Calculate counts
+      const allUsers = data.users || data || []
       
       const fullyActive = allUsers.filter(u => u.is_verified === true && u.payment_approved === true).length
       const docApprovedWaitingPayment = allUsers.filter(u => u.is_verified === true && u.payment_approved !== true).length
@@ -128,7 +200,7 @@ const UserManagement = () => {
     } finally {
       setLoading(false)
     }
-  }, [searchTerm, filterStatus, filterRole, filterVerification])
+  }, [filterRole, filterVerification])
 
   useEffect(() => {
     fetchUsers()
@@ -349,6 +421,17 @@ const UserManagement = () => {
     </div>
   )
 
+  if (loading) {
+    return (
+      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading users...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="p-8">
@@ -488,26 +571,12 @@ const UserManagement = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {loading && users.length === 0 ? (
-                  [1, 2, 3, 4, 5].map((i) => (
-                    <tr key={i} className="animate-pulse">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-                          <div className="h-4 bg-gray-200 rounded w-24"></div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
-                      <td className="px-6 py-4"><div className="h-5 bg-gray-200 rounded w-16"></div></td>
-                      <td className="px-6 py-4"><div className="h-5 bg-gray-200 rounded w-28"></div></td>
-                      <td className="px-6 py-4"><div className="h-5 bg-gray-200 rounded w-20"></div></td>
-                      <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
-                      <td className="px-6 py-4"><div className="w-8 h-8 bg-gray-200 rounded-lg"></div></td>
-                    </tr>
-                  ))
-                ) : users.length === 0 ? (
+                {users.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="text-center py-12 text-gray-400">No users found</td>
+                    <td colSpan="7" className="text-center py-12 text-gray-400">
+                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      No users found
+                    </td>
                   </tr>
                 ) : (
                   users.map((user) => {

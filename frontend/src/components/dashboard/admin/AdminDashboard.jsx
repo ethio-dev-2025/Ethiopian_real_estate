@@ -5,7 +5,7 @@ import AdminLayout from '../../layout/AdminLayout'
 import DashboardOverview from './DashboardOverview'
 import UserManagement from './UserManagement'
 import VerificationQueue from './VerificationQueue'
-import PaymentApprovals from './PaymentApprovals'
+import PaymentHistory from './PaymentHistory'  // Changed from PaymentApprovals to PaymentHistory
 import ReportsAnalytics from './ReportsAnalytics'
 import AdminSettings from './AdminSettings'
 import AdminMessages from './AdminMessages'
@@ -73,7 +73,7 @@ const AdminDashboard = () => {
             const notificationsEnabled = arePaymentNotificationsEnabled()
             
             if (notificationsEnabled) {
-              showInfo(`💰 ${newPaymentsCount} new payment(s) waiting for approval!`, 'payment')
+              showInfo(`💰 ${newPaymentsCount} new payment(s) received!`, 'payment')
             }
           }
           
@@ -111,7 +111,7 @@ const AdminDashboard = () => {
         <Route path="/" element={<DashboardOverview />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/verification-queue" element={<VerificationQueue />} />
-        <Route path="/payment-approvals" element={<PaymentApprovals />} />
+        <Route path="/payment-approvals" element={<PaymentHistory />} />  {/* Changed component to PaymentHistory */}
         <Route path="/reports" element={<ReportsAnalytics />} />
         <Route path="/messages" element={<AdminMessages />} />
         <Route path="/settings" element={<AdminSettings />} />

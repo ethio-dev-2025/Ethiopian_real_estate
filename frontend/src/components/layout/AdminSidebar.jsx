@@ -28,7 +28,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false)
   const [companySettingsOpen, setCompanySettingsOpen] = useState(false)
 
-  // ADD THIS: Force refresh user data every 5 seconds
+  // Force refresh user data every 5 seconds
   useEffect(() => {
     const interval = setInterval(async () => {
       if (refreshUser) {
@@ -40,7 +40,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     return () => clearInterval(interval);
   }, [refreshUser]);
 
-  // ADD THIS: Listen for storage events (when user data changes in another tab)
+  // Listen for storage events (when user data changes in another tab)
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'user') {
@@ -55,7 +55,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [refreshUser]);
 
-  // ADD THIS: Listener for admin messages unread updates
+  // Listener for admin messages unread updates
   useEffect(() => {
     const handleUnreadUpdate = (event) => {
       if (event.detail?.count !== undefined) {
@@ -185,14 +185,15 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     }
   }, [location.pathname])
 
-  const menuItems = [
-    { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-    { path: '/admin/users', label: 'User Management', icon: Users },
-    { path: '/admin/verification-queue', label: 'Verification Queue', icon: FileCheck, badge: pendingCount },
-    { path: '/admin/payment-approvals', label: 'Payment Approvals', icon: CreditCard, badge: pendingPaymentsCount },
-    { path: '/admin/reports', label: 'Reports & Analytics', icon: BarChart3 },
-    { path: '/admin/messages', label: 'Messages', icon: MessageCircle, badge: adminMessagesUnreadCount },
-  ]
+ // In AdminSidebar.jsx, update the menuItems array - remove the badge from Payment History
+const menuItems = [
+  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { path: '/admin/users', label: 'User Management', icon: Users },
+  { path: '/admin/verification-queue', label: 'Verification Queue', icon: FileCheck, badge: pendingCount },
+  { path: '/admin/payment-approvals', label: 'Payment History', icon: CreditCard }, // Removed badge here
+  { path: '/admin/reports', label: 'Reports & Analytics', icon: BarChart3 },
+  { path: '/admin/messages', label: 'Messages', icon: MessageCircle, badge: adminMessagesUnreadCount },
+]
 
   const handleLogoutClick = () => {
     logout()

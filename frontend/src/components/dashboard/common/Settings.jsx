@@ -4,8 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { 
   User, Mail, Phone, Calendar, MapPin, Lock, 
   Shield, LogOut, Save, CheckCircle, AlertCircle,
-  Camera, Trash2, Eye, EyeOff, Key, Bell,
-  Monitor, Sun, Moon, X
+  Camera, Trash2, Eye, EyeOff, Key, X
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -20,10 +19,10 @@ const Settings = () => {
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState(false);
   
-  // Get active tab from URL parameter
+  // Get active tab from URL parameter - only profile and security now
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get('tab');
-    return tab || 'profile';
+    return (tab === 'profile' || tab === 'security') ? tab : 'profile';
   });
   
   const fileInputRef = useRef(null);
@@ -40,12 +39,6 @@ const Settings = () => {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  // Theme state - FULLY FUNCTIONAL
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark';
-  });
-
   // Profile Form Data
   const [formData, setFormData] = useState({
     full_name: '',
@@ -58,37 +51,13 @@ const Settings = () => {
     address: ''
   });
 
-  // Notification Settings
-  const [notificationSettings, setNotificationSettings] = useState({
-    email_messages: true,
-    push_messages: true
-  });
-
-  // Privacy Settings
-  const [privacySettings, setPrivacySettings] = useState({
-    profile_visibility: 'public',
-    email_visibility: 'private',
-    phone_visibility: 'private'
-  });
-
   // Listen for URL parameter changes from sidebar dropdown
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && tab !== activeTab) {
+    if ((tab === 'profile' || tab === 'security') && tab !== activeTab) {
       setActiveTab(tab);
     }
   }, [searchParams]);
-
-  // Apply dark mode
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDarkMode]);
 
   // Load user data with proper date formatting
   useEffect(() => {
@@ -124,7 +93,7 @@ const Settings = () => {
     if (length >= 150) return { text: 'Excellent', color: 'green', percentage: 100 };
     if (length >= 100) return { text: 'Good', color: 'blue', percentage: 75 };
     if (length >= 50) return { text: 'Fair', color: 'yellow', percentage: 50 };
-    return { text: 'Needs Improvement', color: 'red', percentage: 25 };
+    return { text: ' ', color: 'red', percentage: 25 };
   };
 
   const bioStrength = getBioStrength();
@@ -699,119 +668,6 @@ const Settings = () => {
                       Change Password
                     </button>
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Notifications Section */}
-        {activeTab === 'notifications' && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Notification Preferences</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Choose how you want to be notified</p>
-            </div>
-            
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              <div className="p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">Email Messages</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Receive email when you get new messages</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer" 
-                    checked={notificationSettings.email_messages}
-                    onChange={() => setNotificationSettings(prev => ({...prev, email_messages: !prev.email_messages}))}
-                  />
-                  <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-              
-              <div className="p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">Push Messages</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Real-time notifications on your browser</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer" 
-                    checked={notificationSettings.push_messages}
-                    onChange={() => setNotificationSettings(prev => ({...prev, push_messages: !prev.push_messages}))}
-                  />
-                  <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Privacy Section */}
-        {activeTab === 'privacy' && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Privacy Settings</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Control who can see your information</p>
-            </div>
-            
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              <div className="p-6">
-                <p className="font-medium text-gray-900 dark:text-white mb-4">Profile Visibility</p>
-                <div className="flex gap-6">
-                  {['public', 'private'].map((option) => (
-                    <label key={option} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="profile_visibility"
-                        value={option}
-                        checked={privacySettings.profile_visibility === option}
-                        onChange={(e) => setPrivacySettings(prev => ({...prev, profile_visibility: e.target.value}))}
-                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="p-6">
-                <p className="font-medium text-gray-900 dark:text-white mb-4">Email Visibility</p>
-                <div className="flex gap-6">
-                  {['public', 'private'].map((option) => (
-                    <label key={option} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="email_visibility"
-                        value={option}
-                        checked={privacySettings.email_visibility === option}
-                        onChange={(e) => setPrivacySettings(prev => ({...prev, email_visibility: e.target.value}))}
-                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="p-6">
-                <p className="font-medium text-gray-900 dark:text-white mb-4">Phone Visibility</p>
-                <div className="flex gap-6">
-                  {['public', 'private'].map((option) => (
-                    <label key={option} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="phone_visibility"
-                        value={option}
-                        checked={privacySettings.phone_visibility === option}
-                        onChange={(e) => setPrivacySettings(prev => ({...prev, phone_visibility: e.target.value}))}
-                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">{option}</span>
-                    </label>
-                  ))}
                 </div>
               </div>
             </div>

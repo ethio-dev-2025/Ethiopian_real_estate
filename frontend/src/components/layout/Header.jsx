@@ -1,9 +1,8 @@
-// src/components/layout/Header.jsx (Updated with translations)
+// src/components/layout/Header.jsx (Updated - Language toggle removed)
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import LanguageSwitcher from './LanguageSwitcher'
 import { Building2, Menu, X, User, LogOut, Settings, LayoutDashboard, ChevronDown } from 'lucide-react'
 
 const Header = () => {
@@ -78,9 +77,6 @@ const Header = () => {
                 </Link>
               </>
             )}
-            
-            {/* Language Switcher */}
-            <LanguageSwitcher />
 
             {/* User Dropdown (when logged in) */}
             {user && (
@@ -179,13 +175,6 @@ const Header = () => {
                 <button onClick={handleLogout} className="block w-full text-left py-2 text-red-600">{t('logout')}</button>
               </div>
             )}
-            
-            <div className="pt-3 mt-2 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">{t('language')}</span>
-                <LanguageSwitcher />
-              </div>
-            </div>
           </div>
         )}
       </div>

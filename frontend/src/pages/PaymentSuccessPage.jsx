@@ -1,7 +1,7 @@
 // src/pages/PaymentSuccessPage.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Loader, XCircle, Download, Receipt, Calendar, CreditCard, User, Mail, Phone, Clock, ArrowRight, Home, PlusCircle } from 'lucide-react';
+import { CheckCircle, Loader, XCircle, Download, Receipt, Calendar, CreditCard, Home, PlusCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000';
@@ -12,19 +12,21 @@ const PaymentSuccessPage = () => {
   const [loading, setLoading] = useState(true);
   const [paymentData, setPaymentData] = useState(null);
   const [error, setError] = useState(null);
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(5);
   
   const tx_ref = searchParams.get('tx_ref');
   const status = searchParams.get('status');
 
   useEffect(() => {
-    if (status === 'success' || tx_ref) {
+    console.log('📦 PaymentSuccessPage mounted with params:', { tx_ref, status });
+    
+    if (tx_ref) {
       verifyPayment();
     } else {
-      setLoading(false);
       setError('No payment reference found');
+      setLoading(false);
     }
-  }, []);
+  }, [tx_ref, status]);
 
   // Countdown timer for auto-redirect
   useEffect(() => {
@@ -44,41 +46,55 @@ const PaymentSuccessPage = () => {
   }, [loading, error, paymentData, navigate]);
 
   const verifyPayment = async () => {
-    if (!tx_ref) {
-      setError('Invalid payment reference');
-      setLoading(false);
-      return;
-    }
-
+    console.log('🔍 Verifying payment with tx_ref:', tx_ref);
+    
     try {
       const token = localStorage.getItem('access_token');
+      if (!token) {
+        setError('Please login again');
+        setLoading(false);
+        return;
+      }
       
-      const response = await fetch(`${API_URL}/api/payment/verify`, {
-        method: 'POST',
+      // GET request to verify endpoint
+      const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${tx_ref}`, {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ tx_ref })
+        }
       });
       
       const data = await response.json();
-      console.log('Verification response:', data);
+      console.log('📦 Verification response:', data);
       
-      if (data.success) {
-        // Get user info from localStorage
+      if (data.success && data.activated) {
+        // Refresh user data
+        const userResponse = await fetch(`${API_URL}/api/auth/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        let freshUser = null;
+        if (userResponse.ok) {
+          freshUser = await userResponse.json();
+          localStorage.setItem('user', JSON.stringify(freshUser));
+          window.dispatchEvent(new Event('user:updated'));
+          console.log('✅ User data refreshed:', freshUser);
+        }
+        
+        // Get user from localStorage
         const userStr = localStorage.getItem('user');
         const user = userStr ? JSON.parse(userStr) : {};
         
         setPaymentData({
           transaction_id: tx_ref,
-          amount: 149,
-          plan: 'Seller Plan',
+          amount: data.amount || 149,
+          plan: data.plan_type || 'Seller Plan',
           status: 'completed',
           payment_method: 'Chapa / Telebirr',
           date: new Date().toISOString(),
-          email: user?.email || 'customer@example.com',
-          customer_name: user?.full_name || user?.username || 'Valued Customer'
+          email: freshUser?.email || user?.email || 'customer@example.com',
+          customer_name: freshUser?.full_name || freshUser?.username || user?.full_name || user?.username || 'Valued Customer'
         });
         
         toast.success('Payment successful! Your subscription is active.');
@@ -87,13 +103,14 @@ const PaymentSuccessPage = () => {
       }
     } catch (error) {
       console.error('Verification error:', error);
-      setError('Failed to verify payment');
+      setError('Failed to verify payment. Please contact support.');
     } finally {
       setLoading(false);
     }
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -104,15 +121,17 @@ const PaymentSuccessPage = () => {
   };
 
   const formatAmount = (amount) => {
-    return `ETB ${amount.toLocaleString()}`;
+    return `ETB ${(amount || 0).toLocaleString()}`;
   };
 
   const handleDownloadReceipt = () => {
+    if (!paymentData) return;
+    
     const receiptHtml = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Payment Receipt - RealEstate Pro</title>
+        <title>Payment Receipt - EstateHub</title>
         <meta charset="UTF-8">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -132,8 +151,6 @@ const PaymentSuccessPage = () => {
           .total { background: #f0fdf4; }
           .total .label, .total .value { font-size: 18px; font-weight: bold; color: #059669; }
           .footer { background: #f9fafb; padding: 20px; text-align: center; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb; }
-          button { background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-top: 15px; }
-          button:hover { background: #047857; }
         </style>
       </head>
       <body>
@@ -141,26 +158,23 @@ const PaymentSuccessPage = () => {
           <div class="header">
             <div class="logo">🏠</div>
             <div class="title">Payment Receipt</div>
-            <div class="subtitle">RealEstate Pro</div>
+            <div class="subtitle">EstateHub Real Estate</div>
           </div>
           <div class="content">
-            <div class="success-badge">
-              ✅ Payment Successful
-            </div>
+            <div class="success-badge">✅ Payment Successful</div>
             <div class="details">
-              <div class="row"><span class="label">Transaction ID:</span><span class="value">${paymentData?.transaction_id}</span></div>
-              <div class="row"><span class="label">Date:</span><span class="value">${formatDate(paymentData?.date)}</span></div>
-              <div class="row"><span class="label">Plan:</span><span class="value">${paymentData?.plan}</span></div>
-              <div class="row"><span class="label">Payment Method:</span><span class="value">${paymentData?.payment_method}</span></div>
-              <div class="row"><span class="label">Customer:</span><span class="value">${paymentData?.customer_name}</span></div>
-              <div class="row"><span class="label">Email:</span><span class="value">${paymentData?.email}</span></div>
-              <div class="row total"><span class="label">Total Paid:</span><span class="value">${formatAmount(paymentData?.amount)}</span></div>
+              <div class="row"><span class="label">Transaction ID:</span><span class="value">${paymentData.transaction_id}</span></div>
+              <div class="row"><span class="label">Date:</span><span class="value">${formatDate(paymentData.date)}</span></div>
+              <div class="row"><span class="label">Plan:</span><span class="value">${paymentData.plan}</span></div>
+              <div class="row"><span class="label">Payment Method:</span><span class="value">${paymentData.payment_method}</span></div>
+              <div class="row"><span class="label">Customer:</span><span class="value">${paymentData.customer_name}</span></div>
+              <div class="row"><span class="label">Email:</span><span class="value">${paymentData.email}</span></div>
+              <div class="row total"><span class="label">Total Paid:</span><span class="value">${formatAmount(paymentData.amount)}</span></div>
             </div>
-            <p style="text-align: center; color: #6b7280; font-size: 12px;">Thank you for your payment! Your subscription is now active.</p>
           </div>
           <div class="footer">
             <p>This is a computer-generated receipt. No signature is required.</p>
-            <p>&copy; 2024 RealEstate Pro. All rights reserved.</p>
+            <p>© 2024 EstateHub Real Estate. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -171,7 +185,7 @@ const PaymentSuccessPage = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Receipt_${paymentData?.transaction_id?.slice(-8) || 'payment'}.html`;
+    a.download = `Receipt_${paymentData.transaction_id.slice(-8)}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -182,11 +196,11 @@ const PaymentSuccessPage = () => {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: '48px', height: '48px', border: '3px solid #e5e7eb', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}></div>
-          <p style={{ color: '#6b7280' }}>Verifying your payment...</p>
-          <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900">Verifying Payment</h2>
+          <p className="text-gray-500 mt-2">Please wait while we confirm your payment...</p>
         </div>
       </div>
     );
@@ -194,130 +208,103 @@ const PaymentSuccessPage = () => {
 
   if (error) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', padding: '16px' }}>
-        <div style={{ maxWidth: '400px', width: '100%', background: 'white', borderRadius: '16px', padding: '32px', textAlign: 'center', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
-          <div style={{ width: '80px', height: '80px', background: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <XCircle style={{ width: '40px', height: '40px', color: '#dc2626' }} />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl p-8 text-center shadow-xl">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <XCircle className="w-10 h-10 text-red-600" />
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>Payment Failed</h2>
-          <p style={{ color: '#6b7280', marginBottom: '24px' }}>{error}</p>
-          <button onClick={() => navigate('/subscription')} style={{ width: '100%', padding: '12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>
-            Back to Subscription
-          </button>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Payment Failed</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => navigate('/dashboard/subscription')} 
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              Try Again
+            </button>
+            <button 
+              onClick={() => navigate('/dashboard')} 
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+            >
+              Go to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: '24px' }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-        {/* Success Card */}
-        <div style={{ background: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-md mx-auto">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
           {/* Header */}
-          <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', padding: '32px', textAlign: 'center', color: 'white' }}>
-            <div style={{ width: '80px', height: '80px', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <CheckCircle style={{ width: '40px', height: '40px' }} />
+          <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-center text-white">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+              <CheckCircle className="w-8 h-8" />
             </div>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>Payment Successful!</h1>
-            <p style={{ opacity: 0.9 }}>Your subscription has been activated</p>
+            <h1 className="text-2xl font-bold">Payment Successful!</h1>
+            <p className="text-green-100 mt-1">Your subscription is now active</p>
           </div>
           
           {/* Content */}
-          <div style={{ padding: '32px' }}>
-            {/* Success Message */}
-            <div style={{ background: '#d1fae5', borderRadius: '12px', padding: '16px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <CheckCircle style={{ width: '24px', height: '24px', color: '#059669' }} />
-              <div>
-                <p style={{ fontWeight: '600', color: '#065f46', marginBottom: '4px' }}>Thank you for your payment!</p>
-                <p style={{ fontSize: '14px', color: '#047857' }}>Your subscription is now active. You can start listing properties immediately.</p>
-              </div>
-            </div>
-            
+          <div className="p-6">
             {/* Receipt */}
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
-              <div style={{ background: '#f9fafb', padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Receipt style={{ width: '20px', height: '20px', color: '#3b82f6' }} />
+            <div className="border border-gray-200 rounded-xl overflow-hidden mb-6">
+              <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-blue-600" />
                   Payment Receipt
                 </h3>
-                <button onClick={handleDownloadReceipt} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>
-                  <Download style={{ width: '16px', height: '16px' }} />
+                <button 
+                  onClick={handleDownloadReceipt}
+                  className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                >
+                  <Download className="w-4 h-4" />
                   Download
                 </button>
               </div>
-              
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                  <div>
-                    <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Transaction ID</p>
-                    <p style={{ fontSize: '13px', fontFamily: 'monospace', fontWeight: '600' }}>{paymentData?.transaction_id?.slice(-12)}</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Date & Time</p>
-                    <p style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Calendar style={{ width: '12px', height: '12px' }} />
-                      {formatDate(paymentData?.date)}
-                    </p>
-                  </div>
+              <div className="p-4 space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Transaction ID</span>
+                  <span className="font-mono font-medium">{paymentData?.transaction_id?.slice(-12)}</span>
                 </div>
-                
-                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '16px', marginBottom: '16px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Plan</p>
-                      <p style={{ fontSize: '14px', fontWeight: '600' }}>{paymentData?.plan}</p>
-                    </div>
-                    <div>
-                      <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Payment Method</p>
-                      <p style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <CreditCard style={{ width: '12px', height: '12px' }} />
-                        {paymentData?.payment_method}
-                      </p>
-                    </div>
-                  </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Date & Time</span>
+                  <span>{formatDate(paymentData?.date)}</span>
                 </div>
-                
-                <div style={{ borderTop: '2px dashed #e5e7eb', paddingTop: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Total Paid</span>
-                    <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#059669' }}>{formatAmount(paymentData?.amount)}</span>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Plan</span>
+                  <span className="font-medium">{paymentData?.plan}</span>
+                </div>
+                <div className="border-t pt-3 mt-2">
+                  <div className="flex justify-between">
+                    <span className="font-bold">Total Paid</span>
+                    <span className="font-bold text-green-600">{formatAmount(paymentData?.amount)}</span>
                   </div>
                 </div>
               </div>
             </div>
             
-            {/* What's Next */}
-            <div style={{ background: '#eff6ff', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
-              <h3 style={{ fontWeight: '600', color: '#1e40af', marginBottom: '12px' }}>What's Next?</h3>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, space: '8px' }}>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '14px', color: '#1e3a8a' }}>
-                  <CheckCircle style={{ width: '16px', height: '16px' }} /> Start creating your first property listing
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '14px', color: '#1e3a8a' }}>
-                  <CheckCircle style={{ width: '16px', height: '16px' }} /> Access premium features and analytics
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#1e3a8a' }}>
-                  <CheckCircle style={{ width: '16px', height: '16px' }} /> Get priority customer support
-                </li>
-              </ul>
-            </div>
+            {/* Auto-redirect */}
+            <p className="text-center text-sm text-gray-500 mb-4">
+              Redirecting to dashboard in <span className="font-bold text-blue-600">{countdown}</span> seconds...
+            </p>
             
-            {/* Auto-redirect Message */}
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <p style={{ fontSize: '14px', color: '#6b7280' }}>
-                Redirecting to dashboard in <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>{countdown}</span> seconds...
-              </p>
-            </div>
-            
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => navigate('/dashboard')} style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <Home style={{ width: '18px', height: '18px' }} />
-                Go to Dashboard
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="flex-1 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:shadow-lg transition flex items-center justify-center gap-2"
+              >
+                <Home className="w-4 h-4" />
+                Dashboard
               </button>
-              <button onClick={() => navigate('/create-listing')} style={{ flex: 1, padding: '14px', background: 'white', color: '#3b82f6', border: '2px solid #3b82f6', borderRadius: '12px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <PlusCircle style={{ width: '18px', height: '18px' }} />
+              <button
+                onClick={() => navigate('/dashboard/create-listing')}
+                className="flex-1 py-2 border-2 border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition flex items-center justify-center gap-2"
+              >
+                <PlusCircle className="w-4 h-4" />
                 Create Listing
               </button>
             </div>

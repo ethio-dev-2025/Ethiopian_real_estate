@@ -20,7 +20,7 @@ import AdminDashboard from '../components/dashboard/admin/AdminDashboard';
 import DashboardOverview from '../components/dashboard/admin/DashboardOverview';
 import UserManagement from '../components/dashboard/admin/UserManagement';
 import VerificationQueue from '../components/dashboard/admin/VerificationQueue';
-import PaymentApprovals from '../components/dashboard/admin/PaymentApprovals';
+import PaymentHistory from '../components/dashboard/admin/PaymentHistory';
 import ReportsAnalytics from '../components/dashboard/admin/ReportsAnalytics';
 import AdminMessages from '../components/dashboard/admin/AdminMessages';
 import AdminSettings from '../components/dashboard/admin/AdminSettings';
@@ -29,11 +29,7 @@ import CompanySettings from '../components/dashboard/admin/CompanySettings';
 // Payment Success Page
 import PaymentSuccessPage from '../pages/PaymentSuccessPage';
 
-// Map Test Pages
-import SimpleMapTest from '../pages/SimpleMapTest';
-import MapTestPage from '../pages/MapTestPage';
-
-// Public Pages - Using the correct file name: PropertiesListPage (plural)
+// Public Pages
 import PropertiesListPage from '../pages/public/PropertiesListPage';
 import PropertyDetailPage from '../pages/public/PropertyDetailPage';
 import HomePage from '../pages/public/HomePage';
@@ -153,8 +149,6 @@ const AppRoutes = () => {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/properties" element={<PropertiesListPage />} />
           <Route path="/properties/:id" element={<PropertyDetailPage />} />
-          <Route path="/simple-map" element={<SimpleMapTest />} />
-          <Route path="/map-test" element={<MapTestPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -163,6 +157,8 @@ const AppRoutes = () => {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/buyer/login" element={<BuyerLoginPage />} />
           <Route path="/buyer/register" element={<BuyerRegisterPage />} />
+          <Route path="/payment/success" element={<PaymentSuccessPage />} />
+          <Route path="/payment/return" element={<PaymentSuccessPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Suspense>
@@ -191,7 +187,7 @@ const AppRoutes = () => {
           <Route path="/admin/dashboard" element={<DashboardOverview />} />
           <Route path="/admin/users" element={<UserManagement />} />
           <Route path="/admin/verification-queue" element={<VerificationQueue />} />
-          <Route path="/admin/payment-approvals" element={<PaymentApprovals />} />
+          <Route path="/admin/payment-approvals" element={<PaymentHistory />} />
           <Route path="/admin/reports" element={<ReportsAnalytics />} />
           <Route path="/admin/messages" element={<AdminMessages />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
@@ -202,6 +198,8 @@ const AppRoutes = () => {
           <Route path="/properties/:id" element={<PropertyDetailPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/payment/success" element={<PaymentSuccessPage />} />
+          <Route path="/payment/return" element={<PaymentSuccessPage />} />
           
           <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
@@ -210,33 +208,45 @@ const AppRoutes = () => {
     );
   }
 
-  // ============ SELLER ROUTES ============
+  // ============ SELLER / LANDLORD / DUAL ROUTES ============
   if (normalizedRole === 'seller' || normalizedRole === 'landlord' || normalizedRole === 'dual') {
     return (
       <SellerLayout>
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
           <Routes>
+            {/* Dashboard Routes */}
             <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="/dashboard" element={<SellerDashboard />} />
-            <Route path="/dashboard-overview" element={<SellerDashboardOverview />} />
-            <Route path="/listings" element={<SellerListings />} />
-            <Route path="/create-listing" element={<SellerCreateListing />} />
-            <Route path="/edit-listing/:id" element={<EditListingPage />} />
-            <Route path="/messages" element={<SellerMessages />} />
-            <Route path="/messages/:conversationId" element={<SellerMessages />} />
-            <Route path="/properties" element={<SellerProperties />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/subscription" element={<SellerSubscription />} />
-            <Route path="/activation" element={<SellerActivation />} />
-            <Route path="/verification" element={<SellerDocumentVerification />} />
-            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/dashboard/overview" element={<SellerDashboardOverview />} />
+            
+            {/* Listing Routes */}
+            <Route path="/dashboard/listings" element={<SellerListings />} />
+            <Route path="/dashboard/create-listing" element={<SellerCreateListing />} />
+            <Route path="/dashboard/edit-listing/:id" element={<EditListingPage />} />
+            <Route path="/dashboard/properties" element={<SellerProperties />} />
+            
+            {/* Message Routes */}
+            <Route path="/dashboard/messages" element={<SellerMessages />} />
+            <Route path="/dashboard/messages/:conversationId" element={<SellerMessages />} />
+            
+            {/* Subscription & Activation Routes */}
+            <Route path="/dashboard/subscription" element={<SellerSubscription />} />
+            <Route path="/dashboard/activation" element={<SellerActivation />} />
+            <Route path="/dashboard/verification" element={<SellerDocumentVerification />} />
+            
+            {/* Settings & Notifications */}
+            <Route path="/dashboard/settings" element={<Settings />} />
+            <Route path="/dashboard/notifications" element={<Notifications />} />
             
             {/* Public pages for sellers */}
-            <Route path="/browse-properties" element={<PropertiesListPage />} />
+            <Route path="/properties" element={<PropertiesListPage />} />
             <Route path="/properties/:id" element={<PropertyDetailPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/payment/success" element={<PaymentSuccessPage />} />
+            <Route path="/payment/return" element={<PaymentSuccessPage />} />
             
+            {/* Catch all */}
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
         </Suspense>
@@ -248,30 +258,41 @@ const AppRoutes = () => {
   if (normalizedRole === 'buyer') {
     return (
       <BuyerLayout>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard/buyer" />} />
-          <Route path="/dashboard/buyer" element={<BuyerDashboard />} />
-          <Route path="/dashboard/buyer/messages" element={<BuyerMessages />} />
-          <Route path="/dashboard/buyer/messages/:conversationId" element={<BuyerMessages />} />
-          <Route path="/dashboard/buyer/properties" element={<BuyerProperties />} />
-          <Route path="/dashboard/buyer/saved" element={<BuyerSaved />} />
-          <Route path="/dashboard/buyer/settings" element={<Settings />} />
-          <Route path="/dashboard/buyer/notifications" element={<Notifications />} />
-          
-          {/* Public pages for buyers */}
-          <Route path="/properties" element={<PropertiesListPage />} />
-          <Route path="/properties/:id" element={<PropertyDetailPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          
-          <Route path="/payment/success" element={<PaymentSuccessPage />} />
-          <Route path="/payment/return" element={<PaymentSuccessPage />} />
-          <Route path="*" element={<Navigate to="/dashboard/buyer" />} />
-        </Routes>
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+          <Routes>
+            {/* Dashboard Routes */}
+            <Route path="/" element={<Navigate to="/dashboard/buyer" />} />
+            <Route path="/dashboard/buyer" element={<BuyerDashboard />} />
+            
+            {/* Message Routes */}
+            <Route path="/dashboard/buyer/messages" element={<BuyerMessages />} />
+            <Route path="/dashboard/buyer/messages/:conversationId" element={<BuyerMessages />} />
+            
+            {/* Property Routes */}
+            <Route path="/dashboard/buyer/properties" element={<BuyerProperties />} />
+            <Route path="/dashboard/buyer/saved" element={<BuyerSaved />} />
+            
+            {/* Settings & Notifications */}
+            <Route path="/dashboard/buyer/settings" element={<Settings />} />
+            <Route path="/dashboard/buyer/notifications" element={<Notifications />} />
+            
+            {/* Public pages for buyers */}
+            <Route path="/properties" element={<PropertiesListPage />} />
+            <Route path="/properties/:id" element={<PropertyDetailPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/payment/success" element={<PaymentSuccessPage />} />
+            <Route path="/payment/return" element={<PaymentSuccessPage />} />
+            
+            {/* Catch all */}
+            <Route path="*" element={<Navigate to="/dashboard/buyer" />} />
+          </Routes>
+        </Suspense>
       </BuyerLayout>
     );
   }
 
+  // Fallback - redirect to home
   return <Navigate to="/" />;
 };
 

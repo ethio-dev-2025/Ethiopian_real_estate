@@ -28,69 +28,128 @@ const CreateListingWizard = ({ onSuccess }) => {
   const [checkingActivation, setCheckingActivation] = useState(true)
   const [isActivated, setIsActivated] = useState(false)
   const [activationMessage, setActivationMessage] = useState('')
+  const [activationStatus, setActivationStatus] = useState(null)
   const checkCompletedRef = useRef(false)
+  
+  // Subscription check states
+  const [subscriptionValid, setSubscriptionValid] = useState(true)
+  const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState(0)
+  const [checkingSubscription, setCheckingSubscription] = useState(true)
 
-  // Check activation status from backend immediately
-  useEffect(() => {
-    const checkActivationStatus = async () => {
-      try {
-        const token = localStorage.getItem('access_token')
-        if (!token) {
-          navigate('/login')
-          return
-        }
-        
-        console.log('🔍 Checking activation status...')
-        const response = await fetch(`${API_URL}/api/activation/status`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        
-        if (!response.ok) {
-          throw new Error('Failed to check activation')
-        }
-        
-        const data = await response.json()
-        console.log('📊 Activation status:', data)
-        
-        // Check if user can create listings
-        const canCreate = data.can_create_listings === true
-        
-        if (canCreate) {
-          setIsActivated(true)
-          // Refresh user data to update sidebar
-          await refreshUser()
-        } else {
-          setIsActivated(false)
-          // Set appropriate message based on status
-          if (data.status === 'documents_pending') {
-            setActivationMessage('Your documents are under review by admin. Please wait for approval.')
-          } else if (data.status === 'documents_approved') {
-            setActivationMessage('Your documents are approved! Please subscribe to activate your account.')
-          } else if (data.status === 'payment_pending') {
-            setActivationMessage('Your payment is being verified by admin. This usually takes 24-48 hours.')
-          } else if (data.status === 'rejected') {
-            setActivationMessage('Your activation request was rejected. Please contact support.')
-          } else {
-            setActivationMessage('Your account must be activated before you can create listings.')
-          }
-        }
-      } catch (error) {
-        console.error('Error checking activation:', error)
-        setIsActivated(false)
-        setActivationMessage('Unable to verify account status. Please try again.')
-      } finally {
-        setCheckingActivation(false)
+  // Check activation status from backend
+  const checkActivationStatus = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        navigate('/login')
+        return
       }
+      
+      console.log('🔍 Checking activation status...')
+      const response = await fetch(`${API_URL}/api/activation/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to check activation')
+      }
+      
+      const data = await response.json()
+      console.log('📊 Activation status:', data)
+      setActivationStatus(data)
+      
+      // Check for expired subscription
+      if (data.status === 'subscription_expired') {
+        setIsActivated(false)
+        setActivationMessage('Your subscription has expired. Please renew to continue creating listings.')
+        return
+      }
+      
+      const canCreate = data.can_create_listings === true
+      
+      if (canCreate) {
+        setIsActivated(true)
+        await refreshUser()
+      } else {
+        setIsActivated(false)
+        if (data.status === 'documents_pending') {
+          setActivationMessage('Your documents are under review by admin. Please wait for approval.')
+        } else if (data.status === 'documents_approved') {
+          setActivationMessage('Your documents are approved! Please subscribe to activate your account.')
+        } else if (data.status === 'payment_pending') {
+          setActivationMessage('Your payment is being verified by admin. This usually takes 24-48 hours.')
+        } else if (data.status === 'rejected') {
+          setActivationMessage('Your activation request was rejected. Please contact support.')
+        } else {
+          setActivationMessage('Your account must be activated before you can create listings.')
+        }
+      }
+    } catch (error) {
+      console.error('Error checking activation:', error)
+      setIsActivated(false)
+      setActivationMessage('Unable to verify account status. Please try again.')
+    } finally {
+      setCheckingActivation(false)
+    }
+  }
+
+  // Check subscription validity
+  const checkSubscriptionValidity = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        setSubscriptionValid(false)
+        setCheckingSubscription(false)
+        return
+      }
+      
+      const response = await fetch(`${API_URL}/api/listings/check-subscription-before-listing`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('📊 Subscription check:', data)
+        
+        if (data.can_create === false) {
+          setSubscriptionValid(false)
+          if (data.expired) {
+            setActivationMessage('Your subscription has expired. Please renew to create listings.')
+          } else {
+            setActivationMessage(data.message || 'Please subscribe to create listings.')
+          }
+        } else {
+          setSubscriptionValid(true)
+          setSubscriptionDaysLeft(data.days_remaining || 0)
+        }
+      } else {
+        setSubscriptionValid(false)
+        setActivationMessage('Unable to verify subscription status.')
+      }
+    } catch (error) {
+      console.error('Error checking subscription:', error)
+      setSubscriptionValid(false)
+      setActivationMessage('Unable to verify subscription status. Please try again.')
+    } finally {
+      setCheckingSubscription(false)
+    }
+  }
+
+  // Check both activation and subscription
+  useEffect(() => {
+    const checkAll = async () => {
+      await checkActivationStatus()
+      await checkSubscriptionValidity()
     }
     
     if (!checkCompletedRef.current) {
       checkCompletedRef.current = true
-      checkActivationStatus()
+      checkAll()
     }
   }, [navigate, refreshUser])
 
   // Show loading while checking
-  if (checkingActivation) {
+  if (checkingActivation || checkingSubscription) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -99,8 +158,13 @@ const CreateListingWizard = ({ onSuccess }) => {
     )
   }
 
-  // Show activation required screen for pending users
-  if (!isActivated) {
+  // Check if subscription is expired
+  const isExpired = (!subscriptionValid && subscriptionDaysLeft === 0) || 
+                    activationStatus?.status === 'subscription_expired' ||
+                    (activationStatus?.status === 'fully_activated' && activationStatus?.days_remaining === 0)
+
+  // Show activation required screen for pending or expired users
+  if (!isActivated || !subscriptionValid || isExpired) {
     return (
       <div className="max-w-2xl mx-auto mt-12">
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
@@ -108,14 +172,20 @@ const CreateListingWizard = ({ onSuccess }) => {
             <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
               <AlertCircle className="w-12 h-12 text-amber-500" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Not Activated</h2>
-            <p className="text-gray-600 mb-6">{activationMessage}</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              {isExpired ? 'Subscription Expired' : 'Account Not Activated'}
+            </h2>
+            <p className="text-gray-600 mb-6">
+              {isExpired 
+                ? 'Your subscription has expired. Please renew to continue creating listings.'
+                : activationMessage}
+            </p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => navigate('/activation')}
+                onClick={() => navigate(isExpired ? '/dashboard/subscription' : '/dashboard/activation')}
                 className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
               >
-                Go to Activation
+                {isExpired ? 'Renew Subscription' : 'Go to Activation'}
               </button>
               <button
                 onClick={() => navigate('/dashboard')}
@@ -130,7 +200,7 @@ const CreateListingWizard = ({ onSuccess }) => {
     )
   }
 
-  // ========== ACTIVE USER - SHOW CREATE LISTING FORM ==========
+  // ========== ACTIVE USER WITH VALID SUBSCRIPTION - SHOW CREATE LISTING FORM ==========
   const [formData, setFormData] = useState({
     title: '',
     property_type: 'house',
@@ -376,7 +446,7 @@ const CreateListingWizard = ({ onSuccess }) => {
         if (onSuccess) {
           onSuccess()
         } else {
-          setTimeout(() => navigate('/my-listings'), 1500)
+          setTimeout(() => navigate('/dashboard/listings'), 1500)
         }
       } else {
         toast.error(data.detail || data.message || 'Failed to save draft', { id: loadingToast })
@@ -471,7 +541,7 @@ const CreateListingWizard = ({ onSuccess }) => {
         if (onSuccess) {
           onSuccess()
         } else {
-          setTimeout(() => navigate('/my-listings'), 1500)
+          setTimeout(() => navigate('/dashboard/listings'), 1500)
         }
       } else {
         toast.error(data.detail || data.message || 'Failed to publish listing', { id: loadingToast })
@@ -552,7 +622,9 @@ const CreateListingWizard = ({ onSuccess }) => {
             <h1 className="text-3xl font-bold text-gray-900">
               {listingType === 'sale' ? 'List Property for Sale' : 'List Property for Rent'}
             </h1>
-            <p className="text-green-600 text-sm mt-1">✓ Account fully activated - You can create listings</p>
+            <p className="text-green-600 text-sm mt-1">
+              ✓ Account fully activated • {subscriptionDaysLeft} days remaining on subscription
+            </p>
           </div>
           <div className="text-right">
             <p className="text-sm font-semibold text-blue-600">{Math.round(progress)}% Complete</p>

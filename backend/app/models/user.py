@@ -32,12 +32,12 @@ class User(Base):
     is_activated = Column(Boolean, default=False)
     status = Column(String(50), default="pending")
     
-    # Payment and subscription
+    # Payment and subscription - UPDATED FOR 6-MONTH SUBSCRIPTION
     payment_approved = Column(Boolean, default=False)
     payment_status = Column(String(50), default="pending")
     can_create_listings = Column(Boolean, default=False)
     has_active_subscription = Column(Boolean, default=False)
-    subscription_plan = Column(String(50), nullable=True)
+    subscription_plan = Column(String(50), nullable=True)  # seller, landlord, dual
     subscription_start_date = Column(DateTime(timezone=True), nullable=True)
     subscription_end_date = Column(DateTime(timezone=True), nullable=True)
     
@@ -53,24 +53,17 @@ class User(Base):
     
     # Notification preferences
     email_alerts = Column(Boolean, default=True)
+    new_user_notifications = Column(Boolean, default=True)
+    payment_notifications = Column(Boolean, default=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
     
-    # ============ RELATIONSHIPS ============
-    # Listings created by this user (as seller/landlord)
+    # Relationships
     listings = relationship("Listing", foreign_keys="Listing.user_id", back_populates="user")
-    
-    # Properties sold/rented to this user (as buyer/renter)
     purchased_listings = relationship("Listing", foreign_keys="Listing.sold_to_user_id", back_populates="sold_to_user")
-    
-    # Transactions as seller
-    sold_transactions = relationship("Transaction", foreign_keys="Transaction.seller_id")
-    
-    # Transactions as buyer
-    bought_transactions = relationship("Transaction", foreign_keys="Transaction.buyer_id")
     
     def to_dict(self):
         return {
@@ -88,6 +81,8 @@ class User(Base):
             "payment_status": self.payment_status,
             "has_active_subscription": self.has_active_subscription,
             "subscription_plan": self.subscription_plan,
+            "subscription_start_date": self.subscription_start_date.isoformat() if self.subscription_start_date else None,
+            "subscription_end_date": self.subscription_end_date.isoformat() if self.subscription_end_date else None,
             "city": self.city,
             "region": self.region,
             "address": self.address,

@@ -6,7 +6,7 @@ import json
 import os
 import uuid
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from ..database import get_db
 from ..models import User, ActivationRequest, ActivationStatus
 from .auth import get_current_user, get_current_admin_user
@@ -209,83 +209,175 @@ async def submit_activation_request(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ GET ACTIVATION STATUS ============
+# backend/app/routers/activation.py - Update the /status endpoint
+
 @router.get("/status")
 async def get_activation_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
-        if current_user.role_type == 'buyer':
+        print(f"🔍 Getting activation status for user: {current_user.email}")
+        print(f"   - is_activated: {current_user.is_activated}")
+        print(f"   - can_create_listings: {current_user.can_create_listings}")
+        print(f"   - has_active_subscription: {current_user.has_active_subscription}")
+        print(f"   - payment_approved: {current_user.payment_approved}")
+        print(f"   - subscription_end_date: {current_user.subscription_end_date}")
+        
+        # Calculate days remaining from subscription_end_date
+        days_remaining = 0
+        subscription_end_date = None
+        is_subscription_expired = False
+        has_valid_subscription = False
+        
+        if current_user.subscription_end_date:
+            subscription_end_date = current_user.subscription_end_date
+            days_remaining = (current_user.subscription_end_date - datetime.utcnow()).days
+            if days_remaining > 0:
+                has_valid_subscription = True
+            else:
+                days_remaining = 0
+                is_subscription_expired = True
+                # Mark as expired in database
+                if current_user.has_active_subscription:
+                    current_user.has_active_subscription = False
+                    current_user.can_create_listings = False
+                    current_user.is_activated = False
+                    current_user.payment_approved = False
+                    db.commit()
+                    print(f"⚠️ User {current_user.email} subscription expired. Marked as inactive.")
+        
+        # Check if user has a valid subscription (from payment or admin activation)
+        is_fully_activated = (
+            has_valid_subscription and 
+            days_remaining > 0
+        )
+        
+        # Also check if user was admin activated (no subscription needed)
+        if not is_fully_activated and current_user.can_create_listings and days_remaining == 0:
+            # This is a user who was admin activated but has no subscription end date
+            # Treat as active
+            is_fully_activated = True
+        
+        # If user is fully activated with active subscription
+        if is_fully_activated and days_remaining > 0:
+            # Ensure flags are set correctly
+            if not current_user.has_active_subscription:
+                current_user.has_active_subscription = True
+            if not current_user.can_create_listings:
+                current_user.can_create_listings = True
+            if not current_user.is_activated:
+                current_user.is_activated = True
+            if not current_user.payment_approved:
+                current_user.payment_approved = True
+            if current_user.status != 'active':
+                current_user.status = 'active'
+            db.commit()
+            
             return {
                 "is_activated": True,
                 "status": "fully_activated",
-                "message": "Buyer account is active",
-                "can_create_listings": False
+                "message": f"Account fully activated! {days_remaining} days remaining",
+                "can_create_listings": True,
+                "has_active_subscription": True,
+                "days_remaining": days_remaining,
+                "subscription_end_date": subscription_end_date.isoformat() if subscription_end_date else None,
+                "subscription_plan": current_user.subscription_plan or "seller"
             }
         
-        if current_user.can_create_listings and current_user.is_activated and current_user.payment_approved:
+        # Check if user has expired subscription (was previously activated)
+        if is_subscription_expired:
+            # Check if there was a previous activation request
+            activation_request = db.query(ActivationRequest).filter(
+                ActivationRequest.user_id == current_user.id
+            ).order_by(ActivationRequest.created_at.desc()).first()
+            
+            # Return documents_approved so user can resubscribe
             return {
-                "is_activated": True, 
-                "status": "fully_activated", 
-                "message": "Account fully activated! You can now create listings",
-                "can_create_listings": True
+                "is_activated": False,
+                "status": "documents_approved",
+                "message": "Your subscription has expired. Please renew to continue.",
+                "can_create_listings": False,
+                "has_active_subscription": False,
+                "days_remaining": 0,
+                "subscription_end_date": subscription_end_date.isoformat() if subscription_end_date else None,
+                "subscription_plan": current_user.subscription_plan,
+                "needs_renewal": True
             }
         
+        # Check for activation request
         activation_request = db.query(ActivationRequest).filter(
             ActivationRequest.user_id == current_user.id
         ).order_by(ActivationRequest.created_at.desc()).first()
         
         if not activation_request:
             return {
-                "is_activated": False, 
-                "status": "not_submitted", 
+                "is_activated": False,
+                "status": "not_submitted",
                 "message": "Please submit activation request",
-                "can_create_listings": False
+                "can_create_listings": False,
+                "has_active_subscription": False,
+                "days_remaining": 0
             }
         
+        # Map status
         status_map = {
             ActivationStatus.DOCUMENTS_PENDING: {
                 "status": "documents_pending",
                 "message": "Documents submitted, waiting for admin review",
-                "can_create_listings": False
+                "can_create_listings": False,
+                "has_active_subscription": False
             },
             ActivationStatus.DOCUMENTS_APPROVED: {
                 "status": "documents_approved",
-                "message": "Documents approved! Please subscribe to activate your account",
-                "can_create_listings": False
+                "message": "Documents approved! Please subscribe to activate",
+                "can_create_listings": False,
+                "has_active_subscription": False
             },
             ActivationStatus.PAYMENT_PENDING: {
                 "status": "payment_pending",
-                "message": "Payment submitted, waiting for admin verification",
-                "can_create_listings": False
+                "message": "Payment submitted, waiting for verification",
+                "can_create_listings": False,
+                "has_active_subscription": False
             },
             ActivationStatus.FULLY_ACTIVATED: {
                 "status": "fully_activated",
-                "message": "Account fully activated! You can now create listings",
-                "can_create_listings": True
+                "message": "Account fully activated!",
+                "can_create_listings": True,
+                "has_active_subscription": True
             },
             ActivationStatus.REJECTED: {
                 "status": "rejected",
-                "message": f"Request rejected: {activation_request.rejection_reason}",
-                "can_create_listings": False
+                "message": f"Rejected: {activation_request.rejection_reason}",
+                "can_create_listings": False,
+                "has_active_subscription": False
             }
         }
         
         result = status_map.get(activation_request.status, {
             "status": "unknown",
             "message": "Unknown status",
-            "can_create_listings": False
+            "can_create_listings": False,
+            "has_active_subscription": False
         })
         
         result["is_activated"] = activation_request.status == ActivationStatus.FULLY_ACTIVATED
+        result["days_remaining"] = days_remaining
+        
         return result
         
     except Exception as e:
         print(f"Error getting status: {e}")
-        return {"is_activated": False, "status": "error", "message": str(e), "can_create_listings": False}
-
-
+        import traceback
+        traceback.print_exc()
+        return {
+            "is_activated": False, 
+            "status": "error", 
+            "message": str(e), 
+            "can_create_listings": False, 
+            "has_active_subscription": False,
+            "days_remaining": 0
+        }
 # ============ ADMIN: GET PENDING DOCUMENT REQUESTS ============
 @router.get("/admin/pending-documents")
 async def get_pending_document_requests(
@@ -507,7 +599,6 @@ async def submit_payment(
             
             for admin in admins:
                 if getattr(admin, 'email_alerts', True):
-                    # Create simple HTML email
                     html_content = f"""
                     <!DOCTYPE html>
                     <html>
@@ -611,7 +702,6 @@ async def approve_payment(
         try:
             from ..services.email_service import email_service
             
-            # Email to user
             user_html = f"""
             <!DOCTYPE html>
             <html>
@@ -641,7 +731,6 @@ async def approve_payment(
             )
             print(f"📧 Approval email sent to user: {user.email}")
             
-            # Email to admin (current user)
             admin_html = f"""
             <!DOCTYPE html>
             <html>

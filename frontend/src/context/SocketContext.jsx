@@ -13,10 +13,10 @@ export const SocketProvider = ({ children }) => {
   const [unreadCount, setUnreadCount] = useState(0)
   const socketRef = useRef(null)
   const eventHandlersRef = useRef(new Map())
-  const [webSocketEnabled, setWebSocketEnabled] = useState(false) // Set to false to disable WebSocket
+  const [webSocketEnabled, setWebSocketEnabled] = useState(true) // ✅ ENABLED
 
   useEffect(() => {
-    // WebSocket DISABLED - prevents connection errors
+    // ✅ WebSocket ENABLED
     if (!webSocketEnabled) {
       console.log('🔌 WebSocket is disabled')
       return
@@ -56,14 +56,31 @@ export const SocketProvider = ({ children }) => {
       try {
         const data = JSON.parse(messageEvent.data)
         const { type, ...payload } = data
-        console.log('WebSocket message received:', data)
+        console.log('📨 WebSocket message received:', type)
 
         const handlers = eventHandlersRef.current.get(type) || []
         handlers.forEach((handler) => handler(payload))
 
+        // Dispatch chat-related events for BuyerMessages/SellerMessages
         switch (type) {
+          case 'new_message':
+            window.dispatchEvent(new CustomEvent('new_chat_message', { detail: payload.message }))
+            break
+          case 'message_sent':
+            window.dispatchEvent(new CustomEvent('message_sent', { detail: payload.message }))
+            break
+          case 'messages_read':
+            window.dispatchEvent(new CustomEvent('messages_read', { detail: payload }))
+            break
+          case 'typing':
+            window.dispatchEvent(new CustomEvent('user_typing', { detail: payload }))
+            break
+          case 'user_status':
+            window.dispatchEvent(new CustomEvent('user_status_change', { detail: payload }))
+            break
           case 'connection_established':
-            return
+            console.log('🔌 Connection established with server')
+            break
           case 'new_payment':
             setNotifications((prev) => [{
               id: Date.now(),
@@ -86,7 +103,7 @@ export const SocketProvider = ({ children }) => {
               </div>,
               { duration: 10000 }
             )
-            return
+            break
           case 'account_activated':
             setNotifications((prev) => [{
               id: Date.now(),
@@ -117,7 +134,7 @@ export const SocketProvider = ({ children }) => {
               </div>,
               { duration: 5000 }
             )
-            return
+            break
           case 'payment_approved':
             setNotifications((prev) => [{
               id: Date.now(),
@@ -148,7 +165,7 @@ export const SocketProvider = ({ children }) => {
               </div>,
               { duration: 5000 }
             )
-            return
+            break
           case 'payment_rejected':
             setNotifications((prev) => [{
               id: Date.now(),
@@ -167,9 +184,9 @@ export const SocketProvider = ({ children }) => {
               </div>,
               { duration: 8000 }
             )
-            return
+            break
           default:
-            return
+            break
         }
       } catch (err) {
         console.error('Failed to parse WebSocket message:', err)

@@ -1,4 +1,4 @@
-# backend/app/routers/listings.py - COMPLETE WITH GEOCODING
+# backend/app/routers/listings.py - COMPLETE WITH SUBSCRIPTION CHECK AND GEOCODING
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, text, or_
@@ -18,6 +18,7 @@ router = APIRouter()
 
 UPLOAD_DIR = "uploads/listings"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 
 class ListingCreate(BaseModel):
     title: str
@@ -45,6 +46,7 @@ class ListingCreate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
+
 class ListingUpdate(BaseModel):
     title: Optional[str] = None
     property_type: Optional[str] = None
@@ -69,6 +71,36 @@ class ListingUpdate(BaseModel):
     is_draft: Optional[bool] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+
+
+# ============ SUBSCRIPTION VALIDITY HELPER ============
+def check_subscription_valid(user: User) -> tuple[bool, str]:
+    """
+    Check if user's subscription is valid
+    Returns: (is_valid, message)
+    """
+    # Admin users can always create listings
+    if user.role_type == 'admin':
+        return True, ""
+    
+    # Check if user has active subscription
+    if not user.has_active_subscription:
+        return False, "You don't have an active subscription. Please subscribe to create listings."
+    
+    # Check if subscription end date exists
+    if not user.subscription_end_date:
+        return False, "Subscription end date not set. Please contact support."
+    
+    # Check if subscription has expired
+    if user.subscription_end_date < datetime.utcnow():
+        # Auto-update expired status
+        user.has_active_subscription = False
+        user.can_create_listings = False
+        return False, f"Your subscription expired on {user.subscription_end_date.strftime('%Y-%m-%d')}. Please renew to continue creating listings."
+    
+    # Subscription is valid
+    days_remaining = (user.subscription_end_date - datetime.utcnow()).days
+    return True, f"Subscription valid for {days_remaining} more days."
 
 
 # ============ MAP DATA ENDPOINT ============
@@ -150,7 +182,6 @@ async def get_public_listings_fast(
     try:
         print(f"📡 Fast public listings request: type={listing_type}, limit={limit}, offset={offset}")
         
-        # Build SQL query with listing_status
         sql = """
             SELECT 
                 l.id, l.title, l.description, l.price, l.listing_type, 
@@ -556,7 +587,134 @@ async def upload_listing_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ CREATE LISTING WITH AUTO-GEOCODING ============
+# ============ SUBSCRIPTION STATUS ENDPOINT ============
+@router.get("/subscription-status")
+async def get_subscription_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's subscription status and days remaining"""
+    try:
+        if current_user.role_type == 'admin':
+            return {
+                "has_active_subscription": True,
+                "can_create_listings": True,
+                "days_remaining": 999,
+                "message": "Admin account - unlimited access"
+            }
+        
+        if not current_user.has_active_subscription:
+            return {
+                "has_active_subscription": False,
+                "can_create_listings": False,
+                "days_remaining": 0,
+                "message": "No active subscription"
+            }
+        
+        if not current_user.subscription_end_date:
+            return {
+                "has_active_subscription": False,
+                "can_create_listings": False,
+                "days_remaining": 0,
+                "message": "Subscription end date not set"
+            }
+        
+        now = datetime.utcnow()
+        days_remaining = (current_user.subscription_end_date - now).days
+        
+        if days_remaining <= 0:
+            # Auto-update expired status
+            current_user.has_active_subscription = False
+            current_user.can_create_listings = False
+            db.commit()
+            return {
+                "has_active_subscription": False,
+                "can_create_listings": False,
+                "days_remaining": 0,
+                "message": f"Subscription expired on {current_user.subscription_end_date.strftime('%Y-%m-%d')}"
+            }
+        
+        is_expiring_soon = days_remaining <= 30
+        
+        return {
+            "has_active_subscription": True,
+            "can_create_listings": True,
+            "days_remaining": days_remaining,
+            "subscription_plan": current_user.subscription_plan,
+            "subscription_end_date": current_user.subscription_end_date.isoformat(),
+            "is_expiring_soon": is_expiring_soon,
+            "message": f"Subscription active. {days_remaining} days remaining." + (" Renew soon!" if is_expiring_soon else "")
+        }
+        
+    except Exception as e:
+        print(f"Error getting subscription status: {e}")
+        return {
+            "has_active_subscription": False,
+            "can_create_listings": False,
+            "days_remaining": 0,
+            "error": str(e)
+        }
+
+
+# ============ CHECK SUBSCRIPTION BEFORE LISTING ============
+@router.get("/check-subscription-before-listing")
+async def check_subscription_before_listing(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Check if user can create listings (for frontend to check before showing create form)"""
+    try:
+        if current_user.role_type == 'admin':
+            return {
+                "can_create": True,
+                "message": "Admin - you can create listings"
+            }
+        
+        if not current_user.has_active_subscription:
+            return {
+                "can_create": False,
+                "message": "You don't have an active subscription. Please subscribe to create listings.",
+                "requires_subscription": True
+            }
+        
+        if not current_user.subscription_end_date:
+            return {
+                "can_create": False,
+                "message": "Subscription end date not set. Please contact support.",
+                "requires_subscription": True
+            }
+        
+        if current_user.subscription_end_date < datetime.utcnow():
+            current_user.has_active_subscription = False
+            current_user.can_create_listings = False
+            db.commit()
+            return {
+                "can_create": False,
+                "message": f"Your subscription expired. Please renew to continue creating listings.",
+                "requires_subscription": True,
+                "expired": True
+            }
+        
+        days_remaining = (current_user.subscription_end_date - datetime.utcnow()).days
+        
+        return {
+            "can_create": True,
+            "message": f"Subscription active. {days_remaining} days remaining.",
+            "days_remaining": days_remaining,
+            "subscription_plan": current_user.subscription_plan,
+            "subscription_end_date": current_user.subscription_end_date.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"Error checking subscription: {e}")
+        return {
+            "can_create": False,
+            "message": "Error checking subscription status. Please try again.",
+            "error": str(e)
+        }
+
+
+# ============ CREATE LISTING WITH SUBSCRIPTION CHECK ============
 @router.post("/create", status_code=status.HTTP_201_CREATED)
 async def create_listing(
     listing_data: ListingCreate,
@@ -564,6 +722,22 @@ async def create_listing(
     db: Session = Depends(get_db)
 ):
     try:
+        # ========== SUBSCRIPTION EXPIRY CHECK ==========
+        is_valid, message = check_subscription_valid(current_user)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=message
+            )
+        
+        # If publishing (not draft), also check subscription expiry more strictly
+        if not listing_data.is_draft:
+            if not current_user.has_active_subscription:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot publish listings. Your subscription has expired. Please renew."
+                )
+        
         images_value = None
         if listing_data.images:
             if isinstance(listing_data.images, str):
@@ -648,13 +822,15 @@ async def create_listing(
             "longitude": longitude
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error creating listing: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ UPDATE LISTING WITH AUTO-GEOCODING ============
+# ============ UPDATE LISTING ============
 @router.put("/{listing_id}")
 async def update_listing(
     listing_id: int,
@@ -869,6 +1045,11 @@ async def publish_listing(
         if listing.user_id != current_user.id:
             raise HTTPException(status_code=403, detail="You don't own this listing")
         
+        # Check subscription before publishing
+        is_valid, message = check_subscription_valid(current_user)
+        if not is_valid:
+            raise HTTPException(status_code=403, detail=message)
+        
         listing.is_draft = False
         listing.status = "active"
         listing.published_at = datetime.utcnow()
@@ -882,6 +1063,8 @@ async def publish_listing(
             "listing_id": listing.id
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error publishing listing: {e}")
         db.rollback()
@@ -944,3 +1127,6 @@ async def get_sold_rented_listings(
             "listings": [],
             "total": 0
         }
+
+
+print("✅ Listings router loaded with subscription check and geocoding!")
