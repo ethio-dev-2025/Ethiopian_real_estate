@@ -17,16 +17,20 @@ const PaymentSuccessPage = () => {
   const tx_ref = searchParams.get('tx_ref');
   const status = searchParams.get('status');
 
-  useEffect(() => {
-    console.log('📦 PaymentSuccessPage mounted with params:', { tx_ref, status });
+ useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tx_ref = urlParams.get('tx_ref');
+    const status = urlParams.get('status');
+    
+    console.log('📦 PaymentSuccessPage params:', { tx_ref, status });
     
     if (tx_ref) {
-      verifyPayment();
+        verifyPayment(tx_ref);
     } else {
-      setError('No payment reference found');
-      setLoading(false);
+        setError('No payment reference found');
+        setLoading(false);
     }
-  }, [tx_ref, status]);
+}, []);
 
   // Countdown timer for auto-redirect
   useEffect(() => {
@@ -78,7 +82,8 @@ const PaymentSuccessPage = () => {
         if (userResponse.ok) {
           freshUser = await userResponse.json();
           localStorage.setItem('user', JSON.stringify(freshUser));
-          window.dispatchEvent(new Event('user:updated'));
+          sessionStorage.setItem('user', JSON.stringify(freshUser));
+          window.dispatchEvent(new CustomEvent('user:updated', { detail: freshUser }));
           console.log('✅ User data refreshed:', freshUser);
         }
         
@@ -88,16 +93,18 @@ const PaymentSuccessPage = () => {
         
         setPaymentData({
           transaction_id: tx_ref,
-          amount: data.amount || 149,
-          plan: data.plan_type || 'Seller Plan',
+          amount: data.amount || 894,
+          plan: data.plan_type || (data.renewed ? 'Renewed Plan' : 'Seller Plan'),
           status: 'completed',
           payment_method: 'Chapa / Telebirr',
           date: new Date().toISOString(),
           email: freshUser?.email || user?.email || 'customer@example.com',
-          customer_name: freshUser?.full_name || freshUser?.username || user?.full_name || user?.username || 'Valued Customer'
+          customer_name: freshUser?.full_name || freshUser?.username || user?.full_name || user?.username || 'Valued Customer',
+          renewed: data.renewed || false,
+          subscription_end_date: data.subscription_end_date
         });
         
-        toast.success('Payment successful! Your subscription is active.');
+        toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Your subscription is active.');
       } else {
         setError(data.message || 'Payment verification failed');
       }
@@ -161,7 +168,7 @@ const PaymentSuccessPage = () => {
             <div class="subtitle">EstateHub Real Estate</div>
           </div>
           <div class="content">
-            <div class="success-badge">✅ Payment Successful</div>
+            <div class="success-badge">✅ ${paymentData.renewed ? 'Subscription Renewed' : 'Payment Successful'}</div>
             <div class="details">
               <div class="row"><span class="label">Transaction ID:</span><span class="value">${paymentData.transaction_id}</span></div>
               <div class="row"><span class="label">Date:</span><span class="value">${formatDate(paymentData.date)}</span></div>
@@ -169,6 +176,7 @@ const PaymentSuccessPage = () => {
               <div class="row"><span class="label">Payment Method:</span><span class="value">${paymentData.payment_method}</span></div>
               <div class="row"><span class="label">Customer:</span><span class="value">${paymentData.customer_name}</span></div>
               <div class="row"><span class="label">Email:</span><span class="value">${paymentData.email}</span></div>
+              ${paymentData.subscription_end_date ? `<div class="row"><span class="label">Valid Until:</span><span class="value">${formatDate(paymentData.subscription_end_date)}</span></div>` : ''}
               <div class="row total"><span class="label">Total Paid:</span><span class="value">${formatAmount(paymentData.amount)}</span></div>
             </div>
           </div>
@@ -243,8 +251,10 @@ const PaymentSuccessPage = () => {
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
               <CheckCircle className="w-8 h-8" />
             </div>
-            <h1 className="text-2xl font-bold">Payment Successful!</h1>
-            <p className="text-green-100 mt-1">Your subscription is now active</p>
+            <h1 className="text-2xl font-bold">{paymentData?.renewed ? 'Subscription Renewed!' : 'Payment Successful!'}</h1>
+            <p className="text-green-100 mt-1">
+              {paymentData?.renewed ? 'Your subscription has been renewed' : 'Your subscription is now active'}
+            </p>
           </div>
           
           {/* Content */}
@@ -277,6 +287,12 @@ const PaymentSuccessPage = () => {
                   <span className="text-gray-500">Plan</span>
                   <span className="font-medium">{paymentData?.plan}</span>
                 </div>
+                {paymentData?.subscription_end_date && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Valid Until</span>
+                    <span className="font-medium text-green-600">{formatDate(paymentData?.subscription_end_date)}</span>
+                  </div>
+                )}
                 <div className="border-t pt-3 mt-2">
                   <div className="flex justify-between">
                     <span className="font-bold">Total Paid</span>

@@ -17,47 +17,62 @@ const SellerSubscription = () => {
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
 
-  // Check for payment success on mount
-  useEffect(() => {
-    const checkPaymentSuccess = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const status = urlParams.get('status');
-      const tx_ref = urlParams.get('tx_ref');
+ // In SellerSubscription.jsx, update the checkPaymentSuccess function
+useEffect(() => {
+  const checkPaymentSuccess = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const status = urlParams.get('status');
+    const tx_ref = urlParams.get('tx_ref');
 
-      if (status === 'success' && tx_ref && !verifyingPayment) {
-        setVerifyingPayment(true);
-        console.log('💰 Payment success detected in subscription page!');
+    if (status === 'success' && tx_ref && !verifyingPayment) {
+      setVerifyingPayment(true);
+      console.log('💰 Payment success detected in subscription page!');
+      
+      try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${tx_ref}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         
-        try {
-          const token = localStorage.getItem('access_token');
-          const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${tx_ref}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
+        const data = await response.json();
+        console.log('📦 Verification result:', data);
+        
+        if (data.success && data.activated) {
+          toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Your account is now activated.');
           
-          const data = await response.json();
-          console.log('📦 Verification result:', data);
+          // Force multiple refreshes to ensure all data is updated
+          await forceRefreshSubscription();
+          await forceRefreshUser();
           
-          if (data.success && data.activated) {
-            toast.success('Payment successful! Your account is now activated.');
-            await forceRefreshSubscription();
-            await forceRefreshUser();
-            await fetchActivationStatus();
-            await fetchSubscriptionInfo();
-            window.history.replaceState({}, document.title, '/dashboard/subscription');
-          } else {
-            toast.error(data.message || 'Payment verification failed');
-          }
-        } catch (error) {
-          console.error('Verification error:', error);
-          toast.error('Failed to verify payment. Please contact support.');
-        } finally {
-          setVerifyingPayment(false);
+          // Wait a bit for database to update
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Fetch updated status
+          await fetchActivationStatus();
+          await fetchSubscriptionInfo();
+          
+          // Force refresh user again
+          await forceRefreshUser();
+          
+          // Clear URL parameters
+          window.history.replaceState({}, document.title, '/dashboard/subscription');
+          
+          // Reload page to ensure all components get fresh data
+          window.location.reload();
+        } else {
+          toast.error(data.message || 'Payment verification failed');
         }
+      } catch (error) {
+        console.error('Verification error:', error);
+        toast.error('Failed to verify payment. Please contact support.');
+      } finally {
+        setVerifyingPayment(false);
       }
-    };
-    
-    checkPaymentSuccess();
-  }, [forceRefreshSubscription, forceRefreshUser]);
+    }
+  };
+  
+  checkPaymentSuccess();
+}, [forceRefreshSubscription, forceRefreshUser]);
 
   useEffect(() => {
     fetchActivationStatus();
@@ -244,50 +259,51 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
   const amount = selectedPlanData?.price;
 
-  const redirectToChapa = async () => {
+ const redirectToChapa = async () => {
     setLoading(true);
     
     try {
-      const token = localStorage.getItem('access_token');
-      const fullName = user?.full_name || user?.username || 'User';
-      const nameParts = fullName.split(' ');
-      const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(' ') || 'User';
-      
-      const requestData = {
-        plan_type: selectedPlan,
-        amount: amount,
-        email: user?.email,
-        first_name: firstName,
-        last_name: lastName,
-        phone: user?.phone || '0911111111'
-      };
-      
-      const response = await fetch(`${API_URL}/api/payment/initialize`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-      });
-      
-      const data = await response.json();
-      
-      if (data.success && data.checkout_url) {
-        toast.success('Redirecting to Chapa payment page...');
-        window.location.href = data.checkout_url;
-      } else {
-        toast.error(data.message || 'Failed to initialize payment');
-        setShowPaymentModal(false);
-      }
+        const token = localStorage.getItem('access_token');
+        const fullName = user?.full_name || user?.username || 'User';
+        const nameParts = fullName.split(' ');
+        const firstName = nameParts[0];
+        const lastName = nameParts.slice(1).join(' ') || 'User';
+        
+        const requestData = {
+            plan_type: selectedPlan,
+            amount: amount,
+            email: user?.email,
+            first_name: firstName,
+            last_name: lastName,
+            phone: user?.phone || '0911111111'
+        };
+        
+        const response = await fetch(`${API_URL}/api/payment/initialize`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.checkout_url) {
+            toast.success('Redirecting to Chapa payment page...');
+            // Redirect to Chapa checkout page
+            window.location.href = data.checkout_url;
+        } else {
+            toast.error(data.message || 'Failed to initialize payment');
+            setShowPaymentModal(false);
+        }
     } catch (error) {
-      console.error('Payment error:', error);
-      toast.error('Failed to connect to payment gateway');
+        console.error('Payment error:', error);
+        toast.error('Failed to connect to payment gateway');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

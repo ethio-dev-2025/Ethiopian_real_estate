@@ -12,9 +12,10 @@ import AppRoutes from './routes/AppRoutes';
 
 const API_URL = 'http://localhost:8000';
 
-// Payment Success Handler Component
+// Payment Success Handler Component - FIXED
+// Payment Success Handler Component - This handles return from Chapa
 const PaymentSuccessHandler = ({ children }) => {
-  const { refreshUser } = useAuth();
+  const { refreshUser, forceRefreshUser } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,7 +27,8 @@ const PaymentSuccessHandler = ({ children }) => {
 
       console.log('🔍 Checking payment params:', { status, tx_ref, plan });
 
-      if (status === 'success' && tx_ref) {
+      // Only process if we're on the payment success page or subscription page with success param
+      if ((status === 'success' || window.location.pathname.includes('/payment/success')) && tx_ref) {
         console.log('✅ Payment success detected! Verifying...');
         
         try {
@@ -46,25 +48,23 @@ const PaymentSuccessHandler = ({ children }) => {
           if (data.success && data.activated) {
             console.log('🎉 Payment verified! Refreshing user data...');
             
-            // Refresh user data multiple times to ensure update
-            await refreshUser();
+            // Force refresh user data
+            await forceRefreshUser();
             await new Promise(resolve => setTimeout(resolve, 1000));
-            await refreshUser();
+            await forceRefreshUser();
             
             // Show success message
-            import('react-hot-toast').then(({ toast }) => {
-              toast.success('Payment successful! Your account is now activated.');
-            });
+            const { toast } = await import('react-hot-toast');
+            toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Your account is now activated.');
             
-            // Remove query params from URL
-            window.history.replaceState({}, document.title, '/dashboard');
-            
-            // Navigate to dashboard after 2 seconds
-            setTimeout(() => {
-              navigate('/dashboard');
-            }, 2000);
+            // Navigate to success page or dashboard
+            if (window.location.pathname !== '/payment/success') {
+              navigate('/payment/success?tx_ref=' + tx_ref);
+            }
           } else {
             console.warn('Payment verification failed:', data);
+            const { toast } = await import('react-hot-toast');
+            toast.error('Payment verification failed. Please contact support.');
           }
         } catch (error) {
           console.error('Payment verification error:', error);
@@ -73,7 +73,7 @@ const PaymentSuccessHandler = ({ children }) => {
     };
 
     handlePaymentSuccess();
-  }, [refreshUser, navigate]);
+  }, [refreshUser, forceRefreshUser, navigate]);
 
   return children;
 };
