@@ -365,27 +365,7 @@ const HomePage = () => {
           
           {/* Data Source Indicator */}
           <div className="mb-4 flex justify-center items-center gap-3 flex-wrap">
-            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs ${
-              usingRealData 
-                ? 'bg-green-500/20 text-green-200' 
-                : fetchStatus === 'error'
-                ? 'bg-red-500/20 text-red-200'
-                : fetchStatus === 'loading'
-                ? 'bg-yellow-500/20 text-yellow-200'
-                : 'bg-gray-500/20 text-gray-200'
-            }`}>
-              {usingRealData ? (
-                <>✅ Live Data ({realPropertyCount || allProperties.length} properties)</>
-              ) : fetchStatus === 'loading' ? (
-                <>🔄 Loading properties...</>
-              ) : fetchStatus === 'error' ? (
-                <>⚠️ Demo Mode - Click Refresh</>
-              ) : (
-                <>📱 Demo Properties</>
-              )}
-            </span>
-            
-            <button
+                    <button
               onClick={handleRefresh}
               disabled={fetchStatus === 'loading'}
               className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-white/20 hover:bg-white/30 transition disabled:opacity-50"

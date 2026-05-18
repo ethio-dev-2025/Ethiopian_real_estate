@@ -1,196 +1,128 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Heart, MapPin, Bed, Bath, Square, Trash2, Building2, ArrowRight, Loader, RefreshCw, Eye, Star } from 'lucide-react'
-import { listingsAPI } from '../../../services/api/listingsApi'
-import toast from 'react-hot-toast'
+// src/components/dashboard/buyer/BuyerSaved.jsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Heart, MapPin, Bed, Bath, Square, Trash2, Building2, ArrowRight, Loader, RefreshCw, Star, ImageOff } from 'lucide-react';
+import { listingsAPI } from '../../../services/api/listingsApi';
+import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000'
+const API_URL = 'http://localhost:8000';
 
 // Fallback images
 const PROPERTY_IMAGES = [
   'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=500&h=300&fit=crop',
   'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=500&h=300&fit=crop',
   'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=500&h=300&fit=crop',
-]
+  'https://images.unsplash.com/photo-1512917774080-9991f1c4c751?w=500&h=300&fit=crop',
+];
 
-const getPropertyImage = (id) => {
-  return PROPERTY_IMAGES[id % PROPERTY_IMAGES.length]
-}
+const getPropertyImage = (id) => PROPERTY_IMAGES[id % PROPERTY_IMAGES.length];
 
 const BuyerSaved = () => {
-  const navigate = useNavigate()
-  const [savedProperties, setSavedProperties] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [imageErrors, setImageErrors] = useState({})
+  const navigate = useNavigate();
+  const [savedProperties, setSavedProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchingDetails, setFetchingDetails] = useState(false);
 
-  const getToken = () => localStorage.getItem('access_token')
-
-  // Format API property to match UI format
-  const formatApiProperty = (apiProp) => {
-    let imageUrl = null
-    if (apiProp.images && apiProp.images.length > 0) {
-      const img = apiProp.images[0]
-      if (img.startsWith('http')) {
-        imageUrl = img
-      } else if (img.startsWith('/uploads')) {
-        imageUrl = `${API_URL}${img}`
-      } else {
-        imageUrl = `${API_URL}/uploads/${img}`
-      }
-    }
-    
-    if (!imageUrl && apiProp.cover_image) {
-      if (apiProp.cover_image.startsWith('http')) {
-        imageUrl = apiProp.cover_image
-      } else if (apiProp.cover_image.startsWith('/uploads')) {
-        imageUrl = `${API_URL}${apiProp.cover_image}`
-      } else {
-        imageUrl = `${API_URL}/uploads/${apiProp.cover_image}`
-      }
-    }
-    
-    if (!imageUrl) {
-      imageUrl = getPropertyImage(apiProp.id)
-    }
-    
-    return {
-      id: apiProp.id,
-      title: apiProp.title || 'Property',
-      city: apiProp.city || apiProp.sub_city || apiProp.address || 'Addis Ababa',
-      price: apiProp.price || 0,
-      listing_type: apiProp.listing_type || 'sale',
-      bedrooms: apiProp.bedrooms || 0,
-      bathrooms: apiProp.bathrooms || 0,
-      sqft: apiProp.sqft || 0,
-      featured: apiProp.featured || false,
-      image: imageUrl
-    }
-  }
-
-  // Fetch saved properties from API
   const fetchSavedProperties = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    
+    setLoading(true);
     try {
-      const token = getToken()
-      if (!token) {
-        // If no token, use localStorage as fallback
-        const localSaved = localStorage.getItem('buyer_saved_properties')
-        if (localSaved) {
-          try {
-            setSavedProperties(JSON.parse(localSaved))
-          } catch (e) {}
-        }
-        setLoading(false)
-        return
-      }
-
-      // Try to fetch from API first
-      const response = await fetch(`${API_URL}/api/buyer/saved-properties`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.saved && data.saved.length > 0) {
-          const formatted = data.saved.map(formatApiProperty)
-          setSavedProperties(formatted)
-          // Also update localStorage for consistency
-          localStorage.setItem('buyer_saved_properties', JSON.stringify(formatted))
-          toast.success(`Loaded ${formatted.length} saved properties`, { duration: 1500 })
-        } else {
-          // If API returns empty, check localStorage
-          const localSaved = localStorage.getItem('buyer_saved_properties')
-          if (localSaved) {
-            try {
-              const parsed = JSON.parse(localSaved)
-              setSavedProperties(parsed)
-            } catch (e) {}
-          }
-        }
-      } else {
-        // Fallback to localStorage
-        const localSaved = localStorage.getItem('buyer_saved_properties')
-        if (localSaved) {
-          try {
-            setSavedProperties(JSON.parse(localSaved))
-          } catch (e) {}
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching saved properties:', error)
-      // Fallback to localStorage
-      const localSaved = localStorage.getItem('buyer_saved_properties')
+      // Get saved property IDs from localStorage
+      const localSaved = localStorage.getItem('buyer_saved_properties');
+      let savedIds = [];
+      
       if (localSaved) {
         try {
-          setSavedProperties(JSON.parse(localSaved))
+          const saved = JSON.parse(localSaved);
+          savedIds = saved.map(p => p.id);
         } catch (e) {}
       }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // Save to API when properties change
-  const syncToAPI = async (properties) => {
-    const token = getToken()
-    if (!token) return
-
-    try {
-      // Send saved property IDs to API
-      const propertyIds = properties.map(p => p.id)
-      await fetch(`${API_URL}/api/buyer/sync-saved-properties`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ property_ids: propertyIds })
-      })
+      
+      if (savedIds.length === 0) {
+        setSavedProperties([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch full property details from API
+      setFetchingDetails(true);
+      const fullProperties = [];
+      
+      for (const id of savedIds) {
+        try {
+          const response = await fetch(`${API_URL}/api/buyer/properties/${id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            }
+          });
+          
+          if (response.ok) {
+            const property = await response.json();
+            fullProperties.push(property);
+          }
+        } catch (err) {
+          console.error(`Error fetching property ${id}:`, err);
+        }
+      }
+      
+      setSavedProperties(fullProperties);
+      
+      // Update localStorage with full data
+      if (fullProperties.length > 0) {
+        localStorage.setItem('buyer_saved_properties', JSON.stringify(fullProperties));
+      }
+      
     } catch (error) {
-      console.error('Error syncing to API:', error)
+      console.error('Error fetching saved properties:', error);
+      toast.error('Failed to load saved properties');
+    } finally {
+      setLoading(false);
+      setFetchingDetails(false);
     }
-  }
+  }, []);
 
-  const handleRemove = async (propertyId, property) => {
-    const newSaved = savedProperties.filter(p => p.id !== propertyId)
-    setSavedProperties(newSaved)
-    localStorage.setItem('buyer_saved_properties', JSON.stringify(newSaved))
-    
-    // Sync to API
-    await syncToAPI(newSaved)
-    
-    toast.success('Removed from saved')
-  }
+  const handleRemove = (propertyId) => {
+    const newSaved = savedProperties.filter(p => p.id !== propertyId);
+    setSavedProperties(newSaved);
+    // Update localStorage with remaining properties
+    localStorage.setItem('buyer_saved_properties', JSON.stringify(newSaved));
+    toast.success('Removed from saved');
+  };
 
   const formatPrice = (price, type) => {
-    if (!price) return 'ETB 0'
-    if (type === 'rent') {
-      if (price >= 1000000) return `ETB ${(price / 1000000).toFixed(1)}M/month`
-      return `ETB ${price.toLocaleString()}/month`
+    if (!price) return 'ETB 0';
+    if (type === 'rent') return `ETB ${price.toLocaleString()}/month`;
+    if (price >= 10000000) return `ETB ${(price / 10000000).toFixed(1)} Cr`;
+    if (price >= 1000000) return `ETB ${(price / 1000000).toFixed(1)} M`;
+    return `ETB ${price.toLocaleString()}`;
+  };
+
+  const getImageUrl = (property) => {
+    // Try to get image from property data
+    if (property.images && property.images.length > 0) {
+      const img = property.images[0];
+      if (img.startsWith('http')) return img;
+      if (img.startsWith('/uploads')) return `${API_URL}${img}`;
+      return `${API_URL}/uploads/${img}`;
     }
-    if (price >= 10000000) return `ETB ${(price / 10000000).toFixed(1)} Cr`
-    if (price >= 1000000) return `ETB ${(price / 1000000).toFixed(1)} M`
-    return `ETB ${price.toLocaleString()}`
-  }
+    if (property.cover_image) {
+      if (property.cover_image.startsWith('http')) return property.cover_image;
+      if (property.cover_image.startsWith('/uploads')) return `${API_URL}${property.cover_image}`;
+      return `${API_URL}/uploads/${property.cover_image}`;
+    }
+    return getPropertyImage(property.id);
+  };
 
-  const handleImageError = (propertyId) => {
-    setImageErrors(prev => ({ ...prev, [propertyId]: true }))
-  }
+  useEffect(() => { 
+    fetchSavedProperties(); 
+  }, [fetchSavedProperties]);
 
-  useEffect(() => {
-    fetchSavedProperties()
-  }, [fetchSavedProperties])
-
-  if (loading) {
+  if (loading || fetchingDetails) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <Loader className="w-8 h-8 animate-spin text-blue-600 mb-3" />
-        <p className="text-gray-500 text-sm">Loading saved properties...</p>
+        <p className="text-gray-500 text-sm">{fetchingDetails ? 'Loading property details...' : 'Loading saved properties...'}</p>
       </div>
-    )
+    );
   }
 
   if (savedProperties.length === 0) {
@@ -208,7 +140,7 @@ const BuyerSaved = () => {
           Browse Properties <ArrowRight className="w-4 h-4" />
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -222,41 +154,42 @@ const BuyerSaved = () => {
             <h1 className="text-2xl font-bold text-gray-900">Saved Properties</h1>
             <p className="text-gray-500 text-sm">Properties you've saved for later</p>
           </div>
-          <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm ml-2">{savedProperties.length} saved</span>
+          <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm ml-2">
+            {savedProperties.length} saved
+          </span>
         </div>
-        <button
-          onClick={fetchSavedProperties}
+        <button 
+          onClick={fetchSavedProperties} 
           className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition"
           title="Refresh"
         >
           <RefreshCw className="w-4 h-4" />
         </button>
       </div>
-
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {savedProperties.map((property) => {
-          const hasError = imageErrors[property.id]
-          const imageUrl = property.image || getPropertyImage(property.id)
-          
+          const imageUrl = getImageUrl(property);
           return (
-            <div key={property.id} className="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition group">
-              <div className="relative h-36 w-full bg-gray-200">
-                {!hasError && imageUrl ? (
+            <div 
+              key={property.id} 
+              className="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition group cursor-pointer"
+              onClick={() => navigate(`/properties/${property.id}`)}
+            >
+              <div className="relative h-36 bg-gray-200">
+                {imageUrl ? (
                   <img 
                     src={imageUrl} 
-                    alt={property.title}
+                    alt={property.title} 
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                    onError={() => handleImageError(property.id)}
+                    onError={(e) => { e.target.src = getPropertyImage(property.id); }}
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                    <Building2 className="w-8 h-8 mb-1" />
-                    <p className="text-xs">No Image</p>
+                  <div className="w-full h-full flex items-center justify-center bg-gray-300">
+                    <ImageOff className="w-8 h-8 text-gray-400" />
                   </div>
                 )}
-                <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-semibold text-white ${
-                  property.listing_type === 'sale' ? 'bg-green-600' : 'bg-blue-600'
-                }`}>
+                <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-semibold text-white ${property.listing_type === 'sale' ? 'bg-green-600' : 'bg-blue-600'}`}>
                   {property.listing_type === 'sale' ? 'For Sale' : 'For Rent'}
                 </div>
                 {property.featured && (
@@ -270,23 +203,25 @@ const BuyerSaved = () => {
                   {property.title}
                 </h3>
                 <div className="flex items-center gap-1 text-gray-500 text-sm mt-1">
-                  <MapPin className="w-3 h-3" /> {property.city || 'Addis Ababa'}
+                  <MapPin className="w-3 h-3" /> {property.city || property.address || 'Addis Ababa'}
                 </div>
                 <div className="flex gap-3 mt-2 text-sm text-gray-500">
                   <span><Bed className="w-3 h-3 inline mr-1" /> {property.bedrooms || 0}</span>
                   <span><Bath className="w-3 h-3 inline mr-1" /> {property.bathrooms || 0}</span>
                   <span><Square className="w-3 h-3 inline mr-1" /> {property.sqft || 0}</span>
                 </div>
-                <p className="text-lg font-bold text-blue-600 mt-2">{formatPrice(property.price, property.listing_type)}</p>
+                <p className="text-lg font-bold text-blue-600 mt-2">
+                  {formatPrice(property.price, property.listing_type)}
+                </p>
                 <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => navigate(`/properties/${property.id}`)}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); navigate(`/properties/${property.id}`); }} 
                     className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
                   >
                     View Details
                   </button>
-                  <button
-                    onClick={() => handleRemove(property.id, property)}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleRemove(property.id); }} 
                     className="px-3 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-200 transition"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -294,11 +229,11 @@ const BuyerSaved = () => {
                 </div>
               </div>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default BuyerSaved
+export default BuyerSaved;

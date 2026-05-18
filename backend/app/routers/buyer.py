@@ -1,23 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, desc
-from typing import Optional, List
+from typing import Optional
 import json
 from datetime import datetime
 from ..database import get_db
 from ..models import User, Listing, Message, Conversation, SavedProperty
 from ..config import settings
-from .auth import get_current_user
+from .auth import get_current_user, get_current_buyer_user
 import jwt
 import logging
 
 router = APIRouter()
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ============ GET ALL PROPERTIES FOR BUYERS ============
+# ============ PUBLIC PROPERTIES ============
 @router.get("/properties")
 async def get_all_properties(
     db: Session = Depends(get_db),
@@ -32,7 +29,6 @@ async def get_all_properties(
     limit: int = 20,
     offset: int = 0
 ):
-    """Get all public listings for buyers (no authentication required)"""
     try:
         query = db.query(Listing).filter(
             Listing.is_draft == False,
@@ -95,21 +91,19 @@ async def get_all_properties(
         return {
             "total": total,
             "properties": result,
-            "has_more": len(result) < total
+            "has_more": offset + limit < total
         }
         
     except Exception as e:
-        print(f"Error getting properties: {e}")
+        print(f"Error: {e}")
         return {"total": 0, "properties": [], "has_more": False}
 
-
-# ============ GET SINGLE PROPERTY DETAIL ============
+# ============ GET SINGLE PROPERTY ============
 @router.get("/properties/{property_id}")
 async def get_property_detail(
     property_id: int,
     db: Session = Depends(get_db)
 ):
-    """Get single property details for buyers (no authentication required)"""
     try:
         listing = db.query(Listing).filter(
             Listing.id == property_id,
@@ -120,7 +114,7 @@ async def get_property_detail(
         if not listing:
             raise HTTPException(status_code=404, detail="Property not found")
         
-        listing.views_count += 1
+        listing.views_count = (listing.views_count or 0) + 1
         db.commit()
         
         images = []
@@ -169,114 +163,13 @@ async def get_property_detail(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error getting property detail: {e}")
+        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ============ GET PROPERTY OWNER AND CREATE CONVERSATION ============
+# ============ GET PROPERTY OWNER FOR CHAT ============
 @router.get("/property-owner/{property_id}")
 async def get_property_owner(
     property_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Get property owner info and create/get conversation for messaging"""
-    try:
-        auth_header = request.headers.get('Authorization')
-        logger.info(f"Auth header present: {auth_header is not None}")
-        
-        if not auth_header or not auth_header.startswith("Bearer "):
-            logger.error("No Bearer token found")
-            raise HTTPException(status_code=401, detail="Not authenticated")
-        
-        token = auth_header.split(" ")[1]
-        logger.info(f"Token received, length: {len(token)}")
-        
-        try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            email = payload.get("sub")
-            logger.info(f"Decoded email: {email}")
-            
-            if not email:
-                raise HTTPException(status_code=401, detail="Invalid token")
-            
-            current_user = db.query(User).filter(User.email == email).first()
-            if not current_user:
-                logger.error(f"User not found: {email}")
-                raise HTTPException(status_code=401, detail="User not found")
-                
-        except jwt.ExpiredSignatureError:
-            logger.error("Token expired")
-            raise HTTPException(status_code=401, detail="Token expired")
-        except jwt.InvalidTokenError as e:
-            logger.error(f"Invalid token: {e}")
-            raise HTTPException(status_code=401, detail="Invalid token")
-        
-        logger.info(f"Current user: {current_user.id} - {current_user.email}")
-        
-        # Get the property
-        property_obj = db.query(Listing).filter(Listing.id == property_id).first()
-        if not property_obj:
-            raise HTTPException(status_code=404, detail="Property not found")
-        
-        # Get the owner (seller)
-        owner = db.query(User).filter(User.id == property_obj.user_id).first()
-        if not owner:
-            raise HTTPException(status_code=404, detail="Owner not found")
-        
-        # Don't allow contacting yourself
-        if owner.id == current_user.id:
-            return {
-                "success": False,
-                "error": "You cannot message yourself"
-            }
-        
-        # Determine buyer and seller
-        buyer_id = current_user.id
-        seller_id = owner.id
-        
-        # Get or create conversation between buyer and seller
-        conversation = db.query(Conversation).filter(
-            or_(
-                and_(Conversation.buyer_id == buyer_id, Conversation.seller_id == seller_id),
-                and_(Conversation.buyer_id == seller_id, Conversation.seller_id == buyer_id)
-            )
-        ).first()
-        
-        if not conversation:
-            conversation = Conversation(
-                buyer_id=buyer_id,
-                seller_id=seller_id,
-                property_id=property_id,
-                last_message_time=datetime.utcnow()
-            )
-            db.add(conversation)
-            db.commit()
-            db.refresh(conversation)
-            logger.info(f"Created new conversation: {conversation.id}")
-        
-        return {
-            "success": True,
-            "owner_id": owner.id,
-            "owner_name": owner.full_name or owner.username,
-            "conversation_id": conversation.id,
-            "property_title": property_obj.title,
-            "property_id": property_obj.id
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting property owner: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============ CONTACT OWNER (Send initial message) ============
-@router.post("/contact-owner")
-async def contact_owner(
-    data: dict,
     request: Request,
     db: Session = Depends(get_db)
 ):
@@ -302,44 +195,29 @@ async def contact_owner(
         except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid token")
         
-        property_id = data.get("property_id")
-        message_content = data.get("message", "")
-        
-        if not property_id:
-            raise HTTPException(status_code=400, detail="Property ID required")
-        
         property_obj = db.query(Listing).filter(Listing.id == property_id).first()
         if not property_obj:
             raise HTTPException(status_code=404, detail="Property not found")
         
-        owner_id = property_obj.user_id
+        owner = db.query(User).filter(User.id == property_obj.user_id).first()
+        if not owner:
+            raise HTTPException(status_code=404, detail="Owner not found")
         
-        if owner_id == current_user.id:
-            raise HTTPException(status_code=400, detail="You cannot message yourself")
-        
-        # Create message
-        new_message = Message(
-            sender_id=current_user.id,
-            receiver_id=owner_id,
-            content=message_content or f"I'm interested in your property: {property_obj.title}",
-            created_at=datetime.utcnow()
-        )
-        db.add(new_message)
-        db.commit()
-        db.refresh(new_message)
+        if owner.id == current_user.id:
+            return {"success": False, "error": "You cannot message yourself"}
         
         # Get or create conversation
         conversation = db.query(Conversation).filter(
             or_(
-                and_(Conversation.buyer_id == current_user.id, Conversation.seller_id == owner_id),
-                and_(Conversation.buyer_id == owner_id, Conversation.seller_id == current_user.id)
+                and_(Conversation.buyer_id == current_user.id, Conversation.seller_id == owner.id),
+                and_(Conversation.buyer_id == owner.id, Conversation.seller_id == current_user.id)
             )
         ).first()
         
         if not conversation:
             conversation = Conversation(
                 buyer_id=current_user.id,
-                seller_id=owner_id,
+                seller_id=owner.id,
                 property_id=property_id,
                 last_message_time=datetime.utcnow()
             )
@@ -347,52 +225,175 @@ async def contact_owner(
             db.commit()
             db.refresh(conversation)
         
-        # Update conversation
-        conversation.last_message = new_message.content[:100]
-        conversation.last_message_time = datetime.utcnow()
-        conversation.last_message_sender_id = current_user.id
-        
-        if conversation.buyer_id == owner_id:
-            conversation.buyer_unread += 1
-        else:
-            conversation.seller_unread += 1
-        db.commit()
-        
         return {
             "success": True,
-            "message": "Message sent successfully",
+            "owner_id": owner.id,
+            "owner_name": owner.full_name or owner.username,
             "conversation_id": conversation.id,
-            "owner_id": owner_id
+            "property_title": property_obj.title,
+            "property_id": property_obj.id
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error contacting owner: {e}")
+        logger.error(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ GET CONVERSATIONS ============
+@router.get("/conversations")
+async def get_conversations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        conversations = db.query(Conversation).filter(
+            or_(
+                Conversation.buyer_id == current_user.id,
+                Conversation.seller_id == current_user.id
+            )
+        ).order_by(desc(Conversation.last_message_time)).all()
+        
+        result = []
+        for conv in conversations:
+            other_user_id = conv.seller_id if conv.buyer_id == current_user.id else conv.buyer_id
+            other_user = db.query(User).filter(User.id == other_user_id).first()
+            property_obj = db.query(Listing).filter(Listing.id == conv.property_id).first()
+            unread_count = conv.buyer_unread or 0 if conv.buyer_id == current_user.id else conv.seller_unread or 0
+            
+            result.append({
+                "id": conv.id,
+                "property_id": conv.property_id,
+                "property_title": property_obj.title if property_obj else "Property",
+                "other_user_id": other_user_id,
+                "other_user_name": other_user.full_name or other_user.username if other_user else "User",
+                "last_message": conv.last_message or "No messages yet",
+                "last_message_time": conv.last_message_time.isoformat() if conv.last_message_time else None,
+                "unread_count": unread_count
+            })
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        return []
+
+# ============ GET MESSAGES ============
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        if conv.buyer_id != current_user.id and conv.seller_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        # Mark as read
+        if conv.buyer_id == current_user.id:
+            conv.buyer_unread = 0
+        else:
+            conv.seller_unread = 0
+        db.commit()
+        
+        messages = db.query(Message).filter(
+            Message.conversation_id == conversation_id
+        ).order_by(Message.created_at.asc()).all()
+        
+        result = []
+        for msg in messages:
+            sender = db.query(User).filter(User.id == msg.sender_id).first()
+            result.append({
+                "id": msg.id,
+                "sender_id": msg.sender_id,
+                "sender_name": sender.full_name or sender.username if sender else "User",
+                "receiver_id": msg.receiver_id,
+                "message": msg.content,
+                "is_read": msg.is_read,
+                "is_mine": msg.sender_id == current_user.id,
+                "created_at": msg.created_at.isoformat(),
+                "time": msg.created_at.strftime("%I:%M %p") if msg.created_at else ""
+            })
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ SEND MESSAGE ============
+@router.post("/send-message")
+async def send_message(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        conversation_id = data.get("conversation_id")
+        message_content = data.get("message", "").strip()
+        
+        if not conversation_id:
+            raise HTTPException(status_code=400, detail="Conversation ID required")
+        
+        if not message_content:
+            raise HTTPException(status_code=400, detail="Message content required")
+        
+        conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        if conv.buyer_id != current_user.id and conv.seller_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        receiver_id = conv.seller_id if conv.buyer_id == current_user.id else conv.buyer_id
+        
+        new_message = Message(
+            conversation_id=conversation_id,
+            sender_id=current_user.id,
+            receiver_id=receiver_id,
+            content=message_content,
+            created_at=datetime.utcnow()
+        )
+        db.add(new_message)
+        db.commit()
+        db.refresh(new_message)
+        
+        conv.last_message = message_content[:100]
+        conv.last_message_time = datetime.utcnow()
+        
+        if conv.buyer_id == receiver_id:
+            conv.buyer_unread = (conv.buyer_unread or 0) + 1
+        else:
+            conv.seller_unread = (conv.seller_unread or 0) + 1
+        db.commit()
+        
+        return {"success": True, "message": "Message sent successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ============ GET SAVED PROPERTIES ============
+# ============ SAVED PROPERTIES ============
 @router.get("/saved-properties")
 async def get_saved_properties(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all saved properties for the current buyer"""
     try:
         saved = db.query(SavedProperty).filter(
             SavedProperty.user_id == current_user.id
-        ).order_by(SavedProperty.saved_at.desc()).all()
+        ).order_by(desc(SavedProperty.saved_at)).all()
         
         properties = []
         for item in saved:
-            listing = db.query(Listing).filter(
-                Listing.id == item.property_id,
-                Listing.is_draft == False,
-                Listing.status == "active"
-            ).first()
-            
+            listing = db.query(Listing).filter(Listing.id == item.property_id).first()
             if listing:
                 images = []
                 if listing.images:
@@ -404,10 +405,8 @@ async def get_saved_properties(
                 properties.append({
                     "id": listing.id,
                     "title": listing.title,
-                    "description": listing.description[:200] if listing.description else "",
                     "price": listing.price,
                     "listing_type": listing.listing_type,
-                    "property_type": listing.property_type,
                     "bedrooms": listing.bedrooms,
                     "bathrooms": listing.bathrooms,
                     "sqft": listing.sqft,
@@ -415,50 +414,30 @@ async def get_saved_properties(
                     "city": listing.city,
                     "images": images[:3],
                     "cover_image": listing.cover_image,
-                    "featured": listing.featured,
-                    "saved_at": item.saved_at.isoformat() if item.saved_at else None,
-                    "created_at": listing.created_at.isoformat() if listing.created_at else None
+                    "saved_at": item.saved_at.isoformat() if item.saved_at else None
                 })
         
-        return {
-            "success": True,
-            "saved": properties,
-            "count": len(properties)
-        }
+        return properties
         
     except Exception as e:
-        logger.error(f"Error getting saved properties: {e}")
-        return {"success": False, "saved": [], "count": 0, "error": str(e)}
+        logger.error(f"Error: {e}")
+        return []
 
-
-# ============ SAVE PROPERTY ============
 @router.post("/save-property/{property_id}")
 async def save_property(
     property_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Save a property to user's saved list"""
     try:
-        # Check if property exists
-        listing = db.query(Listing).filter(Listing.id == property_id).first()
-        if not listing:
-            raise HTTPException(status_code=404, detail="Property not found")
-        
-        # Check if already saved
         existing = db.query(SavedProperty).filter(
             SavedProperty.user_id == current_user.id,
             SavedProperty.property_id == property_id
         ).first()
         
         if existing:
-            return {
-                "success": True,
-                "saved": True,
-                "message": "Property already saved"
-            }
+            return {"success": True, "saved": True, "message": "Already saved"}
         
-        # Save property
         new_saved = SavedProperty(
             user_id=current_user.id,
             property_id=property_id,
@@ -467,112 +446,49 @@ async def save_property(
         db.add(new_saved)
         db.commit()
         
-        return {
-            "success": True,
-            "saved": True,
-            "message": "Property saved successfully"
-        }
+        return {"success": True, "saved": True, "message": "Property saved"}
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error saving property: {e}")
+        logger.error(f"Error: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ============ UNSAVE PROPERTY ============
 @router.delete("/unsave-property/{property_id}")
 async def unsave_property(
     property_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Remove a property from user's saved list"""
     try:
         saved = db.query(SavedProperty).filter(
             SavedProperty.user_id == current_user.id,
             SavedProperty.property_id == property_id
         ).first()
         
-        if not saved:
-            return {
-                "success": True,
-                "saved": False,
-                "message": "Property was not saved"
-            }
+        if saved:
+            db.delete(saved)
+            db.commit()
         
-        db.delete(saved)
-        db.commit()
-        
-        return {
-            "success": True,
-            "saved": False,
-            "message": "Property removed from saved"
-        }
+        return {"success": True, "saved": False, "message": "Property removed"}
         
     except Exception as e:
-        logger.error(f"Error unsaving property: {e}")
+        logger.error(f"Error: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ============ SYNC SAVED PROPERTIES ============
-@router.post("/sync-saved-properties")
-async def sync_saved_properties(
-    data: dict,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Sync saved properties (replace all saved for user)"""
-    try:
-        property_ids = data.get("property_ids", [])
-        
-        # Delete all existing saved properties for this user
-        db.query(SavedProperty).filter(
-            SavedProperty.user_id == current_user.id
-        ).delete()
-        
-        # Add new saved properties
-        for prop_id in property_ids:
-            # Verify property exists
-            listing = db.query(Listing).filter(Listing.id == prop_id).first()
-            if listing:
-                new_saved = SavedProperty(
-                    user_id=current_user.id,
-                    property_id=prop_id,
-                    saved_at=datetime.utcnow()
-                )
-                db.add(new_saved)
-        
-        db.commit()
-        return {"success": True, "message": f"Synced {len(property_ids)} saved properties"}
-        
-    except Exception as e:
-        logger.error(f"Error syncing saved properties: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============ CHECK IF PROPERTY IS SAVED ============
 @router.get("/is-saved/{property_id}")
 async def is_property_saved(
     property_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Check if a property is saved by the current user"""
     try:
         saved = db.query(SavedProperty).filter(
             SavedProperty.user_id == current_user.id,
             SavedProperty.property_id == property_id
         ).first()
         
-        return {
-            "success": True,
-            "saved": saved is not None
-        }
+        return {"success": True, "saved": saved is not None}
         
     except Exception as e:
-        logger.error(f"Error checking saved status: {e}")
-        return {"success": False, "saved": False, "error": str(e)}
+        return {"success": False, "saved": False}

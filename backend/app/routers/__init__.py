@@ -1,10 +1,11 @@
+# backend/app/routers/__init__.py
 from . import auth
 from . import admin
 from . import listings
 from . import users
 from . import messages
 from . import notifications
-from . import payments
+from . import payments  # This already exists
 from . import settings as settings_router
 from . import password_reset
 from . import activation

@@ -1,3 +1,4 @@
+// src/components/dashboard/admin/VerificationQueue.jsx
 import React, { useState, useEffect, useCallback } from 'react'
 import { 
   CheckCircle, XCircle, Clock, Eye, RefreshCw, UserCheck, 
@@ -5,7 +6,7 @@ import {
   X, AlertCircle, User, Home, 
   Shield, Award, ThumbsUp, Download,
   Search, Users, Image, Camera, ChevronLeft, ChevronRight,
-  File, ExternalLink, Loader, Maximize2
+  File, ExternalLink, Maximize2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -36,17 +37,14 @@ const VerificationQueue = () => {
     
     try {
       const token = localStorage.getItem('access_token')
-      console.log('Token exists:', !!token)
       
       if (!token) {
-        console.error('No token found in localStorage')
         setError('Please login again')
         toast.error('Please login again')
         setLoading(false)
         return
       }
 
-      // Determine endpoint based on tab
       let endpoint = ''
       switch(activeTab) {
         case 'pending':
@@ -65,16 +63,12 @@ const VerificationQueue = () => {
           endpoint = `${API_URL}/api/activation/admin/pending-requests`
       }
 
-      console.log(`Fetching from endpoint: ${endpoint}`)
-      
       const response = await fetch(endpoint, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       })
-
-      console.log(`Response status: ${response.status}`)
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -88,27 +82,21 @@ const VerificationQueue = () => {
       }
 
       const data = await response.json()
-      console.log(`Received ${data.length} requests for ${activeTab} tab`)
-      
       const requestsData = Array.isArray(data) ? data : []
       setRequests(requestsData)
       
-      // Also fetch counts for all tabs
       const countsResponse = await fetch(`${API_URL}/api/activation/admin/counts`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
       if (countsResponse.ok) {
         const countsData = await countsResponse.json()
-        console.log('Counts data:', countsData)
         setCounts({
           pending: countsData.pending || 0,
           approved: countsData.approved || 0,
           rejected: countsData.rejected || 0,
           all: countsData.all || 0
         })
-      } else {
-        console.error('Failed to fetch counts:', countsResponse.status)
       }
       
     } catch (error) {
@@ -121,12 +109,10 @@ const VerificationQueue = () => {
     }
   }, [activeTab])
 
-  // Initial load and when tab changes
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  // Approve function
   const handleApprove = async (requestId) => {
     setProcessingId(requestId)
     try {
@@ -153,7 +139,6 @@ const VerificationQueue = () => {
     }
   }
 
-  // Reject function
   const handleReject = async (requestId) => {
     if (!rejectionReason.trim()) {
       toast.error('Please provide a reason for rejection')
@@ -261,7 +246,7 @@ const VerificationQueue = () => {
     }
   }
 
-  // Document Modal Component (keep same as before)
+  // Document Modal Component
   const DocumentModal = () => {
     const [docLoading, setDocLoading] = useState(true)
     const isImage = selectedDocument?.url?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)
@@ -290,7 +275,7 @@ const VerificationQueue = () => {
           <div className="flex-1 overflow-y-auto p-6 bg-gray-100 flex items-center justify-center min-h-[60vh]">
             {docLoading && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               </div>
             )}
             {isImage ? (
@@ -326,7 +311,7 @@ const VerificationQueue = () => {
     )
   }
 
-  // Photo Gallery Modal (keep same as before)
+  // Photo Gallery Modal
   const PhotoModal = () => {
     const currentUrl = currentPhotoList[currentPhotoIndex]
     const [imgLoading, setImgLoading] = useState(true)
@@ -367,7 +352,7 @@ const VerificationQueue = () => {
           <div className="flex justify-center items-center min-h-[80vh]">
             {imgLoading && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <Loader className="w-12 h-12 animate-spin text-white" />
+                <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
               </div>
             )}
             {currentUrl && (
@@ -546,7 +531,7 @@ const VerificationQueue = () => {
                   disabled={processingId === request.id}
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {processingId === request.id ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                  {processingId === request.id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
                   Approve
                 </button>
                 <button 
@@ -586,16 +571,35 @@ const VerificationQueue = () => {
     </div>
   )
 
+  // REPLACED: Loading with skeleton (NO SPINNER)
   if (loading) {
     return (
       <div className="p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Verification Queue</h1>
-          <p className="text-gray-500">Review and manage activation requests from users</p>
+          <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
+          <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border p-12 text-center">
-          <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <div className="text-gray-400">Loading verification requests...</div>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 w-fit">
+          {['Pending', 'Approved', 'Rejected', 'All'].map(tab => (
+            <div key={tab} className="px-6 py-2 rounded-lg">
+              <div className="h-5 bg-gray-200 rounded w-16 animate-pulse"></div>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+          <div className="divide-y">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="p-6">
+                <div className="flex justify-between">
+                  <div className="flex-1">
+                    <div className="h-6 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+                  </div>
+                  <div className="h-8 bg-gray-200 rounded w-24 animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -754,7 +758,7 @@ const VerificationQueue = () => {
                             disabled={processingId === req.id}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50"
                           >
-                            {processingId === req.id ? <Loader className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                            {processingId === req.id ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
                             Approve
                           </button>
                           <button 

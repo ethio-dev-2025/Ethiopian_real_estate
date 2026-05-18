@@ -1,3 +1,4 @@
+# backend/app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -5,9 +6,8 @@ import os
 from .routers import (
     auth, admin, listings, users, messages, notifications, 
     payments, settings as settings_router, password_reset, activation, buyer, 
-    buyer_auth, admin_messages
+    buyer_auth, admin_messages, websocket
 )
-from .routers import websocket
 from .database import engine, Base, init_db
 from .config import settings
 
@@ -25,14 +25,13 @@ app = FastAPI(title=settings.APP_NAME, docs_url="/docs")
 # Mount static files for uploads
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# ============ CORS CONFIGURATION (FIXED) ============
-# Allow all necessary origins for both HTTP and WebSocket
+# ============ CORS CONFIGURATION ============
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing (fix CORS issues)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600,
 )
@@ -44,7 +43,7 @@ app.include_router(listings.router, prefix="/api/listings", tags=["listings"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
-app.include_router(payments.router, prefix="/api/payments", tags=["payments"])
+app.include_router(payments.router, prefix="/api/payment", tags=["payment"])  # Changed from /api/payments to /api/payment
 app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
 app.include_router(password_reset.router, prefix="/api/password-reset", tags=["password-reset"])
 app.include_router(activation.router, prefix="/api/activation", tags=["activation"])

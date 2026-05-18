@@ -1,22 +1,15 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react'
+// src/components/dashboard/admin/AdminDashboard.jsx
+import React, { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AdminSidebar from './AdminSidebar'
-import { Loader } from 'lucide-react'
-
-// Lazy load components
-const DashboardOverview = lazy(() => import('./DashboardOverview'))
-const UserManagement = lazy(() => import('./UserManagement'))
-const VerificationQueue = lazy(() => import('./VerificationQueue'))
-const PaymentApprovals = lazy(() => import('./PaymentApprovals'))
-const ReportsAnalytics = lazy(() => import('./ReportsAnalytics'))
-const AdminSettings = lazy(() => import('./AdminSettings'))
-const AdminMessages = lazy(() => import('./AdminMessages'))
-
-const PageLoader = () => (
-  <div className="flex justify-center items-center h-64">
-    <Loader className="w-8 h-8 animate-spin text-blue-600" />
-  </div>
-)
+// Direct imports - NO LAZY LOADING
+import DashboardOverview from './DashboardOverview'
+import UserManagement from './UserManagement'
+import VerificationQueue from './VerificationQueue'
+import PaymentApprovals from './PaymentApprovals'
+import ReportsAnalytics from './ReportsAnalytics'
+import AdminSettings from './AdminSettings'
+import AdminMessages from './AdminMessages'
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -54,11 +47,7 @@ const AdminDashboard = () => {
   }, [])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Loader className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    )
+    return <div className="min-h-screen bg-gray-100"></div>
   }
 
   if (!isAdmin) {
@@ -74,18 +63,17 @@ const AdminDashboard = () => {
       />
       
       <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<DashboardOverview />} />
-            <Route path="/users" element={<UserManagement />} />
-            <Route path="/verification-queue" element={<VerificationQueue />} />
-            <Route path="/payment-approvals" element={<PaymentApprovals />} />
-            <Route path="/reports" element={<ReportsAnalytics />} />
-            <Route path="/messages" element={<AdminMessages />} />
-            <Route path="/settings" element={<AdminSettings />} />
-            <Route path="*" element={<Navigate to="/admin" replace />} />
-          </Routes>
-        </Suspense>
+        {/* No Suspense - components load instantly */}
+        <Routes>
+          <Route path="/" element={<DashboardOverview />} />
+          <Route path="/users" element={<UserManagement />} />
+          <Route path="/verification-queue" element={<VerificationQueue />} />
+          <Route path="/payment-approvals" element={<PaymentApprovals />} />
+          <Route path="/reports" element={<ReportsAnalytics />} />
+          <Route path="/messages" element={<AdminMessages />} />
+          <Route path="/settings" element={<AdminSettings />} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Routes>
       </main>
     </div>
   )

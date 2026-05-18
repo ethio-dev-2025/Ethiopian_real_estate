@@ -20,6 +20,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     phone: Optional[str] = None
+    role_type: Optional[str] = "user"
 
 class UserResponse(BaseModel):
     id: int
@@ -34,18 +35,9 @@ class UserResponse(BaseModel):
     is_activated: bool
     created_at: Optional[str]
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
 class LoginRequest(BaseModel):
     email: str
     password: str
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str
-    user: dict
 
 # ============ HELPER FUNCTIONS ============
 def is_test_user(email: str) -> bool:
@@ -74,7 +66,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 # ============ AUTHENTICATION DEPENDENCIES ============
 async def get_current_user(request: Request, db: Session = Depends(get_db)):
-    """Get current user from JWT token"""
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -99,71 +90,20 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
     return user
 
 async def get_current_admin_user(current_user: User = Depends(get_current_user)):
-    """Get current user and verify they are an admin"""
     if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
+        raise HTTPException(status_code=401, detail="Not authenticated")
     if current_user.role_type != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    
-    return current_user
-
-async def get_current_seller_user(current_user: User = Depends(get_current_user)):
-    """Get current user and verify they are a seller or dual role"""
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    
-    if current_user.role_type not in ["seller", "dual", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seller access required"
-        )
-    
-    return current_user
-
-async def get_current_landlord_user(current_user: User = Depends(get_current_user)):
-    """Get current user and verify they are a landlord or dual role"""
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    
-    if current_user.role_type not in ["landlord", "dual", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Landlord access required"
-        )
-    
+        raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
 async def get_current_buyer_user(current_user: User = Depends(get_current_user)):
-    """Get current user and verify they are a buyer"""
     if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    
+        raise HTTPException(status_code=401, detail="Not authenticated")
     if current_user.role_type != "buyer" and current_user.role_type != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Buyer access required"
-        )
-    
+        raise HTTPException(status_code=403, detail="Buyer access required")
     return current_user
 
-# ============ REGISTER ENDPOINT ============
+# ============ REGISTER ENDPOINT - FIXED ============
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     try:
@@ -176,19 +116,25 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         
         hashed_password = get_password_hash(user_data.password)
         
+        # USE THE ROLE_TYPE FROM REQUEST, default to 'user'
+        user_role = user_data.role_type if user_data.role_type else "user"
+        
+        # For test users, auto-activate
+        is_test = is_test_user(user_data.email)
+        
         db_user = User(
             email=user_data.email,
             username=user_data.username,
             full_name=user_data.full_name,
             hashed_password=hashed_password,
             phone=user_data.phone or "",
-            role_type="user",
-            status="pending",
+            role_type=user_role,
+            status="pending" if not is_test else "active",  # Set to pending for new users
             is_active=True,
-            is_verified=False,
-            is_activated=False,
-            seller_enabled=False,
-            seller_approved=False,
+            is_verified=True,
+            is_activated=is_test,  # Only test users are activated immediately
+            seller_enabled=False,  # Disabled until admin approves
+            seller_approved=False,  # Not approved yet
             seller_paid=False,
             landlord_enabled=False,
             landlord_approved=False,
@@ -220,48 +166,33 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# ============ LOGIN ENDPOINT - OPTIMIZED ============
+# ============ LOGIN ENDPOINT ============
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
-        print(f"🔐 Login attempt for: {login_data.email}")
-        
-        # Find by email first (faster)
+        # Find by email first
         user = db.query(User).filter(User.email == login_data.email).first()
         
         if not user:
             user = db.query(User).filter(User.username == login_data.email).first()
         
         if not user:
-            print(f"❌ User not found: {login_data.email}")
             return {"success": False, "error": "Invalid email/username or password"}
-        
-        print(f"✅ User found: {user.email}, role: {user.role_type}")
         
         # Verify password
         if not verify_password(login_data.password, user.hashed_password):
-            print(f"❌ Password verification failed")
             return {"success": False, "error": "Invalid email/username or password"}
         
-        print(f"✅ Password verified")
-        
-        # For test users, ensure they are fully activated
-        if is_test_user(user.email) or user.role_type in ["seller", "landlord", "dual", "admin"]:
+        # Update user status for test users
+        if is_test_user(user.email):
             user.status = "active"
             user.is_active = True
             user.is_verified = True
             user.is_activated = True
-            user.seller_enabled = True
-            user.seller_approved = True
-            user.landlord_enabled = True
-            user.landlord_approved = True
             db.commit()
-            print(f"✅ Test user fully activated")
         elif user.status == "pending":
             user.status = "active"
-            user.is_active = True
             db.commit()
-            print(f"✅ User status updated to active")
         
         # Update last login
         user.last_login = datetime.utcnow()
@@ -288,12 +219,10 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"❌ Login error: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Login error: {e}")
         return {"success": False, "error": "Internal server error"}
 
-# ============ GET CURRENT USER ENDPOINT ============
+# ============ GET CURRENT USER ============
 @router.get("/me")
 async def get_current_user_endpoint(current_user: User = Depends(get_current_user)):
     return {
@@ -312,3 +241,71 @@ async def get_current_user_endpoint(current_user: User = Depends(get_current_use
         "seller_enabled": current_user.seller_enabled,
         "landlord_enabled": current_user.landlord_enabled
     }
+
+
+# ============ ADMIN: ACTIVATE USER ============
+@router.post("/admin/activate-user/{user_id}")
+async def admin_activate_user(
+    user_id: int,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Admin endpoint to activate a user account"""
+    try:
+        user_to_activate = db.query(User).filter(User.id == user_id).first()
+        
+        if not user_to_activate:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user_to_activate.is_activated = True
+        user_to_activate.status = "active"
+        user_to_activate.seller_enabled = True
+        user_to_activate.seller_approved = True
+        user_to_activate.landlord_enabled = True
+        user_to_activate.landlord_approved = True
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"User {user_to_activate.email} has been activated successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error activating user: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ ADMIN: GET PENDING USERS ============
+@router.get("/admin/pending-users")
+async def get_pending_users(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get all users with pending activation"""
+    try:
+        pending_users = db.query(User).filter(
+            User.is_activated == False,
+            User.role_type != "admin"
+        ).all()
+        
+        return [
+            {
+                "id": u.id,
+                "email": u.email,
+                "username": u.username,
+                "full_name": u.full_name,
+                "phone": u.phone,
+                "role_type": u.role_type,
+                "status": u.status,
+                "created_at": u.created_at.isoformat() if u.created_at else None
+            }
+            for u in pending_users
+        ]
+        
+    except Exception as e:
+        print(f"Error getting pending users: {e}")
+        return []

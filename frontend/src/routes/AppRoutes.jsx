@@ -1,163 +1,199 @@
-import React, { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import PrivateRoute from './PrivateRoute'
-import AdminRoute from './AdminRoute'
-import { Loader } from 'lucide-react'
+// src/routes/AppRoutes.jsx
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import SellerLayout from '../components/layout/SellerLayout';
+import BuyerLayout from '../components/layout/BuyerLayout';
 
-// Buyer Layout Components
-import BuyerLayout from '../components/layout/BuyerLayout'
+// IMPORTANT: Import ALL buyer components directly (NOT lazy) for instant loading
+import BuyerDashboard from '../components/dashboard/buyer/BuyerDashboard';
+import BuyerMessages from '../components/dashboard/buyer/BuyerMessages';
+import BuyerProperties from '../components/dashboard/buyer/BuyerProperties';
+import BuyerSaved from '../components/dashboard/buyer/BuyerSaved';
+import BuyerSettings from '../components/dashboard/buyer/BuyerSettings';
 
-// Buyer Dashboard Components (from components/dashboard/buyer/)
-import BuyerDashboard from '../components/dashboard/buyer/BuyerDashboard'
-import BuyerProperties from '../components/dashboard/buyer/BuyerProperties'
-import BuyerSaved from '../components/dashboard/buyer/BuyerSaved'
-import BuyerSettings from '../components/dashboard/buyer/BuyerSettings'
-import BuyerMessages from '../components/dashboard/buyer/BuyerMessages'
+// Admin Component - Import directly for instant loading (NO lazy)
+import AdminDashboard from '../components/dashboard/admin/AdminDashboard';
 
-// Lazy load components for better performance
-const HomePage = lazy(() => import('../pages/public/HomePage'))
-const PropertiesPage = lazy(() => import('../pages/public/PropertiesPage'))
-const PropertyDetailPage = lazy(() => import('../pages/public/PropertyDetailPage'))
-const AboutPage = lazy(() => import('../pages/public/AboutPage'))
-const ContactPage = lazy(() => import('../pages/public/ContactPage'))
-const PricingPage = lazy(() => import('../pages/public/PricingPage'))
-const FAQPage = lazy(() => import('../pages/public/FAQPage'))
-const LoginPage = lazy(() => import('../pages/auth/LoginPage'))
-const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'))
-const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage'))
-const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'))
+// Payment Success Page
+import PaymentSuccessPage from '../pages/PaymentSuccessPage';
 
-// Buyer Auth
-const BuyerRegisterPage = lazy(() => import('../pages/buyer/BuyerRegisterPage'))
-const BuyerLoginPage = lazy(() => import('../pages/buyer/BuyerLoginPage'))
+// Seller Components (keep lazy - they're less frequently used by buyers)
+const SellerDashboard = lazy(() => import('../components/dashboard/seller/sellerDashboard'));
+const SellerListings = lazy(() => import('../components/dashboard/seller/SellerListings'));
+const SellerMessages = lazy(() => import('../components/dashboard/seller/SellerMessages'));
+const SellerProperties = lazy(() => import('../components/dashboard/seller/SellerProperties'));
+const SellerSettings = lazy(() => import('../components/dashboard/seller/SellerSettings'));
+const SellerSubscription = lazy(() => import('../components/dashboard/seller/SellerSubscription'));
+const SellerActivation = lazy(() => import('../components/dashboard/seller/SellerActivation'));
+const SellerCreateListing = lazy(() => import('../components/dashboard/seller/sellerCreateListing'));
+const SellerDashboardOverview = lazy(() => import('../components/dashboard/seller/sellerDashboardOverview'));
+const SellerDocumentVerification = lazy(() => import('../components/dashboard/seller/sellerDocumentVerification'));
 
-// Seller/Landlord Components
-const UnifiedDashboard = lazy(() => import('../components/dashboard/user/UnifiedDashboard'))
-const AdminDashboard = lazy(() => import('../components/dashboard/admin/AdminDashboard'))
-const CreateListingPage = lazy(() => import('../pages/CreateListingPage'))
-const LandlordAddProperty = lazy(() => import('../pages/LandlordAddProperty'))
-const Notifications = lazy(() => import('../pages/Notifications'))
-const Settings = lazy(() => import('../pages/Settings'))
-const SubscriptionPage = lazy(() => import('../pages/SubscriptionPage'))
-const ActivationPage = lazy(() => import('../pages/ActivationPage'))
-const PaymentSuccessPage = lazy(() => import('../pages/PaymentSuccessPage'))
-const MyListingsPage = lazy(() => import('../pages/MyListingsPage'))
-const EditListingPage = lazy(() => import('../pages/EditListingPage'))
+// Common Components
+const Notifications = lazy(() => import('../components/common/Notifications'));
+const RoleSelectionModal = lazy(() => import('../components/common/RoleSelectionModal'));
+const MessagesPage = lazy(() => import('../components/messages/MessagesPage'));
 
-// Messaging component - Real-time chat for seller/landlord
-const MessagesPage = lazy(() => import('../components/messages/MessagesPage'))
+// Auth pages
+const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'));
 
-// Messages Wrapper for seller/landlord dashboard
-const MessagesWrapper = lazy(() => import('../pages/MessagesWrapper'))
+// Buyer Auth pages
+const BuyerLoginPage = lazy(() => import('../pages/buyer/BuyerLoginPage'));
+const BuyerRegisterPage = lazy(() => import('../pages/buyer/BuyerRegisterPage'));
 
-const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <Loader className="w-8 h-8 animate-spin text-blue-600" />
-  </div>
-)
+// Public pages
+const HomePage = lazy(() => import('../pages/public/HomePage'));
+const AboutPage = lazy(() => import('../pages/public/AboutPage'));
+const ContactPage = lazy(() => import('../pages/public/ContactPage'));
+const FAQPage = lazy(() => import('../pages/public/FAQPage'));
+const PricingPage = lazy(() => import('../pages/public/PricingPage'));
+const PropertiesPage = lazy(() => import('../pages/public/PropertiesPage'));
+const PropertyDetailPage = lazy(() => import('../pages/public/PropertyDetailPage'));
+
+// Edit Listing Page
+const EditListingPage = lazy(() => import('../pages/EditListingPage'));
 
 const AppRoutes = () => {
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
-        {/* PUBLIC ROUTES */}
-        <Route path="/" element={<HomePage />} />
-        <Route path="/properties" element={<PropertiesPage />} />
-        <Route path="/properties/:id" element={<PropertyDetailPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/faq" element={<FAQPage />} />
-        
-        {/* AUTH ROUTES */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/buyer/register" element={<BuyerRegisterPage />} />
-        <Route path="/buyer/login" element={<BuyerLoginPage />} />
-        
-        {/* ACTIVATION & SUBSCRIPTION */}
-        <Route path="/activation" element={<PrivateRoute><ActivationPage /></PrivateRoute>} />
-        <Route path="/subscription" element={<PrivateRoute><SubscriptionPage /></PrivateRoute>} />
-        <Route path="/payment/success" element={<PaymentSuccessPage />} />
-        
-        {/* SELLER / LANDLORD DASHBOARD */}
-        <Route path="/dashboard" element={<PrivateRoute><UnifiedDashboard /></PrivateRoute>} />
-        <Route path="/dashboard/messages" element={<PrivateRoute><MessagesWrapper /></PrivateRoute>} />
-        <Route path="/dashboard/messages/:conversationId" element={<PrivateRoute><MessagesWrapper /></PrivateRoute>} />
-        
-        {/* BUYER DASHBOARD - Using new components with BuyerLayout (NO BOOKMARKS) */}
-        <Route path="/dashboard/buyer" element={
-          <PrivateRoute>
-            <BuyerLayout>
-              <BuyerDashboard />
-            </BuyerLayout>
-          </PrivateRoute>
-        } />
-        
-        <Route path="/dashboard/buyer/properties" element={
-          <PrivateRoute>
-            <BuyerLayout>
-              <BuyerProperties />
-            </BuyerLayout>
-          </PrivateRoute>
-        } />
-        
-        <Route path="/dashboard/buyer/saved" element={
-          <PrivateRoute>
-            <BuyerLayout>
-              <BuyerSaved />
-            </BuyerLayout>
-          </PrivateRoute>
-        } />
-        
-        <Route path="/dashboard/buyer/settings" element={
-          <PrivateRoute>
-            <BuyerLayout>
-              <BuyerSettings />
-            </BuyerLayout>
-          </PrivateRoute>
-        } />
-        
-        <Route path="/dashboard/buyer/messages" element={
-          <PrivateRoute>
-            <BuyerLayout>
-              <BuyerMessages />
-            </BuyerLayout>
-          </PrivateRoute>
-        } />
-        
-        <Route path="/dashboard/buyer/messages/:conversationId" element={
-          <PrivateRoute>
-            <BuyerLayout>
-              <BuyerMessages />
-            </BuyerLayout>
-          </PrivateRoute>
-        } />
-        
-        {/* LISTING MANAGEMENT */}
-        <Route path="/create-listing" element={<PrivateRoute><CreateListingPage /></PrivateRoute>} />
-        <Route path="/add-property" element={<PrivateRoute><LandlordAddProperty /></PrivateRoute>} />
-        <Route path="/my-listings" element={<PrivateRoute><MyListingsPage /></PrivateRoute>} />
-        <Route path="/edit-listing/:id" element={<PrivateRoute><EditListingPage /></PrivateRoute>} />
-        
-        {/* COMMUNICATION */}
-        <Route path="/messages" element={<PrivateRoute><MessagesPage /></PrivateRoute>} />
-        <Route path="/messages/:userId" element={<PrivateRoute><MessagesPage /></PrivateRoute>} />
-        <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
-        
-        {/* ADMIN ROUTES */}
-        <Route path="/admin/messages" element={<AdminRoute><MessagesPage /></AdminRoute>} />
-        <Route path="/admin/messages/:userId" element={<AdminRoute><MessagesPage /></AdminRoute>} />
-        <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
-        <Route path="/admin/*" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-        
-        {/* CATCH ALL */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
-  )
-}
+  const { isAuthenticated, loading, user } = useAuth();
+  const [role, setRole] = useState(null);
+  const [hasSelectedRole, setHasSelectedRole] = useState(false);
+  const [resolved, setResolved] = useState(false);
 
-export default AppRoutes
+  useEffect(() => {
+    let userRole = null;
+    
+    if (user && user.role_type) {
+      userRole = user.role_type;
+    }
+    
+    if (!userRole) {
+      userRole = localStorage.getItem('user_role');
+    }
+    
+    let finalRole = userRole;
+    if (userRole === 'user') {
+      finalRole = 'buyer';
+    }
+    
+    setRole(finalRole);
+    setHasSelectedRole(!!finalRole && finalRole !== 'null' && finalRole !== null);
+    setResolved(true);
+  }, [user, isAuthenticated]);
+
+  // REMOVED: loading spinner - just render null or minimal placeholder
+  if (loading) {
+    return <div style={{ minHeight: '100vh' }}></div>;
+  }
+
+  if (!resolved) {
+    return <div style={{ minHeight: '100vh' }}></div>;
+  }
+
+  // NOT AUTHENTICATED - PUBLIC ROUTES
+  if (!isAuthenticated) {
+    return (
+      <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/faq" element={<FAQPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/properties" element={<PropertiesPage />} />
+          <Route path="/properties/:id" element={<PropertyDetailPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+          <Route path="/buyer/login" element={<BuyerLoginPage />} />
+          <Route path="/buyer/register" element={<BuyerRegisterPage />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  // AUTHENTICATED - ROLE SELECTION
+  if (!hasSelectedRole) {
+    return (
+      <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
+        <RoleSelectionModal open={true} />
+      </Suspense>
+    );
+  }
+
+  const normalizedRole = String(role).toLowerCase();
+
+  // SELLER ROUTES
+  if (normalizedRole === 'seller' || normalizedRole === 'landlord' || normalizedRole === 'dual') {
+    return (
+      <SellerLayout>
+        <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="/dashboard" element={<SellerDashboard />} />
+            <Route path="/dashboard-overview" element={<SellerDashboardOverview />} />
+            <Route path="/listings" element={<SellerListings />} />
+            <Route path="/create-listing" element={<SellerCreateListing />} />
+            <Route path="/edit-listing/:id" element={<EditListingPage />} />
+            <Route path="/messages" element={<SellerMessages />} />
+            <Route path="/messages/:conversationId" element={<SellerMessages />} />
+            <Route path="/properties" element={<SellerProperties />} />
+            <Route path="/settings" element={<SellerSettings />} />
+            <Route path="/subscription" element={<SellerSubscription />} />
+            <Route path="/activation" element={<SellerActivation />} />
+            <Route path="/verification" element={<SellerDocumentVerification />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/properties/:id" element={<PropertyDetailPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="*" element={<Navigate to="/dashboard" />} />
+          </Routes>
+        </Suspense>
+      </SellerLayout>
+    );
+  }
+
+  // ADMIN ROUTES - FIXED: Added /* for nested routes and direct import
+  if (normalizedRole === 'admin') {
+    return (
+      <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/admin" />} />
+          <Route path="/admin/*" element={<AdminDashboard />} />
+          <Route path="*" element={<Navigate to="/admin" />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  // BUYER ROUTES - NO SUSPENSE NEEDED (components are imported directly)
+  if (normalizedRole === 'buyer') {
+    return (
+      <BuyerLayout>
+        {/* No Suspense wrapper for buyer routes - components load instantly */}
+        <Routes>
+          <Route path="/dashboard/buyer/messages/:conversationId" element={<BuyerMessages />} />
+          <Route path="/dashboard/buyer/messages" element={<BuyerMessages />} />
+          <Route path="/dashboard/buyer/properties" element={<BuyerProperties />} />
+          <Route path="/dashboard/buyer/saved" element={<BuyerSaved />} />
+          <Route path="/dashboard/buyer/settings" element={<BuyerSettings />} />
+          <Route path="/dashboard/buyer/notifications" element={<Notifications />} />
+          <Route path="/dashboard/buyer" element={<BuyerDashboard />} />
+          <Route path="/" element={<Navigate to="/dashboard/buyer" />} />
+          <Route path="/payment/success" element={<PaymentSuccessPage />} />
+          <Route path="/payment/return" element={<PaymentSuccessPage />} />
+          <Route path="*" element={<Navigate to="/dashboard/buyer" />} />
+        </Routes>
+      </BuyerLayout>
+    );
+  }
+
+  return <Navigate to="/" />;
+};
+
+export default AppRoutes;

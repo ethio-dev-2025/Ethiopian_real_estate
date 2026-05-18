@@ -1,3 +1,4 @@
+// src/components/dashboard/admin/PaymentApprovals.jsx
 import React, { useState, useEffect, useRef } from 'react'
 import { CheckCircle, XCircle, Clock, CreditCard } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -124,15 +125,41 @@ const PaymentApprovals = () => {
     </div>
   )
 
-  // No spinner - show empty content
-  if (loading && payments.length === 0) {
-    return (
-      <div className="p-6">
-        <div className="mb-6"><h1 className="text-2xl font-bold text-gray-900">Payment Approval Queue</h1><p className="text-gray-500">Approve package payments before sellers can add properties</p></div>
-        <div className="bg-white rounded-2xl shadow-sm border p-12 text-center"><CreditCard className="w-16 h-16 text-gray-300 mx-auto mb-4" /><p className="text-gray-500">Loading payments...</p></div>
+  // Show empty content while loading - NO SPINNER
+ // In PaymentApprovals.jsx, replace the loading section with:
+
+if (loading && payments.length === 0) {
+  return (
+    <div className="p-6">
+      <div className="mb-6">
+        <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
+        <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
       </div>
-    )
-  }
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 w-fit">
+        {['Pending', 'Approved', 'Rejected', 'All'].map(tab => (
+          <div key={tab} className="px-6 py-2 rounded-lg">
+            <div className="h-5 bg-gray-200 rounded w-16 animate-pulse"></div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <div className="divide-y">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="p-6">
+              <div className="flex justify-between">
+                <div className="flex-1">
+                  <div className="h-6 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+                </div>
+                <div className="h-8 bg-gray-200 rounded w-24 animate-pulse"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
   return (
     <div className="p-6">

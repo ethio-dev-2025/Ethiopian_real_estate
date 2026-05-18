@@ -1,20 +1,27 @@
+# backend/app/routers/payments.py
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+import httpx
+import uuid
+import os
+import json
 from ..database import get_db
 from ..models import User
 from .auth import get_current_user
-from ..services.chapa_service import chapa_service
-import json
 
 router = APIRouter()
+
+# Chapa Configuration
+CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "CHASECK_TEST-pYUkz07fDi9ek06PubdOuuKe3c9Ahjod")
+CHAPA_BASE_URL = "https://api.chapa.co/v1"
 
 class PaymentInitRequest(BaseModel):
     plan_type: str
     amount: float
-    email: EmailStr
+    email: EmailStr  # This ensures valid email format
     first_name: str
     last_name: str
     phone: Optional[str] = "0911111111"
@@ -22,7 +29,6 @@ class PaymentInitRequest(BaseModel):
 class PaymentVerifyRequest(BaseModel):
     tx_ref: str
 
-# ============ NEW: GET PAYMENT/SUBSCRIPTION STATUS ============
 @router.get("/status")
 async def get_payment_status(
     current_user: User = Depends(get_current_user),
@@ -30,11 +36,9 @@ async def get_payment_status(
 ):
     """Get user's subscription status"""
     try:
-        # Check subscription status based on seller_paid and landlord_paid
         has_subscription = False
         subscription_plan = "free"
         
-        # Check if user has paid for any role
         if current_user.seller_paid or current_user.landlord_paid:
             has_subscription = True
             if current_user.seller_paid and current_user.landlord_paid:
@@ -44,20 +48,9 @@ async def get_payment_status(
             elif current_user.landlord_paid:
                 subscription_plan = "landlord"
         
-        # Also check for the new subscription fields (if they exist)
-        if hasattr(current_user, 'has_active_subscription') and current_user.has_active_subscription:
-            has_subscription = True
-            subscription_plan = getattr(current_user, 'subscription_plan', 'premium')
-        
-        # Special case for test users
-        if current_user.email in ["reduss@gmail.com", "dani@gmail.com", "test@example.com"]:
-            has_subscription = True
-            subscription_plan = "premium"
-        
         return {
             "has_active_subscription": has_subscription,
             "subscription_plan": subscription_plan,
-            "subscription_end_date": None,
             "can_create_listing": has_subscription
         }
         
@@ -66,7 +59,6 @@ async def get_payment_status(
         return {
             "has_active_subscription": False,
             "subscription_plan": "free",
-            "subscription_end_date": None,
             "can_create_listing": False
         }
 
@@ -78,42 +70,66 @@ async def initialize_payment(
 ):
     """Initialize Chapa payment for subscription"""
     
-    print(f"Payment for user: {current_user.email}")
-    print(f"Plan: {data.plan_type}, Amount: ${data.amount}")
-    
-    result = await chapa_service.initialize_payment(
-        amount=data.amount,
-        email=data.email,
-        first_name=data.first_name,
-        last_name=data.last_name,
-        phone=data.phone,
-        plan_type=data.plan_type,
-        user_id=current_user.id
-    )
-    
-    if result["success"]:
-        return {
-            "success": True,
-            "checkout_url": result["checkout_url"],
-            "tx_ref": result["tx_ref"]
+    try:
+        print(f"💰 Payment for user: {current_user.email}")
+        print(f"📦 Plan: {data.plan_type}, Amount: ETB {data.amount}")
+        print(f"📧 Email: {data.email}")
+        
+        # Generate unique transaction reference
+        tx_ref = f"{data.plan_type}-{current_user.id}-{uuid.uuid4().hex[:8]}"
+        
+        # Prepare Chapa request data - FIXED FORMAT
+        chapa_data = {
+            "amount": str(data.amount),  # Convert to string
+            "currency": "ETB",
+            "email": data.email,
+            "first_name": data.first_name,
+            "last_name": data.last_name,
+            "tx_ref": tx_ref,
+            "callback_url": "http://localhost:8000/api/payment/webhook",
+            "return_url": f"http://localhost:5173/payment/success?tx_ref={tx_ref}",
+            "customization": {
+                "title": f"{data.plan_type.upper()} Plan",
+                "description": f"Subscribe to {data.plan_type} plan"
+            }
         }
-    else:
-        raise HTTPException(status_code=400, detail=result.get("error", "Payment failed"))
-
-@router.post("/verify")
-async def verify_payment(
-    data: PaymentVerifyRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Verify payment status"""
-    
-    result = await chapa_service.verify_payment(data.tx_ref)
-    
-    if result.get("verified"):
-        return {"success": True, "message": "Payment verified"}
-    else:
-        return {"success": False, "message": "Verification failed"}
+        
+        print(f"🚀 Chapa request: {json.dumps(chapa_data, indent=2)}")
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{CHAPA_BASE_URL}/transaction/initialize",
+                json=chapa_data,
+                headers={
+                    "Authorization": f"Bearer {CHAPA_SECRET_KEY}",
+                    "Content-Type": "application/json"
+                },
+                timeout=30.0
+            )
+            
+            print(f"📡 Response status: {response.status_code}")
+            result = response.json()
+            print(f"📦 Chapa response: {json.dumps(result, indent=2)}")
+            
+            if response.status_code == 200 and result.get("status") == "success":
+                checkout_url = result.get("data", {}).get("checkout_url")
+                return {
+                    "success": True,
+                    "checkout_url": checkout_url,
+                    "tx_ref": tx_ref
+                }
+            else:
+                error_msg = result.get("message", "Payment initialization failed")
+                if isinstance(error_msg, dict):
+                    error_msg = json.dumps(error_msg)
+                return {
+                    "success": False,
+                    "message": error_msg
+                }
+                
+    except Exception as e:
+        print(f"❌ Payment error: {e}")
+        return {"success": False, "message": str(e)}
 
 @router.post("/webhook")
 async def chapa_webhook(request: Request, db: Session = Depends(get_db)):
@@ -121,50 +137,46 @@ async def chapa_webhook(request: Request, db: Session = Depends(get_db)):
     
     try:
         body = await request.json()
-        print(f"Webhook received: {body}")
+        print(f"📨 Webhook received: {body}")
         
         tx_ref = body.get("tx_ref")
         status = body.get("status")
         
         if status == "success" and tx_ref:
-            # Parse tx_ref to get plan_type and user_id
-            # Format: "seller-34-1734567890-abc"
             parts = tx_ref.split("-")
             plan_type = parts[0] if len(parts) > 0 else None
             user_id = parts[1] if len(parts) > 1 else None
             
-            print(f"Processing payment: plan_type={plan_type}, user_id={user_id}")
-            
             if user_id and plan_type:
                 user = db.query(User).filter(User.id == int(user_id)).first()
                 if user:
-                    print(f"Found user: {user.email}")
+                    print(f"✅ Found user: {user.email}")
                     
                     if plan_type == "seller":
                         user.seller_paid = True
                         user.seller_enabled = True
                         user.seller_approved = True
-                        print(f"✅ Activated seller account for {user.email}")
-                        
+                        user.role_type = "seller"
                     elif plan_type == "landlord":
                         user.landlord_paid = True
                         user.landlord_enabled = True
                         user.landlord_approved = True
-                        print(f"✅ Activated landlord account for {user.email}")
-                        
+                        user.role_type = "landlord"
                     elif plan_type == "dual":
                         user.seller_paid = True
                         user.landlord_paid = True
                         user.seller_enabled = True
                         user.landlord_enabled = True
-                        print(f"✅ Activated dual account for {user.email}")
+                        user.seller_approved = True
+                        user.landlord_approved = True
+                        user.role_type = "dual"
                     
+                    user.has_active_subscription = True
                     db.commit()
-                else:
-                    print(f"User not found with ID: {user_id}")
+                    print(f"✅ Subscription activated for {user.email}")
         
         return {"status": "received"}
         
     except Exception as e:
-        print(f"Webhook error: {e}")
+        print(f"❌ Webhook error: {e}")
         return {"status": "error", "message": str(e)}

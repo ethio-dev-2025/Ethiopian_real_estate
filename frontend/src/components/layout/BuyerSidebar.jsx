@@ -1,46 +1,47 @@
-import React, { useState, useEffect, memo } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import React, { useState, useEffect, memo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import {
-  Home, Search, Heart, MessageCircle, Settings, LogOut, Menu, X, ChevronRight, Building2
-} from 'lucide-react'
+  Home, Search, Heart, MessageCircle, Settings, LogOut, Menu, X, ChevronRight, Building2, Bell
+} from 'lucide-react';
 
 const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [isMobile, setIsMobile] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isMobile, setIsMobile] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768)
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
     
     const fetchUnreadCount = async () => {
       try {
-        const token = localStorage.getItem('access_token')
-        if (!token) return
-        const response = await fetch('http://localhost:8000/api/messages/unread-count', {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+        const response = await fetch('http://localhost:8000/api/buyer/conversations', {
           headers: { 'Authorization': `Bearer ${token}` }
-        })
+        });
         if (response.ok) {
-          const data = await response.json()
-          setUnreadCount(data.count || 0)
+          const conversations = await response.json();
+          const total = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
+          setUnreadCount(total);
         }
       } catch (error) {
-        console.error('Error fetching unread count:', error)
+        console.error('Error fetching unread count:', error);
       }
-    }
+    };
     
-    fetchUnreadCount()
-    const interval = setInterval(fetchUnreadCount, 30000)
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
     
     return () => {
-      window.removeEventListener('resize', checkMobile)
-      clearInterval(interval)
-    }
-  }, [])
+      window.removeEventListener('resize', checkMobile);
+      clearInterval(interval);
+    };
+  }, []);
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard/buyer' },
@@ -48,23 +49,23 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     { id: 'saved', label: 'Saved Properties', icon: Heart, path: '/dashboard/buyer/saved' },
     { id: 'messages', label: 'Messages', icon: MessageCircle, path: '/dashboard/buyer/messages', badge: unreadCount },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/dashboard/buyer/settings' }
-  ]
+  ];
 
   const handleNavigation = (path) => {
-    navigate(path)
-    if (isMobile) setSidebarOpen(false)
-  }
+    navigate(path);
+    if (isMobile) setSidebarOpen(false);
+  };
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
 
   const getUserName = () => {
-    if (user?.full_name) return user.full_name
-    if (user?.username) return user.username
-    return 'Buyer'
-  }
+    if (user?.full_name) return user.full_name;
+    if (user?.username) return user.username;
+    return 'Buyer';
+  };
 
   return (
     <>
@@ -94,11 +95,11 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
             </div>
           </div>
 
-          {/* Navigation Menu - Only Menu Items, No Cards */}
+          {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1 mt-4">
             {menuItems.map((item) => {
-              const Icon = item.icon
-              const isActive = location.pathname === item.path
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
               
               return (
                 <button
@@ -126,17 +127,16 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                     <span className="absolute right-2 top-1 w-2 h-2 bg-red-500 rounded-full"></span>
                   )}
                 </button>
-              )
+              );
             })}
           </nav>
 
-          {/* Bottom Section with Account Name and Logout Side by Side */}
+          {/* Bottom Section */}
           <div className="p-4 border-t border-white/10">
             {sidebarOpen ? (
               <div className="flex items-center justify-between gap-2">
-                {/* Account Name */}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-white text-xs font-medium">{getUserName().charAt(0).toUpperCase()}</span>
                   </div>
                   <div className="flex-1 min-w-0">
@@ -144,7 +144,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                     <p className="text-xs text-slate-400 truncate">Buyer Account</p>
                   </div>
                 </div>
-                {/* Logout Button */}
                 <button
                   onClick={handleLogout}
                   className="p-2 rounded-lg text-slate-400 hover:bg-red-600 hover:text-white transition-all duration-150"
@@ -154,7 +153,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 </button>
               </div>
             ) : (
-              /* Collapsed mode - only logout icon */
               <button
                 onClick={handleLogout}
                 className="w-full flex justify-center p-2 rounded-lg text-slate-400 hover:bg-red-600 hover:text-white transition-all duration-150"
@@ -167,9 +165,9 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
         </div>
       </aside>
     </>
-  )
-})
+  );
+});
 
-BuyerSidebar.displayName = 'BuyerSidebar'
+BuyerSidebar.displayName = 'BuyerSidebar';
 
-export default BuyerSidebar
+export default BuyerSidebar;

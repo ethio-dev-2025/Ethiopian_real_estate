@@ -1,3 +1,4 @@
+// src/components/dashboard/admin/UserManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react'
 import { Search, UserCheck, UserX, Trash2, Eye, Shield, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -14,7 +15,6 @@ const UserManagement = () => {
   const [showViewModal, setShowViewModal] = useState(false)
   const [counts, setCounts] = useState({ total: 0, verified: 0, unverified: 0, suspended: 0 })
 
-  // Fetch users
   const fetchUsers = useCallback(async () => {
     setLoading(true)
     try {
@@ -35,7 +35,6 @@ const UserManagement = () => {
       setUsers(usersData)
       setTotalUsers(total)
       
-      // Calculate counts
       const verifiedCount = usersData.filter(u => u.is_verified && u.status === 'active').length
       const unverifiedCount = usersData.filter(u => !u.is_verified && u.status !== 'suspended').length
       const suspendedCount = usersData.filter(u => u.status === 'suspended').length
@@ -55,7 +54,6 @@ const UserManagement = () => {
     }
   }, [searchTerm, filterStatus])
 
-  // Initial load
   useEffect(() => {
     fetchUsers()
   }, [fetchUsers])
@@ -198,26 +196,7 @@ const UserManagement = () => {
     </div>
   )
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-500">Manage all registered users</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm border p-4"><p className="text-sm text-gray-500">Total Users</p><p className="text-2xl font-bold text-gray-900">0</p></div>
-          <div className="bg-white rounded-xl shadow-sm border p-4"><p className="text-sm text-gray-500">Verified</p><p className="text-2xl font-bold text-green-600">0</p></div>
-          <div className="bg-white rounded-xl shadow-sm border p-4"><p className="text-sm text-gray-500">Unverified</p><p className="text-2xl font-bold text-yellow-600">0</p></div>
-          <div className="bg-white rounded-xl shadow-sm border p-4"><p className="text-sm text-gray-500">Suspended</p><p className="text-2xl font-bold text-red-600">0</p></div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-          <div className="text-center py-12 text-gray-500">Loading users...</div>
-        </div>
-      </div>
-    )
-  }
-
+  // IMMEDIATE SKELETON - Shows content right away
   return (
     <div className="p-6">
       {showViewModal && <ViewUserModal />}
@@ -227,27 +206,35 @@ const UserManagement = () => {
         <p className="text-gray-500">Manage all registered users</p>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Always visible, shows skeleton while loading */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <p className="text-sm text-gray-500">Total Users</p>
-          <p className="text-2xl font-bold text-gray-900">{totalUsers}</p>
+          <p className="text-2xl font-bold text-gray-900">
+            {loading ? <span className="inline-block w-16 h-8 bg-gray-200 rounded animate-pulse"></span> : totalUsers}
+          </p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <p className="text-sm text-gray-500">Verified</p>
-          <p className="text-2xl font-bold text-green-600">{counts.verified}</p>
+          <p className="text-2xl font-bold text-green-600">
+            {loading ? <span className="inline-block w-16 h-8 bg-gray-200 rounded animate-pulse"></span> : counts.verified}
+          </p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <p className="text-sm text-gray-500">Unverified</p>
-          <p className="text-2xl font-bold text-yellow-600">{counts.unverified}</p>
+          <p className="text-2xl font-bold text-yellow-600">
+            {loading ? <span className="inline-block w-16 h-8 bg-gray-200 rounded animate-pulse"></span> : counts.unverified}
+          </p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <p className="text-sm text-gray-500">Suspended</p>
-          <p className="text-2xl font-bold text-red-600">{counts.suspended}</p>
+          <p className="text-2xl font-bold text-red-600">
+            {loading ? <span className="inline-block w-16 h-8 bg-gray-200 rounded animate-pulse"></span> : counts.suspended}
+          </p>
         </div>
       </div>
 
-      {/* Search and Filter */}
+      {/* Search and Filter - Always visible */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -279,92 +266,40 @@ const UserManagement = () => {
         </button>
       </div>
 
-      {/* Users Table */}
+      {/* Users Table - Shows skeleton rows while loading */}
       <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">USER</th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">EMAIL</th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">REGISTERED</th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">STATUS</th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">ACTIONS</th>
-              </tr>
+              <tr><th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">USER</th><th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">EMAIL</th><th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">REGISTERED</th><th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">STATUS</th><th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">ACTIONS</th></tr>
             </thead>
             <tbody className="divide-y">
-              {users.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="text-center py-12 text-gray-500">No users found</td>
-                </tr>
+              {loading && users.length === 0 ? (
+                // Skeleton rows
+                [1, 2, 3, 4, 5].map(i => (
+                  <tr key={i} className="hover:bg-gray-50 transition">
+                    <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div><div><div className="h-4 bg-gray-200 rounded w-24 mb-1 animate-pulse"></div><div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div></div></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div></td>
+                    <td className="px-6 py-4"><div className="h-5 bg-gray-200 rounded-full w-16 animate-pulse"></div></td>
+                    <td className="px-6 py-4"><div className="flex gap-2"><div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div><div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div><div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div></div></td>
+                  </tr>
+                ))
+              ) : users.length === 0 ? (
+                <tr><td colSpan="5" className="text-center py-12 text-gray-500">No users found</td></tr>
               ) : (
                 users.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                          {user.full_name?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{user.full_name || user.username}</p>
-                          <p className="text-xs text-gray-500">@{user.username}</p>
-                        </div>
-                      </div>
-                    </td>
+                    <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">{user.full_name?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}</div><div><p className="font-medium text-gray-900">{user.full_name || user.username}</p><p className="text-xs text-gray-500">@{user.username}</p></div></div></td>
                     <td className="px-6 py-4 text-gray-600">{user.email}</td>
                     <td className="px-6 py-4 text-gray-600">{user.registered_date}</td>
                     <td className="px-6 py-4">{getStatusBadge(user.status_display, user.is_verified, user.status)}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => { setSelectedUser(user); setShowViewModal(true) }} 
-                          className="p-2 hover:bg-blue-50 rounded-lg transition" 
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4 text-blue-500" />
-                        </button>
-                        {!user.is_verified && user.status !== 'suspended' && (
-                          <button 
-                            onClick={() => handleVerifyUser(user.id)} 
-                            className="p-2 hover:bg-green-50 rounded-lg transition" 
-                            title="Verify User"
-                          >
-                            <UserCheck className="w-4 h-4 text-green-500" />
-                          </button>
-                        )}
-                        {user.status === 'suspended' ? (
-                          <button 
-                            onClick={() => handleActivateUser(user.id)} 
-                            className="p-2 hover:bg-blue-50 rounded-lg transition" 
-                            title="Activate User"
-                          >
-                            <Shield className="w-4 h-4 text-blue-500" />
-                          </button>
-                        ) : (
-                          user.status !== 'suspended' && (
-                            <button 
-                              onClick={() => handleSuspendUser(user.id)} 
-                              className="p-2 hover:bg-red-50 rounded-lg transition" 
-                              title="Suspend User"
-                            >
-                              <UserX className="w-4 h-4 text-red-500" />
-                            </button>
-                          )
-                        )}
-                        <button 
-                          onClick={() => handleDeleteUser(user.id)} 
-                          className="p-2 hover:bg-red-50 rounded-lg transition" 
-                          title="Delete User"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
-                      </div>
-                    </td>
+                    <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => { setSelectedUser(user); setShowViewModal(true) }} className="p-2 hover:bg-blue-50 rounded-lg transition" title="View Details"><Eye className="w-4 h-4 text-blue-500" /></button>{!user.is_verified && user.status !== 'suspended' && (<button onClick={() => handleVerifyUser(user.id)} className="p-2 hover:bg-green-50 rounded-lg transition" title="Verify User"><UserCheck className="w-4 h-4 text-green-500" /></button>)}{user.status === 'suspended' ? (<button onClick={() => handleActivateUser(user.id)} className="p-2 hover:bg-blue-50 rounded-lg transition" title="Activate User"><Shield className="w-4 h-4 text-blue-500" /></button>) : (user.status !== 'suspended' && (<button onClick={() => handleSuspendUser(user.id)} className="p-2 hover:bg-red-50 rounded-lg transition" title="Suspend User"><UserX className="w-4 h-4 text-red-500" /></button>))}<button onClick={() => handleDeleteUser(user.id)} className="p-2 hover:bg-red-50 rounded-lg transition" title="Delete User"><Trash2 className="w-4 h-4 text-red-500" /></button></div></td>
                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+           </table>
         </div>
       </div>
     </div>

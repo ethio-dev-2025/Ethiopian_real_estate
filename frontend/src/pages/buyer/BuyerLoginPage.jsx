@@ -1,255 +1,299 @@
-import React, { useState, useEffect } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Building2, Lock, Eye, EyeOff, User, Phone, Sparkles, ArrowLeft } from 'lucide-react'
-import { motion } from 'framer-motion'
-import toast from 'react-hot-toast'
+// src/pages/buyer/BuyerLoginPage.jsx
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000'
+const API_URL = 'http://localhost:8000';
 
 const BuyerLoginPage = () => {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [formData, setFormData] = useState({
-    identifier: '',
-    password: ''
-  })
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
 
-  const returnTo = location.state?.returnTo
-  const openContact = location.state?.openContact
+  const returnTo = location.state?.returnTo;
+  const openContact = location.state?.openContact;
 
   useEffect(() => {
-    console.log('BuyerLoginPage mounted with state:', { returnTo, openContact })
+    const savedUsername = localStorage.getItem('remembered_buyer_username');
+    const savedPassword = localStorage.getItem('remembered_buyer_password');
+    const rememberChecked = localStorage.getItem('remember_buyer_me') === 'true';
     
-    // Clear any stale flags when component mounts
-    // This prevents opening chat if user navigates away and comes back
-    if (!returnTo) {
-      localStorage.removeItem('openChatAfterLogin')
-      localStorage.removeItem('chatPropertyId')
+    if (savedUsername && savedPassword && rememberChecked && !username) {
+      setUsername(savedUsername);
+      setPassword(savedPassword);
+      setRememberMe(true);
     }
-  }, [returnTo, openContact])
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-    if (error) setError('')
-  }
+  }, []);
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
     
-    console.log('Login attempt with identifier:', formData.identifier)
+    if (!username || !password) {
+      setError('Please enter both username and password');
+      toast.error('Please enter both username and password');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
     
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.identifier,
-          password: formData.password
-        })
-      })
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ email: username, password })
+      });
+
+      const data = await response.json();
+      console.log('Login response:', data);
       
-      const data = await response.json()
-      console.log('Login response:', data)
-      
-      if (!response.ok || !data.success) {
-        setError(data.error || data.detail || 'Invalid username/phone number or password')
-        toast.error(data.error || 'Invalid credentials')
-        setLoading(false)
-        return
+      if (!data.success) {
+        throw new Error(data.error || 'Invalid credentials');
       }
       
-      // Store auth data
-      localStorage.setItem('access_token', data.access_token)
-      localStorage.setItem('user', JSON.stringify(data.user))
-      localStorage.setItem('user_role', data.user.role_type)
+      const userRole = data.user.role_type || data.user.role;
+      if (userRole !== 'buyer') {
+        toast.error('This account is not a buyer account.');
+        setLoading(false);
+        return;
+      }
       
-      toast.success(`Welcome back, ${data.user.full_name || data.user.username}!`)
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('user_role', 'buyer');
+      localStorage.setItem('role_selected', 'true');
       
-      // Handle return to property contact - ONLY SET FLAGS IF NOT ALREADY SET
+      if (rememberMe) {
+        localStorage.setItem('remembered_buyer_username', username);
+        localStorage.setItem('remembered_buyer_password', password);
+        localStorage.setItem('remember_buyer_me', 'true');
+      } else {
+        localStorage.removeItem('remembered_buyer_username');
+        localStorage.removeItem('remembered_buyer_password');
+        localStorage.removeItem('remember_buyer_me');
+      }
+      
+      toast.success(`Welcome back, ${data.user.full_name || data.user.username}!`);
+      
+      // Redirect to property page to trigger auto-open chat
       if (returnTo && openContact) {
-        // Only set flags if they haven't been set yet (to prevent duplicates)
-        const existingFlag = localStorage.getItem('openChatAfterLogin')
-        const existingPropertyId = localStorage.getItem('chatPropertyId')
-        
-        if (existingFlag !== 'true' || existingPropertyId !== returnTo.toString()) {
-          console.log('Setting chat flags for property:', returnTo)
-          localStorage.setItem('openChatAfterLogin', 'true')
-          localStorage.setItem('chatPropertyId', returnTo.toString())
-        } else {
-          console.log('Chat flags already set for this property, skipping')
-        }
-        
-        // Use replace to prevent back button issues
-        navigate(`/properties/${returnTo}`, { replace: true })
-        return
+        console.log('Redirecting to property page after login:', returnTo);
+        localStorage.setItem('openChatAfterLogin', 'true');
+        localStorage.setItem('chatPropertyId', String(returnTo));
+        navigate(`/properties/${returnTo}`, { replace: true });
+        return;
       }
       
-      // Role-based redirects
-      if (returnTo) {
-        navigate(`/properties/${returnTo}`, { replace: true })
-        return
+      navigate('/dashboard/buyer', { replace: true });
+      
+    } catch (err) {
+      console.error('Login error:', err);
+      let errorMessage = 'Login failed. Please try again.';
+      if (err.message === 'Failed to fetch') {
+        errorMessage = 'Cannot connect to server. Please make sure the backend is running on port 8000.';
+      } else if (err.message === 'Invalid credentials') {
+        errorMessage = 'Invalid username or password';
       }
-      
-      const role = data.user.role_type
-      console.log('User role:', role)
-      
-      switch(role) {
-        case 'admin':
-          navigate('/admin/dashboard', { replace: true })
-          break
-        case 'buyer':
-          navigate('/dashboard/buyer', { replace: true })
-          break
-        case 'seller':
-          navigate('/dashboard', { replace: true })
-          break
-        case 'landlord':
-          navigate('/dashboard', { replace: true })
-          break
-        case 'dual':
-          navigate('/dashboard', { replace: true })
-          break
-        default:
-          navigate('/dashboard', { replace: true })
-      }
-      
-    } catch (error) {
-      console.error('Login error:', error)
-      setError('Login failed. Please check your connection.')
-      toast.error('Login failed')
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Back to Home Button - Top Left Corner */}
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 50%, #0f766e 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '16px'
+    }}>
       <button
         onClick={() => navigate('/')}
-        className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-xl text-white hover:bg-white/20 transition-all duration-300 border border-white/20 group"
+        style={{
+          position: 'absolute',
+          top: '24px',
+          left: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          background: 'rgba(255,255,255,0.1)',
+          borderRadius: '12px',
+          color: 'white',
+          border: 'none',
+          cursor: 'pointer'
+        }}
       >
-        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-        <span className="text-sm font-medium">Back to Home</span>
+        ← Back to Home
       </button>
 
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-1000"></div>
-      </div>
-
-      <div className="max-w-md w-full relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20"
-        >
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, type: "spring" }}
-              className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
-            >
-              <Building2 className="w-10 h-10 text-white" />
-            </motion.div>
-            <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
-            <p className="text-gray-300">Sign in to your buyer account</p>
+      <div style={{
+        maxWidth: '400px',
+        width: '100%',
+        background: 'rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(10px)',
+        borderRadius: '24px',
+        padding: '32px',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{
+            width: '80px',
+            height: '80px',
+            background: 'linear-gradient(135deg, #0d9488, #14b8a6)',
+            borderRadius: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+            fontSize: '40px'
+          }}>
+            🏠
           </div>
+          <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>
+            Buyer Login
+          </h1>
+          <p style={{ color: '#cbd5e1' }}>Sign in with your username</p>
+        </div>
 
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-200 text-sm"
-            >
-              {error}
-            </motion.div>
-          )}
+        {error && (
+          <div style={{
+            marginBottom: '24px',
+            padding: '12px',
+            background: 'rgba(239,68,68,0.2)',
+            border: '1px solid rgba(239,68,68,0.5)',
+            borderRadius: '12px',
+            color: '#fecaca',
+            fontSize: '14px',
+            textAlign: 'center'
+          }}>
+            {error}
+          </div>
+        )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">Username or Phone Number</label>
-              <div className="relative group">
-                <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
-                <input
-                  type="text"
-                  name="identifier"
-                  value={formData.identifier}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Enter your username or phone number"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">Password</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Enter your password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#e2e8f0', marginBottom: '8px' }}>
+              Username
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '16px',
+                outline: 'none'
+              }}
+              placeholder="Enter your username"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl font-semibold text-white hover:shadow-lg transition-all disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Signing in...
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <Sparkles className="w-5 h-5" />
-                  Sign In
-                </div>
-              )}
-            </motion.button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-300">
-              Don't have an account?{' '}
-              <Link 
-                to="/buyer/register" 
-                className="text-blue-400 hover:text-blue-300 font-semibold" 
-                state={{ returnTo, openContact }}
-              >
-                Create Account
-              </Link>
-            </p>
+            />
           </div>
-        </motion.div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#e2e8f0', marginBottom: '8px' }}>
+              Password
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '12px',
+                  color: 'white',
+                  fontSize: '16px',
+                  outline: 'none'
+                }}
+                placeholder="Enter your password"
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer'
+                }}
+              >
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ width: '16px', height: '16px' }}
+              />
+              <span style={{ fontSize: '14px', color: '#cbd5e1' }}>Remember me</span>
+            </label>
+            
+            <Link to="/forgot-password" style={{ fontSize: '14px', color: '#60a5fa', textDecoration: 'none' }}>
+              Forgot Password?
+            </Link>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: 'linear-gradient(135deg, #0d9488, #14b8a6)',
+              border: 'none',
+              borderRadius: '12px',
+              color: 'white',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1
+            }}
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+        </form>
+
+        <div style={{ marginTop: '24px', textAlign: 'center' }}>
+          <p style={{ fontSize: '14px', color: '#cbd5e1' }}>
+            Don't have a buyer account?{' '}
+            <Link to="/buyer/register" style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: '600' }}>
+              Sign Up
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default BuyerLoginPage
+export default BuyerLoginPage;

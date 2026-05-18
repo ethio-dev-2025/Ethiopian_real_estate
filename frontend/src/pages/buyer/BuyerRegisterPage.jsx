@@ -1,289 +1,381 @@
-import React, { useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Building2, Lock, Eye, EyeOff, User, Phone, Sparkles, ArrowLeft } from 'lucide-react'
-import { motion } from 'framer-motion'
-import toast from 'react-hot-toast'
+// src/pages/buyer/BuyerRegisterPage.jsx
+import React, { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000'
+const API_URL = 'http://localhost:8000';
 
 const BuyerRegisterPage = () => {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
-    username: '',
-    phone_number: '',
-    password: '',
-    confirmPassword: '',
     full_name: '',
-  })
+    username: '',
+    phone: '',
+    password: '',
+    confirm_password: ''
+  });
+  const [errors, setErrors] = useState({});
 
-  const returnTo = location.state?.returnTo
-  const openContact = location.state?.openContact
+  const returnTo = location.state?.returnTo;
+  const openContact = location.state?.openContact;
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-    if (error) setError('')
-  }
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
 
   const validateForm = () => {
-    if (formData.username.length < 3) {
-      setError('Username must be at least 3 characters')
-      return false
-    }
-    if (formData.phone_number.length < 10) {
-      setError('Please enter a valid phone number')
-      return false
-    }
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters')
-      return false
-    }
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
-      return false
-    }
+    const newErrors = {};
+    
     if (!formData.full_name.trim()) {
-      setError('Full name is required')
-      return false
+      newErrors.full_name = 'Full name is required';
     }
-    return true
-  }
+    if (!formData.username.trim()) {
+      newErrors.username = 'Username is required';
+    }
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+    if (formData.password !== formData.confirm_password) {
+      newErrors.confirm_password = 'Passwords do not match';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!validateForm()) return
+    e.preventDefault();
     
-    setLoading(true)
-    setError('')
+    if (!validateForm()) {
+      return;
+    }
+    
+    setLoading(true);
+    const toastId = toast.loading('Creating buyer account...');
     
     try {
-      // Create a temporary email from username for the backend
-      const tempEmail = `${formData.username}@buyer.temp`
+      // Use a valid-looking email domain (not special-use)
+      // This email is only for internal use, buyers will login with username
+      const validEmail = `${formData.username.replace(/\s/g, '')}_${Date.now()}@buyer.temp`;
+      
+      const requestBody = {
+        full_name: formData.full_name,
+        email: validEmail,
+        username: formData.username,
+        phone: formData.phone || '',
+        password: formData.password,
+        role_type: 'buyer'
+      };
+      
+      console.log('Buyer registration request:', requestBody);
       
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: tempEmail,
-          username: formData.username,
-          password: formData.password,
-          full_name: formData.full_name,
-          phone: formData.phone_number
-        })
-      })
+        body: JSON.stringify(requestBody)
+      });
       
-      const data = await response.json()
-      console.log('Registration response:', data)
+      const data = await response.json();
+      console.log('Buyer registration response:', data);
       
-      if (response.ok) {
-        toast.success('Account created successfully! Please login.')
+      if (response.ok && data.id) {
+        toast.success('Buyer account created successfully!', { id: toastId });
         
+        // Clear any pending chat flags
         if (returnTo && openContact) {
-          navigate('/buyer/login', { state: { returnTo, openContact } })
+          navigate('/buyer/login', { state: { returnTo, openContact: true } });
         } else {
-          navigate('/buyer/login')
+          navigate('/buyer/login');
         }
       } else {
-        setError(data.detail || data.error || 'Registration failed')
-        toast.error(data.detail || 'Registration failed')
+        let errorMessage = 'Registration failed';
+        if (data.detail) {
+          if (typeof data.detail === 'string') {
+            errorMessage = data.detail;
+          } else if (Array.isArray(data.detail) && data.detail[0]?.msg) {
+            errorMessage = data.detail[0].msg;
+          } else if (data.detail?.msg) {
+            errorMessage = data.detail.msg;
+          } else if (data.message) {
+            errorMessage = data.message;
+          }
+        }
+        toast.error(errorMessage, { id: toastId });
       }
     } catch (error) {
-      console.error('Registration error:', error)
-      setError('Failed to create account. Please check your connection.')
-      toast.error('Failed to create account')
+      console.error('Registration error:', error);
+      toast.error('Failed to create account. Please try again.', { id: toastId });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Back to Home Arrow - Top Left Corner */}
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 50%, #0f766e 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '16px'
+    }}>
       <button
         onClick={() => navigate('/')}
-        className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-xl text-white hover:bg-white/20 transition-all duration-300 border border-white/20"
+        style={{
+          position: 'absolute',
+          top: '24px',
+          left: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          background: 'rgba(255,255,255,0.1)',
+          borderRadius: '12px',
+          color: 'white',
+          border: 'none',
+          cursor: 'pointer'
+        }}
       >
-        <ArrowLeft className="w-5 h-5" />
-        <span className="text-sm font-medium">Back to Home</span>
+        ← Back to Home
       </button>
 
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-1000"></div>
-      </div>
+      <div style={{
+        maxWidth: '450px',
+        width: '100%',
+        background: 'rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(10px)',
+        borderRadius: '24px',
+        padding: '32px',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{
+            width: '80px',
+            height: '80px',
+            background: 'linear-gradient(135deg, #0d9488, #14b8a6)',
+            borderRadius: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+            fontSize: '40px'
+          }}>
+            🏠
+          </div>
+          <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>
+            Join as Buyer
+          </h1>
+          <p style={{ color: '#cbd5e1' }}>Create your account to start exploring properties</p>
+          <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>
+            Use username to login after registration
+          </p>
+        </div>
 
-      <div className="max-w-md w-full relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20"
-        >
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, type: "spring" }}
-              className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
-            >
-              <Building2 className="w-10 h-10 text-white" />
-            </motion.div>
-            <h1 className="text-3xl font-bold text-white mb-2">Join Us Today</h1>
-            <p className="text-gray-300">Create your buyer account</p>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#e2e8f0', marginBottom: '8px' }}>
+              Full Name <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <input
+              type="text"
+              name="full_name"
+              value={formData.full_name}
+              onChange={handleChange}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'rgba(255,255,255,0.05)',
+                border: `1px solid ${errors.full_name ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '16px',
+                outline: 'none'
+              }}
+              placeholder="Enter your full name"
+            />
+            {errors.full_name && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{errors.full_name}</p>}
           </div>
 
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-200 text-sm"
-            >
-              {error}
-            </motion.div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
-                Full Name <span className="text-red-400">*</span>
-              </label>
-              <div className="relative group">
-                <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
-                <input
-                  type="text"
-                  name="full_name"
-                  value={formData.full_name}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Enter your full name"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
-                Username <span className="text-red-400">*</span>
-              </label>
-              <div className="relative group">
-                <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
-                <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Choose a username"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
-                Phone Number <span className="text-red-400">*</span>
-              </label>
-              <div className="relative group">
-                <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
-                <input
-                  type="tel"
-                  name="phone_number"
-                  value={formData.phone_number}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="+251 911 111 111"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
-                Password <span className="text-red-400">*</span>
-              </label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Create a password (min 6 characters)"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
-                Confirm Password <span className="text-red-400">*</span>
-              </label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Confirm your password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl font-semibold text-white hover:shadow-lg transition-all disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Creating account...
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <Sparkles className="w-5 h-5" />
-                  Create Account
-                </div>
-              )}
-            </motion.button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-300">
-              Already have an account?{' '}
-              <Link to="/buyer/login" className="text-blue-400 hover:text-blue-300 font-semibold" state={{ returnTo, openContact }}>
-                Sign In
-              </Link>
-            </p>
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#e2e8f0', marginBottom: '8px' }}>
+              Username <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'rgba(255,255,255,0.05)',
+                border: `1px solid ${errors.username ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '16px',
+                outline: 'none'
+              }}
+              placeholder="Choose a username (used for login)"
+            />
+            {errors.username && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{errors.username}</p>}
           </div>
-        </motion.div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#e2e8f0', marginBottom: '8px' }}>
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '16px',
+                outline: 'none'
+              }}
+              placeholder="Enter your phone number"
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#e2e8f0', marginBottom: '8px' }}>
+              Password <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${errors.password ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: '12px',
+                  color: 'white',
+                  fontSize: '16px',
+                  outline: 'none',
+                  paddingRight: '40px'
+                }}
+                placeholder="Create a password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer'
+                }}
+              >
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
+            {errors.password && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{errors.password}</p>}
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#e2e8f0', marginBottom: '8px' }}>
+              Confirm Password <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                name="confirm_password"
+                value={formData.confirm_password}
+                onChange={handleChange}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${errors.confirm_password ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: '12px',
+                  color: 'white',
+                  fontSize: '16px',
+                  outline: 'none',
+                  paddingRight: '40px'
+                }}
+                placeholder="Confirm your password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer'
+                }}
+              >
+                {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
+            {errors.confirm_password && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{errors.confirm_password}</p>}
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '14px',
+              background: 'linear-gradient(135deg, #0d9488, #14b8a6)',
+              border: 'none',
+              borderRadius: '12px',
+              color: 'white',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+              marginTop: '8px'
+            }}
+          >
+            {loading ? 'Creating Account...' : 'Create Buyer Account'}
+          </button>
+        </form>
+
+        <div style={{ marginTop: '24px', textAlign: 'center' }}>
+          <p style={{ fontSize: '14px', color: '#cbd5e1' }}>
+            Already have a buyer account?{' '}
+            <Link to="/buyer/login" style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: '600' }}>
+              Sign In
+            </Link>
+          </p>
+          <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px' }}>
+            {/* <Link to="/register" style={{ color: '#60a5fa', textDecoration: 'none' }}>
+              Want to sell properties? Register as Seller →
+            </Link> */}
+          </p>
+        </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default BuyerRegisterPage
+export default BuyerRegisterPage;
