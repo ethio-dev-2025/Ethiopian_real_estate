@@ -125,6 +125,20 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         user_role = user_data.role_type if user_data.role_type else "user"
         is_test = is_test_user(user_data.email)
         
+        # CRITICAL: Determine status based on role type
+        # Buyers are activated immediately, sellers/landlords need approval
+        if user_role == 'buyer':
+            user_status = "active"
+            is_activated = True
+            can_create_listings = True
+            payment_approved = True
+        else:
+            # Sellers, landlords, dual - need approval
+            user_status = "pending" if not is_test else "active"
+            is_activated = is_test  # Only test users are pre-activated
+            can_create_listings = False
+            payment_approved = False
+        
         db_user = User(
             email=user_data.email,
             username=user_data.username,
@@ -132,15 +146,17 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             hashed_password=hashed_password,
             phone=user_data.phone or "",
             role_type=user_role,
-            status="pending" if not is_test else "active",
+            status=user_status,
             is_active=True,
             is_verified=True,
-            is_activated=is_test,
-            seller_enabled=False,
-            seller_approved=False,
+            is_activated=is_activated,
+            can_create_listings=can_create_listings,
+            payment_approved=payment_approved,
+            seller_enabled=False if user_role != 'buyer' else True,
+            seller_approved=False if user_role != 'buyer' else True,
             seller_paid=False,
-            landlord_enabled=False,
-            landlord_approved=False,
+            landlord_enabled=False if user_role != 'buyer' else True,
+            landlord_approved=False if user_role != 'buyer' else True,
             landlord_paid=False,
             avatar_url=None
         )
@@ -190,17 +206,19 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         if not verify_password(login_data.password, user.hashed_password):
             return {"success": False, "error": "Invalid email/username or password"}
         
+        # Update login time
+        user.last_login = datetime.utcnow()
+        
+        # For test users, auto-activate all features
         if is_test_user(user.email):
             user.status = "active"
             user.is_active = True
             user.is_verified = True
             user.is_activated = True
-            db.commit()
-        elif user.status == "pending":
-            user.status = "active"
+            user.can_create_listings = True
+            user.payment_approved = True
             db.commit()
         
-        user.last_login = datetime.utcnow()
         db.commit()
         db.refresh(user)
         
@@ -220,6 +238,7 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
                 "is_activated": user.is_activated,
                 "is_verified": user.is_verified,
                 "status": user.status,
+                "can_create_listings": user.can_create_listings,
                 "avatar_url": user.avatar_url,
                 "date_of_birth": user.date_of_birth,
                 "address": user.address,
@@ -250,6 +269,8 @@ async def get_current_user_endpoint(current_user: User = Depends(get_current_use
         "has_active_subscription": current_user.has_active_subscription,
         "seller_enabled": current_user.seller_enabled,
         "landlord_enabled": current_user.landlord_enabled,
+        "can_create_listings": current_user.can_create_listings,
+        "payment_approved": current_user.payment_approved,
         "avatar_url": current_user.avatar_url,
         "date_of_birth": current_user.date_of_birth,
         "address": current_user.address,
@@ -273,6 +294,8 @@ async def admin_activate_user(
         
         user_to_activate.is_activated = True
         user_to_activate.status = "active"
+        user_to_activate.can_create_listings = True
+        user_to_activate.payment_approved = True
         user_to_activate.seller_enabled = True
         user_to_activate.seller_approved = True
         user_to_activate.landlord_enabled = True
@@ -302,7 +325,8 @@ async def get_pending_users(
     try:
         pending_users = db.query(User).filter(
             User.is_activated == False,
-            User.role_type != "admin"
+            User.role_type != "admin",
+            User.role_type != "buyer"  # Buyers are excluded from pending list
         ).all()
         
         return [

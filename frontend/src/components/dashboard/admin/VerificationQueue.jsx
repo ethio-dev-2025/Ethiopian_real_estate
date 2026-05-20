@@ -6,17 +6,18 @@ import {
   X, AlertCircle, User, Home, 
   Shield, Award, ThumbsUp, Download,
   Search, Users, Image, Camera, ChevronLeft, ChevronRight,
-  File, ExternalLink, Maximize2
+  File, ExternalLink, Maximize2, CreditCard
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const API_URL = 'http://localhost:8000'
 
 const VerificationQueue = () => {
-  const [requests, setRequests] = useState([])
+  const [documentsRequests, setDocumentsRequests] = useState([])
+  const [paymentRequests, setPaymentRequests] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [activeTab, setActiveTab] = useState('pending')
+  const [activeTab, setActiveTab] = useState('documents') // documents, payments, approved, rejected
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
@@ -28,7 +29,29 @@ const VerificationQueue = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [imageErrors, setImageErrors] = useState({})
   const [processingId, setProcessingId] = useState(null)
-  const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0, all: 0 })
+  const [counts, setCounts] = useState({ pending_documents: 0, pending_payments: 0, approved: 0, rejected: 0 })
+
+  // Fetch counts
+  const fetchCounts = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`${API_URL}/api/activation/admin/counts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCounts({
+          pending_documents: data.pending_documents || 0,
+          pending_payments: data.pending_payments || 0,
+          approved: data.approved || 0,
+          rejected: data.rejected || 0
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching counts:', error)
+    }
+  }, [])
 
   // Fetch data based on active tab
   const fetchData = useCallback(async () => {
@@ -47,20 +70,20 @@ const VerificationQueue = () => {
 
       let endpoint = ''
       switch(activeTab) {
-        case 'pending':
-          endpoint = `${API_URL}/api/activation/admin/pending-requests`
+        case 'documents':
+          endpoint = `${API_URL}/api/activation/admin/pending-documents`
+          break
+        case 'payments':
+          endpoint = `${API_URL}/api/activation/admin/pending-payments`
           break
         case 'approved':
-          endpoint = `${API_URL}/api/activation/admin/approved-requests`
+          endpoint = `${API_URL}/api/activation/admin/payments?status=approved`
           break
         case 'rejected':
-          endpoint = `${API_URL}/api/activation/admin/rejected-requests`
-          break
-        case 'all':
-          endpoint = `${API_URL}/api/activation/admin/all-requests`
+          endpoint = `${API_URL}/api/activation/admin/payments?status=rejected`
           break
         default:
-          endpoint = `${API_URL}/api/activation/admin/pending-requests`
+          endpoint = `${API_URL}/api/activation/admin/pending-documents`
       }
 
       const response = await fetch(endpoint, {
@@ -83,41 +106,40 @@ const VerificationQueue = () => {
 
       const data = await response.json()
       const requestsData = Array.isArray(data) ? data : []
-      setRequests(requestsData)
       
-      const countsResponse = await fetch(`${API_URL}/api/activation/admin/counts`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      if (countsResponse.ok) {
-        const countsData = await countsResponse.json()
-        setCounts({
-          pending: countsData.pending || 0,
-          approved: countsData.approved || 0,
-          rejected: countsData.rejected || 0,
-          all: countsData.all || 0
-        })
+      if (activeTab === 'documents') {
+        setDocumentsRequests(requestsData)
+      } else if (activeTab === 'payments') {
+        setPaymentRequests(requestsData)
       }
+      
+      await fetchCounts()
       
     } catch (error) {
       console.error('Fetch error:', error)
       setError(error.message)
-      toast.error(`Failed to load ${activeTab} requests: ${error.message}`)
-      setRequests([])
+      toast.error(`Failed to load: ${error.message}`)
     } finally {
       setLoading(false)
     }
-  }, [activeTab])
+  }, [activeTab, fetchCounts])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  const handleApprove = async (requestId) => {
+  // Get current display requests based on active tab
+  const getCurrentRequests = () => {
+    if (activeTab === 'documents') return documentsRequests
+    if (activeTab === 'payments') return paymentRequests
+    return []
+  }
+
+  const handleApproveDocuments = async (requestId) => {
     setProcessingId(requestId)
     try {
       const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/api/activation/admin/approve/${requestId}`, {
+      const response = await fetch(`${API_URL}/api/activation/admin/approve-documents/${requestId}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -125,7 +147,7 @@ const VerificationQueue = () => {
       const data = await response.json()
       
       if (response.ok && data.success) {
-        toast.success('✅ Request approved!')
+        toast.success('✅ Documents approved! User can now subscribe.')
         fetchData()
         setSelectedRequest(null)
       } else {
@@ -134,6 +156,32 @@ const VerificationQueue = () => {
     } catch (error) {
       console.error('Error approving:', error)
       toast.error('Failed to approve request')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleApprovePayment = async (requestId) => {
+    setProcessingId(requestId)
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`${API_URL}/api/activation/admin/approve-payment/${requestId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        toast.success('✅ Payment approved! Account fully activated.')
+        fetchData()
+        setSelectedRequest(null)
+      } else {
+        toast.error(data.detail || 'Failed to approve payment')
+      }
+    } catch (error) {
+      console.error('Error approving payment:', error)
+      toast.error('Failed to approve payment')
     } finally {
       setProcessingId(null)
     }
@@ -148,7 +196,14 @@ const VerificationQueue = () => {
     setProcessingId(requestId)
     try {
       const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/api/activation/admin/reject/${requestId}`, {
+      
+      // Determine which reject endpoint to use
+      let endpoint = `${API_URL}/api/activation/admin/reject-payment/${requestId}`
+      if (activeTab === 'documents') {
+        endpoint = `${API_URL}/api/activation/admin/reject/${requestId}`
+      }
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -206,21 +261,29 @@ const VerificationQueue = () => {
 
   const getStatusBadge = (status) => {
     switch(status) {
-      case 'pending': return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Pending</span>
-      case 'approved': return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Approved</span>
-      case 'rejected': return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Rejected</span>
-      default: return <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">{status}</span>
+      case 'pending':
+      case 'documents_pending':
+        return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Pending Documents</span>
+      case 'payment_pending':
+        return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Payment Pending</span>
+      case 'approved':
+      case 'documents_approved':
+        return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Approved</span>
+      case 'rejected':
+        return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Rejected</span>
+      default:
+        return <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">{status}</span>
     }
   }
 
   const tabs = [
-    { id: 'pending', label: 'Pending', count: counts.pending, icon: Clock },
-    { id: 'approved', label: 'Approved', count: counts.approved, icon: CheckCircle },
-    { id: 'rejected', label: 'Rejected', count: counts.rejected, icon: XCircle },
-    { id: 'all', label: 'All', count: counts.all, icon: Users },
+    { id: 'documents', label: 'Document Verification', count: counts.pending_documents, icon: FileText },
+    { id: 'payments', label: 'Payment Approval', count: counts.pending_payments, icon: CreditCard },
   ]
 
-  const filteredRequests = requests.filter(req => 
+  const currentRequests = getCurrentRequests()
+  
+  const filteredRequests = currentRequests.filter(req => 
     req.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     req.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     req.phone_number?.includes(searchTerm)
@@ -382,6 +445,8 @@ const VerificationQueue = () => {
   // Request Detail Modal
   const RequestDetailModal = ({ request, onClose }) => {
     const photos = parsePropertyPhotos(request.property_photos)
+    const isDocumentRequest = activeTab === 'documents'
+    const isPaymentRequest = activeTab === 'payments'
     
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -389,7 +454,7 @@ const VerificationQueue = () => {
           <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <UserCheck className="w-5 h-5 text-blue-600" />
-              Activation Request Details
+              {isDocumentRequest ? 'Document Verification Request' : 'Payment Verification Request'}
             </h2>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
               <X className="w-5 h-5" />
@@ -411,105 +476,126 @@ const VerificationQueue = () => {
               </div>
             </div>
             
-            {/* Property Information */}
-            <div className="border-b pb-4">
-              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <Home className="w-4 h-4 text-blue-600" />
-                Property Information
-              </h3>
-              <div className="space-y-2">
-                <div><p className="text-sm text-gray-500">Property Address</p><p className="font-medium">{request.property_address}</p></div>
-                <div><p className="text-sm text-gray-500">Property Type</p><p className="font-medium capitalize">{request.property_type}</p></div>
-              </div>
-            </div>
-            
-            {/* Business Information */}
-            {(request.business_name || request.experience_years > 0 || request.reason_for_activation) && (
+            {/* Payment Information (for payment requests) */}
+            {isPaymentRequest && (
               <div className="border-b pb-4">
                 <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-blue-600" />
-                  Business Information
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  Payment Information
                 </h3>
-                <div className="space-y-2">
-                  {request.business_name && <div><p className="text-sm text-gray-500">Business Name</p><p className="font-medium">{request.business_name}</p></div>}
-                  {request.experience_years > 0 && <div><p className="text-sm text-gray-500">Years of Experience</p><p className="font-medium">{request.experience_years} years</p></div>}
-                  {request.reason_for_activation && <div><p className="text-sm text-gray-500">Reason for Activation</p><p className="font-medium">{request.reason_for_activation}</p></div>}
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-sm text-gray-500">Plan Type</p><p className="font-medium capitalize">{request.plan_type}</p></div>
+                  <div><p className="text-sm text-gray-500">Amount</p><p className="font-bold text-green-600">ETB {request.payment_amount?.toLocaleString()}</p></div>
+                  {request.payment_transaction_id && (
+                    <div><p className="text-sm text-gray-500">Transaction ID</p><p className="font-medium text-sm">{request.payment_transaction_id}</p></div>
+                  )}
                 </div>
               </div>
             )}
             
-            {/* Uploaded Documents */}
-            <div className="border-b pb-4">
-              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
-                Uploaded Documents
-              </h3>
-              <div className="grid grid-cols-1 gap-3">
-                {documentItems.map((doc) => {
-                  const docValue = request[doc.key]
-                  if (docValue) {
-                    return (
-                      <div key={doc.key} className={`${doc.bgColor} rounded-lg p-3 border`}>
-                        <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <span>{doc.icon}</span> {doc.label}
-                        </p>
-                        <button 
-                          onClick={() => handleViewDocument(docValue, doc.label)} 
-                          className="flex items-center gap-2 w-full p-2 bg-white rounded-lg hover:shadow-md transition"
-                        >
-                          <FileText className={`w-5 h-5 ${doc.color}`} />
-                          <span className="flex-1 text-left text-sm truncate">{docValue.split('/').pop()}</span>
-                          <Eye className="w-4 h-4 text-gray-400" />
-                        </button>
-                      </div>
-                    )
-                  }
-                  return null
-                })}
-              </div>
-              {!documentItems.some(doc => request[doc.key]) && (
-                <p className="text-gray-500 text-sm text-center py-4">No documents uploaded</p>
-              )}
-            </div>
-            
-            {/* Property Photos */}
-            {photos && photos.length > 0 && (
-              <div className="border-b pb-4">
-                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-blue-600" />
-                  Property Photos ({photos.length})
-                </h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {photos.map((photo, idx) => {
-                    const photoUrl = getFullImageUrl(photo)
-                    const hasError = imageErrors[`photo_${request.id}_${idx}`]
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => handleViewPhoto(photo, idx, photos)}
-                        className="relative group aspect-square rounded-lg overflow-hidden border-2 hover:border-blue-500 transition bg-gray-100"
-                      >
-                        {!hasError && photoUrl ? (
-                          <img 
-                            src={photoUrl} 
-                            alt={`Property ${idx + 1}`}
-                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                            onError={() => handleImageError(`photo_${request.id}_${idx}`)}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                            <Camera className="w-6 h-6 mb-1" />
-                            <p className="text-xs">No Image</p>
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition flex items-center justify-center">
-                          <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
-                        </div>
-                      </button>
-                    )
-                  })}
+            {/* Property Information (for document requests) */}
+            {isDocumentRequest && (
+              <>
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <Home className="w-4 h-4 text-blue-600" />
+                    Property Information
+                  </h3>
+                  <div className="space-y-2">
+                    <div><p className="text-sm text-gray-500">Property Address</p><p className="font-medium">{request.property_address}</p></div>
+                    <div><p className="text-sm text-gray-500">Property Type</p><p className="font-medium capitalize">{request.property_type}</p></div>
+                  </div>
                 </div>
-              </div>
+                
+                {/* Business Information */}
+                {(request.business_name || request.experience_years > 0 || request.reason_for_activation) && (
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-blue-600" />
+                      Business Information
+                    </h3>
+                    <div className="space-y-2">
+                      {request.business_name && <div><p className="text-sm text-gray-500">Business Name</p><p className="font-medium">{request.business_name}</p></div>}
+                      {request.experience_years > 0 && <div><p className="text-sm text-gray-500">Years of Experience</p><p className="font-medium">{request.experience_years} years</p></div>}
+                      {request.reason_for_activation && <div><p className="text-sm text-gray-500">Reason for Activation</p><p className="font-medium">{request.reason_for_activation}</p></div>}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Uploaded Documents */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    Uploaded Documents
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    {documentItems.map((doc) => {
+                      const docValue = request[doc.key]
+                      if (docValue) {
+                        return (
+                          <div key={doc.key} className={`${doc.bgColor} rounded-lg p-3 border`}>
+                            <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                              <span>{doc.icon}</span> {doc.label}
+                            </p>
+                            <button 
+                              onClick={() => handleViewDocument(docValue, doc.label)} 
+                              className="flex items-center gap-2 w-full p-2 bg-white rounded-lg hover:shadow-md transition"
+                            >
+                              <FileText className={`w-5 h-5 ${doc.color}`} />
+                              <span className="flex-1 text-left text-sm truncate">{docValue.split('/').pop()}</span>
+                              <Eye className="w-4 h-4 text-gray-400" />
+                            </button>
+                          </div>
+                        )
+                      }
+                      return null
+                    })}
+                  </div>
+                  {!documentItems.some(doc => request[doc.key]) && (
+                    <p className="text-gray-500 text-sm text-center py-4">No documents uploaded</p>
+                  )}
+                </div>
+                
+                {/* Property Photos */}
+                {photos && photos.length > 0 && (
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-blue-600" />
+                      Property Photos ({photos.length})
+                    </h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      {photos.map((photo, idx) => {
+                        const photoUrl = getFullImageUrl(photo)
+                        const hasError = imageErrors[`photo_${request.id}_${idx}`]
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => handleViewPhoto(photo, idx, photos)}
+                            className="relative group aspect-square rounded-lg overflow-hidden border-2 hover:border-blue-500 transition bg-gray-100"
+                          >
+                            {!hasError && photoUrl ? (
+                              <img 
+                                src={photoUrl} 
+                                alt={`Property ${idx + 1}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                onError={() => handleImageError(`photo_${request.id}_${idx}`)}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                                <Camera className="w-6 h-6 mb-1" />
+                                <p className="text-xs">No Image</p>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition flex items-center justify-center">
+                              <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             
             {/* Status */}
@@ -524,15 +610,36 @@ const VerificationQueue = () => {
             </div>
             
             {/* Action Buttons */}
-            {request.status === 'pending' && (
+            {isDocumentRequest && request.status === 'documents_pending' && (
               <div className="flex gap-3 pt-4 border-t">
                 <button 
-                  onClick={() => handleApprove(request.id)} 
+                  onClick={() => handleApproveDocuments(request.id)} 
                   disabled={processingId === request.id}
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {processingId === request.id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
-                  Approve
+                  Approve Documents
+                </button>
+                <button 
+                  onClick={() => { setSelectedRequest(request); setShowRejectModal(true); onClose() }} 
+                  disabled={processingId === request.id}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Reject
+                </button>
+              </div>
+            )}
+            
+            {isPaymentRequest && request.status === 'payment_pending' && (
+              <div className="flex gap-3 pt-4 border-t">
+                <button 
+                  onClick={() => handleApprovePayment(request.id)} 
+                  disabled={processingId === request.id}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {processingId === request.id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
+                  Approve Payment
                 </button>
                 <button 
                   onClick={() => { setSelectedRequest(request); setShowRejectModal(true); onClose() }} 
@@ -553,7 +660,7 @@ const VerificationQueue = () => {
   const RejectModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
-        <h3 className="text-xl font-bold mb-4">Reject Activation Request</h3>
+        <h3 className="text-xl font-bold mb-4">Reject Request</h3>
         <p className="text-gray-600 mb-4">Please provide a reason for rejection:</p>
         <textarea 
           value={rejectionReason} 
@@ -571,8 +678,8 @@ const VerificationQueue = () => {
     </div>
   )
 
-  // REPLACED: Loading with skeleton (NO SPINNER)
-  if (loading) {
+  // Loading skeleton
+  if (loading && currentRequests.length === 0) {
     return (
       <div className="p-6">
         <div className="mb-6">
@@ -580,9 +687,9 @@ const VerificationQueue = () => {
           <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
         </div>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 w-fit">
-          {['Pending', 'Approved', 'Rejected', 'All'].map(tab => (
+          {['Document Verification', 'Payment Approval'].map(tab => (
             <div key={tab} className="px-6 py-2 rounded-lg">
-              <div className="h-5 bg-gray-200 rounded w-16 animate-pulse"></div>
+              <div className="h-5 bg-gray-200 rounded w-20 animate-pulse"></div>
             </div>
           ))}
         </div>
@@ -605,7 +712,7 @@ const VerificationQueue = () => {
     )
   }
 
-  if (error) {
+  if (error && currentRequests.length === 0) {
     return (
       <div className="p-6">
         <div className="mb-6">
@@ -683,7 +790,7 @@ const VerificationQueue = () => {
       {filteredRequests.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border p-12 text-center">
           <CheckCircle className="w-16 h-16 text-green-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">No {activeTab} verification requests</h3>
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">No {activeTab === 'documents' ? 'document verification' : 'payment approval'} requests</h3>
           <p className="text-gray-500">All caught up!</p>
         </div>
       ) : (
@@ -692,55 +799,68 @@ const VerificationQueue = () => {
             {filteredRequests.map((req) => {
               const photos = parsePropertyPhotos(req.property_photos)
               const photoCount = photos.length
+              const isDocumentRequest = activeTab === 'documents'
               
               return (
                 <div key={req.id} className="p-6 hover:bg-gray-50 transition">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="font-semibold text-lg">{req.full_name}</h3>
                         {getStatusBadge(req.status)}
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-3">
                         <div><p className="text-gray-500">Email</p><p className="font-medium">{req.email}</p></div>
                         <div><p className="text-gray-500">Phone</p><p className="font-medium">{req.phone_number}</p></div>
-                        <div><p className="text-gray-500">Property Type</p><p className="font-medium capitalize">{req.property_type}</p></div>
+                        {isDocumentRequest && (
+                          <div><p className="text-gray-500">Property Type</p><p className="font-medium capitalize">{req.property_type}</p></div>
+                        )}
+                        {!isDocumentRequest && req.plan_type && (
+                          <div><p className="text-gray-500">Plan</p><p className="font-medium capitalize">{req.plan_type}</p></div>
+                        )}
+                        {!isDocumentRequest && req.payment_amount && (
+                          <div><p className="text-gray-500">Amount</p><p className="font-bold text-green-600">ETB {req.payment_amount?.toLocaleString()}</p></div>
+                        )}
                       </div>
-                      <p className="text-sm text-gray-600">{req.property_address}</p>
+                      {isDocumentRequest && req.property_address && (
+                        <p className="text-sm text-gray-600 mb-2">{req.property_address}</p>
+                      )}
                       
                       {/* Document Indicators */}
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {req.business_license && (
-                          <button onClick={() => handleViewDocument(req.business_license, 'Business License')} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-green-200 transition">
-                            📋 Business License
-                          </button>
-                        )}
-                        {req.ownership_document && (
-                          <button onClick={() => handleViewDocument(req.ownership_document, 'Ownership Document')} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-blue-200 transition">
-                            📄 Ownership Document
-                          </button>
-                        )}
-                        {req.title_deed && (
-                          <button onClick={() => handleViewDocument(req.title_deed, 'Title Deed')} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 transition">
-                            🏠 Title Deed
-                          </button>
-                        )}
-                        {req.tax_clearance && (
-                          <button onClick={() => handleViewDocument(req.tax_clearance, 'Tax Clearance')} className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-orange-200 transition">
-                            💰 Tax Clearance
-                          </button>
-                        )}
-                        {req.government_id && (
-                          <button onClick={() => handleViewDocument(req.government_id, 'Government ID')} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-red-200 transition">
-                            🆔 Government ID
-                          </button>
-                        )}
-                        {photoCount > 0 && (
-                          <button onClick={() => photos[0] && handleViewPhoto(photos[0], 0, photos)} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 transition">
-                            <Camera className="w-3 h-3" /> {photoCount} Photo{photoCount !== 1 ? 's' : ''}
-                          </button>
-                        )}
-                      </div>
+                      {isDocumentRequest && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {req.business_license && (
+                            <button onClick={() => handleViewDocument(req.business_license, 'Business License')} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-green-200 transition">
+                              📋 Business License
+                            </button>
+                          )}
+                          {req.ownership_document && (
+                            <button onClick={() => handleViewDocument(req.ownership_document, 'Ownership Document')} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-blue-200 transition">
+                              📄 Ownership Document
+                            </button>
+                          )}
+                          {req.title_deed && (
+                            <button onClick={() => handleViewDocument(req.title_deed, 'Title Deed')} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 transition">
+                              🏠 Title Deed
+                            </button>
+                          )}
+                          {req.tax_clearance && (
+                            <button onClick={() => handleViewDocument(req.tax_clearance, 'Tax Clearance')} className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-orange-200 transition">
+                              💰 Tax Clearance
+                            </button>
+                          )}
+                          {req.government_id && (
+                            <button onClick={() => handleViewDocument(req.government_id, 'Government ID')} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-red-200 transition">
+                              🆔 Government ID
+                            </button>
+                          )}
+                          {photoCount > 0 && (
+                            <button onClick={() => photos[0] && handleViewPhoto(photos[0], 0, photos)} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 transition">
+                              <Camera className="w-3 h-3" /> {photoCount} Photo{photoCount !== 1 ? 's' : ''}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     
                     {/* Action Buttons */}
@@ -751,15 +871,35 @@ const VerificationQueue = () => {
                       >
                         <Eye className="w-4 h-4" /> View Details
                       </button>
-                      {req.status === 'pending' && (
+                      {isDocumentRequest && req.status === 'documents_pending' && (
                         <>
                           <button 
-                            onClick={() => handleApprove(req.id)} 
+                            onClick={() => handleApproveDocuments(req.id)} 
                             disabled={processingId === req.id}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50"
                           >
                             {processingId === req.id ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
                             Approve
+                          </button>
+                          <button 
+                            onClick={() => { setSelectedRequest(req); setShowRejectModal(true) }} 
+                            disabled={processingId === req.id}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {!isDocumentRequest && req.status === 'payment_pending' && (
+                        <>
+                          <button 
+                            onClick={() => handleApprovePayment(req.id)} 
+                            disabled={processingId === req.id}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50"
+                          >
+                            {processingId === req.id ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
+                            Approve Payment
                           </button>
                           <button 
                             onClick={() => { setSelectedRequest(req); setShowRejectModal(true) }} 

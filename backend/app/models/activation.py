@@ -1,11 +1,14 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Enum, Index
+# app/models/activation.py
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Enum, Float, Index
 from sqlalchemy.sql import func
 from ..database import Base
 import enum
 
 class ActivationStatus(str, enum.Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
+    DOCUMENTS_PENDING = "documents_pending"
+    DOCUMENTS_APPROVED = "documents_approved"
+    PAYMENT_PENDING = "payment_pending"
+    FULLY_ACTIVATED = "fully_activated"
     REJECTED = "rejected"
 
 class ActivationRequest(Base):
@@ -38,8 +41,16 @@ class ActivationRequest(Base):
     previous_listings_count = Column(Integer, default=0)
     reason_for_activation = Column(Text, nullable=True)
     
-    # Status
-    status = Column(Enum(ActivationStatus), default=ActivationStatus.PENDING)
+    # ========== PAYMENT FIELDS ==========
+    plan_type = Column(String(50), nullable=True)  # seller, landlord, dual
+    payment_amount = Column(Float, nullable=True)
+    payment_receipt = Column(String(500), nullable=True)
+    payment_transaction_id = Column(String(255), nullable=True)
+    payment_approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    payment_approved_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # ========== STATUS FIELDS ==========
+    status = Column(Enum(ActivationStatus), default=ActivationStatus.DOCUMENTS_PENDING)
     rejection_reason = Column(Text, nullable=True)
     reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)

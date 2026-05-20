@@ -1,21 +1,23 @@
 // src/components/dashboard/seller/SellerActivation.jsx
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { 
   Store, Home, Shield, Upload, CheckCircle, 
   XCircle, AlertCircle, Eye, Trash2, Plus,
   Building2, UserCheck, Clock, Send, FileText,
-  Award, BadgeCheck, Loader
+  Award, BadgeCheck, Loader, CreditCard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000';
 
 const SellerActivation = () => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, refreshUser } = useAuth();
   const [activeRole, setActiveRole] = useState('seller');
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState({ seller: { submitted: false, approved: false }, landlord: { submitted: false, approved: false } });
+  const [activationStatus, setActivationStatus] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   
   // Seller form states
@@ -55,7 +57,7 @@ const SellerActivation = () => {
 
   const getToken = () => localStorage.getItem('access_token');
 
-  const fetchStatus = async () => {
+  const fetchActivationStatus = async () => {
     try {
       const token = getToken();
       const response = await fetch(`${API_URL}/api/activation/status`, {
@@ -63,26 +65,14 @@ const SellerActivation = () => {
       });
       const data = await response.json();
       console.log('Activation status:', data);
-      
-      // Update status based on API response
-      if (data.status === 'activated') {
-        setStatus({
-          seller: { submitted: true, approved: true },
-          landlord: { submitted: true, approved: true }
-        });
-      } else if (data.status === 'pending') {
-        setStatus({
-          seller: { submitted: true, approved: false },
-          landlord: { submitted: true, approved: false }
-        });
-      }
+      setActivationStatus(data);
     } catch (error) {
       console.error('Error fetching status:', error);
     }
   };
 
   useEffect(() => {
-    fetchStatus();
+    fetchActivationStatus();
   }, []);
 
   const uploadFileToServer = async (file, documentType) => {
@@ -162,7 +152,6 @@ const SellerActivation = () => {
     const toastId = toast.loading('Submitting seller activation...');
     
     try {
-      // Upload documents first
       const businessLicenseUrl = await uploadFileToServer(sellerForm.business_license, 'business_license');
       const ownershipDocumentUrl = await uploadFileToServer(sellerForm.ownership_document, 'ownership_document');
       const governmentIdUrl = await uploadFileToServer(sellerForm.government_id, 'government_id');
@@ -196,7 +185,7 @@ const SellerActivation = () => {
       if (response.ok && data.success) {
         toast.success('Seller activation submitted successfully!', { id: toastId });
         setSubmitted(true);
-        fetchStatus();
+        fetchActivationStatus();
         setTimeout(() => setSubmitted(false), 3000);
       } else {
         toast.error(data.detail || 'Failed to submit seller activation', { id: toastId });
@@ -214,7 +203,6 @@ const SellerActivation = () => {
     const toastId = toast.loading('Submitting landlord activation...');
     
     try {
-      // Upload documents first
       const titleDeedUrl = await uploadFileToServer(landlordForm.property_title_deed, 'title_deed');
       const taxClearanceUrl = await uploadFileToServer(landlordForm.property_tax_clearance, 'tax_clearance');
       const governmentIdUrl = await uploadFileToServer(landlordForm.government_id, 'government_id');
@@ -246,7 +234,7 @@ const SellerActivation = () => {
       if (response.ok && data.success) {
         toast.success('Landlord activation submitted successfully!', { id: toastId });
         setSubmitted(true);
-        fetchStatus();
+        fetchActivationStatus();
         setTimeout(() => setSubmitted(false), 3000);
       } else {
         toast.error(data.detail || 'Failed to submit landlord activation', { id: toastId });
@@ -264,7 +252,6 @@ const SellerActivation = () => {
     const toastId = toast.loading('Submitting both seller and landlord activation...');
     
     try {
-      // First submit seller activation
       const businessLicenseUrl = await uploadFileToServer(sellerForm.business_license, 'business_license');
       const ownershipDocumentUrl = await uploadFileToServer(sellerForm.ownership_document, 'ownership_document');
       const sellerGovernmentIdUrl = await uploadFileToServer(sellerForm.government_id, 'government_id');
@@ -301,7 +288,6 @@ const SellerActivation = () => {
         return;
       }
       
-      // Then submit landlord activation
       const titleDeedUrl = await uploadFileToServer(landlordForm.property_title_deed, 'title_deed');
       const taxClearanceUrl = await uploadFileToServer(landlordForm.property_tax_clearance, 'tax_clearance');
       const landlordGovernmentIdUrl = await uploadFileToServer(landlordForm.government_id, 'government_id');
@@ -332,7 +318,7 @@ const SellerActivation = () => {
       if (landlordResponse.ok && landlordData.success) {
         toast.success('Both seller and landlord activation submitted successfully!', { id: toastId });
         setSubmitted(true);
-        fetchStatus();
+        fetchActivationStatus();
         setTimeout(() => setSubmitted(false), 3000);
       } else {
         toast.error('Landlord activation failed', { id: toastId });
@@ -387,16 +373,8 @@ const SellerActivation = () => {
     }
   };
 
-  const isAlreadySubmitted = (role) => {
-    if (role === 'seller') return status.seller?.submitted;
-    if (role === 'landlord') return status.landlord?.submitted;
-    return false;
-  };
-
-  const isApproved = (role) => {
-    if (role === 'seller') return status.seller?.approved;
-    if (role === 'landlord') return status.landlord?.approved;
-    return false;
+  const handleGoToSubscription = () => {
+    navigate('/subscription');
   };
 
   const roleOptions = [
@@ -425,6 +403,80 @@ const SellerActivation = () => {
         <p className="text-sm text-gray-500 mt-2">You will be notified once approved.</p>
       </div>
     );
+  }
+
+  // Show status message based on activation status
+  if (activationStatus && activationStatus.status !== 'not_submitted') {
+    const getStatusDisplay = () => {
+      switch(activationStatus.status) {
+        case 'documents_pending':
+          return {
+            title: 'Documents Under Review',
+            message: 'Your documents are being reviewed by our admin team.',
+            icon: <Clock className="w-12 h-12 text-yellow-500" />,
+            color: 'yellow'
+          };
+        case 'documents_approved':
+          return {
+            title: 'Documents Approved!',
+            message: 'Your documents have been approved. Please subscribe to activate your account.',
+            icon: <CheckCircle className="w-12 h-12 text-green-500" />,
+            color: 'green',
+            showSubscribeButton: true
+          };
+        case 'payment_pending':
+          return {
+            title: 'Payment Under Review',
+            message: 'Your payment is being verified by our admin team.',
+            icon: <Clock className="w-12 h-12 text-yellow-500" />,
+            color: 'yellow'
+          };
+        case 'fully_activated':
+          return {
+            title: 'Account Fully Activated!',
+            message: 'Your account is now fully activated. You can start creating listings.',
+            icon: <BadgeCheck className="w-12 h-12 text-green-500" />,
+            color: 'green'
+          };
+        case 'rejected':
+          return {
+            title: 'Request Rejected',
+            message: activationStatus.message || 'Your activation request was rejected.',
+            icon: <XCircle className="w-12 h-12 text-red-500" />,
+            color: 'red'
+          };
+        default:
+          return null;
+      }
+    };
+
+    const statusDisplay = getStatusDisplay();
+    
+    if (statusDisplay) {
+      return (
+        <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
+          <div className="flex justify-center mb-4">{statusDisplay.icon}</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{statusDisplay.title}</h2>
+          <p className="text-gray-600 mb-6">{statusDisplay.message}</p>
+          {statusDisplay.showSubscribeButton && (
+            <button
+              onClick={handleGoToSubscription}
+              className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
+            >
+              <CreditCard className="w-5 h-5" /> Subscribe Now
+            </button>
+          )}
+          {activationStatus.status === 'fully_activated' && (
+            <button
+              onClick={() => navigate('/create-listing')}
+              className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
+            >
+              Create Your First Listing
+            </button>
+          )}
+        </div>
+      );
+    }
   }
 
   return (
@@ -464,41 +516,17 @@ const SellerActivation = () => {
 
         <div className="p-6 space-y-6">
           {/* Status Banner */}
-          {(isApproved('seller') || isApproved('landlord')) && (
+          {activationStatus && activationStatus.status === 'documents_approved' && (
             <div className="bg-green-50 rounded-lg p-4 border border-green-200">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-green-800 font-medium">
-                  {isApproved('seller') && isApproved('landlord') 
-                    ? 'Both seller and landlord accounts are activated!' 
-                    : isApproved('seller') 
-                      ? 'Your seller account is activated!' 
-                      : 'Your landlord account is activated!'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {(isAlreadySubmitted('seller') && !isApproved('seller')) && (
-            <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-yellow-600" />
-                <span className="text-yellow-800 font-medium">Your seller activation request is pending review</span>
-              </div>
-            </div>
-          )}
-
-          {(isAlreadySubmitted('landlord') && !isApproved('landlord')) && (
-            <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-yellow-600" />
-                <span className="text-yellow-800 font-medium">Your landlord activation request is pending review</span>
+                <span className="text-green-800 font-medium">Documents approved! Please subscribe to activate your account.</span>
               </div>
             </div>
           )}
 
           {/* Seller Form */}
-          {(activeRole === 'seller' || activeRole === 'both') && !isApproved('seller') && !isAlreadySubmitted('seller') && (
+          {(activeRole === 'seller' || activeRole === 'both') && (
             <div className="space-y-5">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Store className="w-5 h-5 text-blue-600" />
@@ -630,7 +658,7 @@ const SellerActivation = () => {
           )}
 
           {/* Landlord Form */}
-          {(activeRole === 'landlord' || activeRole === 'both') && !isApproved('landlord') && !isAlreadySubmitted('landlord') && (
+          {(activeRole === 'landlord' || activeRole === 'both') && (
             <div className="space-y-5">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Home className="w-5 h-5 text-green-600" />
@@ -751,52 +779,29 @@ const SellerActivation = () => {
           )}
 
           {/* Submit Button */}
-          {!isApproved(activeRole === 'both' ? 'seller' : activeRole) && 
-           !isAlreadySubmitted(activeRole === 'both' ? 'seller' : activeRole) && (
-            <>
-              <div className="bg-yellow-50 rounded-lg p-4">
-                <p className="text-sm text-yellow-800 flex items-start gap-2">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>All documents are required. After submission, our admin team will review your documents. You will be notified once your account is activated.</span>
-                </p>
-              </div>
-              <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader className="w-5 h-5 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-5 h-5" />
-                    Submit {activeRole === 'both' ? 'Seller & Landlord' : activeRole === 'seller' ? 'Seller' : 'Landlord'} Activation
-                  </>
-                )}
-              </button>
-            </>
-          )}
-
-          {/* Already submitted message */}
-          {isAlreadySubmitted(activeRole === 'both' ? 'seller' : activeRole) && !isApproved(activeRole === 'both' ? 'seller' : activeRole) && (
-            <div className="text-center py-8">
-              <Clock className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-              <p className="text-gray-600">Your activation request is being reviewed by our team.</p>
-              <p className="text-sm text-gray-500 mt-2">You will receive a notification once approved.</p>
-            </div>
-          )}
-
-          {/* Already approved message */}
-          {isApproved(activeRole === 'both' ? 'seller' : activeRole) && (
-            <div className="text-center py-8">
-              <BadgeCheck className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <p className="text-gray-600">Your {activeRole === 'both' ? 'seller and landlord' : activeRole} account is fully activated!</p>
-              <p className="text-sm text-gray-500 mt-2">You can now create listings and manage your properties.</p>
-            </div>
-          )}
+          <div className="bg-yellow-50 rounded-lg p-4">
+            <p className="text-sm text-yellow-800 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <span>All documents are required. After submission, our admin team will review your documents. Once approved, you can subscribe to activate your account.</span>
+            </p>
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <Loader className="w-5 h-5 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="w-5 h-5" />
+                Submit {activeRole === 'both' ? 'Seller & Landlord' : activeRole === 'seller' ? 'Seller' : 'Landlord'} Activation
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AdminSidebar from './AdminSidebar'
-// Direct imports - NO LAZY LOADING
 import DashboardOverview from './DashboardOverview'
 import UserManagement from './UserManagement'
 import VerificationQueue from './VerificationQueue'
@@ -63,7 +62,6 @@ const AdminDashboard = () => {
       />
       
       <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
-        {/* No Suspense - components load instantly */}
         <Routes>
           <Route path="/" element={<DashboardOverview />} />
           <Route path="/users" element={<UserManagement />} />

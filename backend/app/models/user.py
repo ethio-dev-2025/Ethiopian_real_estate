@@ -69,6 +69,10 @@ class User(Base):
     subscription_end_date = Column(DateTime(timezone=True), nullable=True)
     payment_status = Column(String(50), default="pending")
     
+    # ========== PAYMENT APPROVAL FIELDS ==========
+    payment_approved = Column(Boolean, default=False)
+    can_create_listings = Column(Boolean, default=False)
+    
     # ========== SELLER FIELDS ==========
     seller_enabled = Column(Boolean, default=False)
     seller_approved = Column(Boolean, default=False)
@@ -126,6 +130,8 @@ class User(Base):
             "has_active_subscription": self.has_active_subscription,
             "subscription_plan": self.subscription_plan,
             "avatar_url": self.avatar_url,
+            "payment_approved": self.payment_approved,
+            "can_create_listings": self.can_create_listings,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "last_login": self.last_login.isoformat() if self.last_login else None

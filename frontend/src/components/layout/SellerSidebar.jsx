@@ -65,9 +65,9 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'create-listing', label: 'Create Listing', icon: PlusCircle, path: '/create-listing' },
-    { id: 'my-listings', label: 'My Listings', icon: List, path: '/my-listings' },
-    { id: 'my-properties', label: 'My Properties', icon: Building2, path: '/my-properties' },
-    { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/dashboard/messages', badge: unreadCount },
+    { id: 'my-listings', label: 'My Listings', icon: List, path: '/listings' },
+    { id: 'my-properties', label: 'My Properties', icon: Building2, path: '/properties' },
+    { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/messages', badge: unreadCount },
     { id: 'activation', label: 'Activation', icon: Shield, path: '/activation' },
     { id: 'subscription', label: 'Subscription', icon: CreditCard, path: '/subscription' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' }
@@ -159,6 +159,22 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     if (role === 'landlord') return 'Landlord';
     return 'Seller';
   };
+
+  // FIXED: Determine correct status based on user.can_create_listings and user.is_activated
+  const getUserStatus = () => {
+    // Check if user is fully activated (both documents and payment approved)
+    if (user?.can_create_listings === true && user?.is_activated === true && user?.payment_approved === true) {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+    }
+    // Check if user is at payment pending stage
+    if (user?.payment_approved === false && user?.is_activated === false) {
+      return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+    }
+    // Default pending
+    return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+  };
+
+  const status = getUserStatus();
 
   const getProfileImageUrl = () => {
     if (!profileImage) return null;
@@ -275,9 +291,9 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                   <p className="font-semibold text-sm truncate">{getUserName()}</p>
                   <p className="text-xs text-gray-400 truncate">{getRoleDisplay()}</p>
                   <div className="flex items-center gap-1 mt-1">
-                    <div className={`w-2 h-2 ${user?.status === 'active' ? 'bg-green-500' : 'bg-yellow-500'} rounded-full animate-pulse`}></div>
-                    <span className={`text-xs ${user?.status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
-                      {user?.status === 'active' ? 'Active' : 'Pending'}
+                    <div className={`w-2 h-2 ${status.dotColor} rounded-full animate-pulse`}></div>
+                    <span className={`text-xs text-${status.color}-400`}>
+                      {status.text}
                     </span>
                   </div>
                 </div>
