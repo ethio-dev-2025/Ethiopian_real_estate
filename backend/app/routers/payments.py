@@ -86,8 +86,8 @@ async def initialize_payment(
             "first_name": data.first_name,
             "last_name": data.last_name,
             "tx_ref": tx_ref,
-            "callback_url": "http://localhost:8000/api/payment/webhook",
-            "return_url": f"http://localhost:5173/payment/success?tx_ref={tx_ref}",
+            "callback_url": "https://cc6vnmzb-8000.uks1.devtunnels.ms/api/payment/webhook",
+            # "return_url": f"http://localhost:5173/settings",
             "customization": {
                 "title": f"{data.plan_type.upper()} Plan",
                 "description": f"Subscribe to {data.plan_type} plan"
@@ -131,10 +131,12 @@ async def initialize_payment(
         print(f"❌ Payment error: {e}")
         return {"success": False, "message": str(e)}
 
-@router.post("/webhook")
+@router.get("/webhook")
 async def chapa_webhook(request: Request, db: Session = Depends(get_db)):
     """Handle Chapa webhook for payment confirmation"""
-    
+    print("444444444444444444444444444444444444444")
+    print(request.json())  
+    print("4444444444444444444444444444444444444444")
     try:
         body = await request.json()
         print(f"📨 Webhook received: {body}")

@@ -11,11 +11,12 @@ from .routers import (
 from .database import engine, Base, init_db
 from .config import settings
 
-# Create uploads directories
+# Create uploads directories (including profiles directory)
 os.makedirs("uploads/listings", exist_ok=True)
 os.makedirs("uploads/documents", exist_ok=True)
 os.makedirs("uploads/activation_documents", exist_ok=True)
 os.makedirs("uploads/messages", exist_ok=True)
+os.makedirs("uploads/profiles", exist_ok=True)  # ADD THIS LINE for profile pictures
 
 # Initialize database (create all tables)
 init_db()
@@ -28,7 +29,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # ============ CORS CONFIGURATION ============
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Specific origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,7 +44,7 @@ app.include_router(listings.router, prefix="/api/listings", tags=["listings"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
-app.include_router(payments.router, prefix="/api/payment", tags=["payment"])  # Changed from /api/payments to /api/payment
+app.include_router(payments.router, prefix="/api/payment", tags=["payment"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
 app.include_router(password_reset.router, prefix="/api/password-reset", tags=["password-reset"])
 app.include_router(activation.router, prefix="/api/activation", tags=["activation"])

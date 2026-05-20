@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Building2, Mail, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import HumanImage from '../../components/common/HumanImage'
 
 const API_URL = 'http://localhost:8000/api'
 

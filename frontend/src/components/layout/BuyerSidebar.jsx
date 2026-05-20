@@ -1,16 +1,23 @@
+// src/components/layout/BuyerSidebar.jsx
 import React, { useState, useEffect, memo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
-  Home, Search, Heart, MessageCircle, Settings, LogOut, Menu, X, ChevronRight, Building2, Bell
+  Home, Search, Heart, MessageCircle, Settings, LogOut, Menu, X, ChevronRight, Building2, Bell, Camera
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+const API_URL = 'http://localhost:8000';
 
 const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser, updateUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [profileImage, setProfileImage] = useState(null);
+  const [imageError, setImageError] = useState(false);
+  const fileInputRef = React.useRef(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -43,6 +50,19 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     };
   }, []);
 
+  // Load profile image from user context
+  useEffect(() => {
+    if (user?.avatar_url) {
+      let imageUrl = user.avatar_url;
+      if (imageUrl.startsWith('/uploads')) {
+        imageUrl = `${API_URL}${imageUrl}`;
+      }
+      setProfileImage(imageUrl);
+    } else {
+      setProfileImage(null);
+    }
+  }, [user]);
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard/buyer' },
     { id: 'properties', label: 'Browse Properties', icon: Search, path: '/dashboard/buyer/properties' },
@@ -66,6 +86,69 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     if (user?.username) return user.username;
     return 'Buyer';
   };
+
+  const getProfileImageUrl = () => {
+    if (!profileImage) return null;
+    return profileImage;
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    const toastId = toast.loading('Uploading profile picture...');
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+
+      const response = await fetch(`${API_URL}/api/users/upload-profile-picture`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const newImageUrl = data.profile_picture_url;
+        const fullImageUrl = newImageUrl.startsWith('http') ? newImageUrl : `${API_URL}${newImageUrl}`;
+        setProfileImage(fullImageUrl);
+        
+        // Update localStorage and context
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const updatedUser = { ...currentUser, avatar_url: newImageUrl };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        
+        if (updateUser) {
+          updateUser(updatedUser);
+        }
+        
+        toast.success('Profile picture updated!', { id: toastId });
+        await refreshUser();
+      } else {
+        toast.error(data.message || 'Failed to upload image', { id: toastId });
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload image', { id: toastId });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const profileImageUrl = getProfileImageUrl();
 
   return (
     <>
@@ -131,13 +214,42 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
             })}
           </nav>
 
-          {/* Bottom Section */}
+          {/* Bottom Section - User Profile with Picture */}
           <div className="p-4 border-t border-white/10">
             {sidebarOpen ? (
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-xs font-medium">{getUserName().charAt(0).toUpperCase()}</span>
+                  {/* Profile Picture - Now shows uploaded image */}
+                  <div className="relative group">
+                    <div 
+                      className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 cursor-pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {profileImageUrl && !imageError ? (
+                        <img
+                          src={profileImageUrl}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                          onError={() => setImageError(true)}
+                        />
+                      ) : (
+                        <span className="text-white text-xs font-medium">
+                          {getUserName().charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    {/* Camera icon on hover */}
+                    <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                         onClick={() => fileInputRef.current?.click()}>
+                      <Camera className="w-3 h-3 text-white" />
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{getUserName()}</p>
@@ -153,13 +265,39 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={handleLogout}
-                className="w-full flex justify-center p-2 rounded-lg text-slate-400 hover:bg-red-600 hover:text-white transition-all duration-150"
-                title="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
+              // Collapsed sidebar - show profile picture circle
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative group">
+                  <div 
+                    className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {profileImageUrl && !imageError ? (
+                      <img
+                        src={profileImageUrl}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                        onError={() => setImageError(true)}
+                      />
+                    ) : (
+                      <span className="text-white text-sm font-medium">
+                        {getUserName().charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                       onClick={() => fileInputRef.current?.click()}>
+                    <Camera className="w-3 h-3 text-white" />
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex justify-center p-2 rounded-lg text-slate-400 hover:bg-red-600 hover:text-white transition-all duration-150"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
             )}
           </div>
         </div>

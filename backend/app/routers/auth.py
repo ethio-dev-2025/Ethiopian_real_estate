@@ -1,3 +1,4 @@
+# app/routers/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ import bcrypt
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from ..database import get_db
-from ..models import User
+from ..models.user import User
 from ..config import settings
 
 router = APIRouter()
@@ -34,6 +35,11 @@ class UserResponse(BaseModel):
     is_verified: bool
     is_activated: bool
     created_at: Optional[str]
+    avatar_url: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    bio: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -103,7 +109,7 @@ async def get_current_buyer_user(current_user: User = Depends(get_current_user))
         raise HTTPException(status_code=403, detail="Buyer access required")
     return current_user
 
-# ============ REGISTER ENDPOINT - FIXED ============
+# ============ REGISTER ENDPOINT ============
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     try:
@@ -116,10 +122,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         
         hashed_password = get_password_hash(user_data.password)
         
-        # USE THE ROLE_TYPE FROM REQUEST, default to 'user'
         user_role = user_data.role_type if user_data.role_type else "user"
-        
-        # For test users, auto-activate
         is_test = is_test_user(user_data.email)
         
         db_user = User(
@@ -129,16 +132,17 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             hashed_password=hashed_password,
             phone=user_data.phone or "",
             role_type=user_role,
-            status="pending" if not is_test else "active",  # Set to pending for new users
+            status="pending" if not is_test else "active",
             is_active=True,
             is_verified=True,
-            is_activated=is_test,  # Only test users are activated immediately
-            seller_enabled=False,  # Disabled until admin approves
-            seller_approved=False,  # Not approved yet
+            is_activated=is_test,
+            seller_enabled=False,
+            seller_approved=False,
             seller_paid=False,
             landlord_enabled=False,
             landlord_approved=False,
-            landlord_paid=False
+            landlord_paid=False,
+            avatar_url=None
         )
         
         db.add(db_user)
@@ -156,7 +160,12 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             is_active=db_user.is_active,
             is_verified=db_user.is_verified,
             is_activated=db_user.is_activated,
-            created_at=db_user.created_at.isoformat() if db_user.created_at else None
+            created_at=db_user.created_at.isoformat() if db_user.created_at else None,
+            avatar_url=db_user.avatar_url,
+            date_of_birth=db_user.date_of_birth,
+            address=db_user.address,
+            city=db_user.city,
+            bio=db_user.bio
         )
         
     except HTTPException:
@@ -170,7 +179,6 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
-        # Find by email first
         user = db.query(User).filter(User.email == login_data.email).first()
         
         if not user:
@@ -179,11 +187,9 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         if not user:
             return {"success": False, "error": "Invalid email/username or password"}
         
-        # Verify password
         if not verify_password(login_data.password, user.hashed_password):
             return {"success": False, "error": "Invalid email/username or password"}
         
-        # Update user status for test users
         if is_test_user(user.email):
             user.status = "active"
             user.is_active = True
@@ -194,11 +200,10 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
             user.status = "active"
             db.commit()
         
-        # Update last login
         user.last_login = datetime.utcnow()
         db.commit()
+        db.refresh(user)
         
-        # Create access token
         access_token = create_access_token(data={"sub": user.email})
         
         return {
@@ -214,7 +219,12 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
                 "role_type": user.role_type,
                 "is_activated": user.is_activated,
                 "is_verified": user.is_verified,
-                "status": user.status
+                "status": user.status,
+                "avatar_url": user.avatar_url,
+                "date_of_birth": user.date_of_birth,
+                "address": user.address,
+                "city": user.city,
+                "bio": user.bio
             }
         }
         
@@ -239,7 +249,12 @@ async def get_current_user_endpoint(current_user: User = Depends(get_current_use
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
         "has_active_subscription": current_user.has_active_subscription,
         "seller_enabled": current_user.seller_enabled,
-        "landlord_enabled": current_user.landlord_enabled
+        "landlord_enabled": current_user.landlord_enabled,
+        "avatar_url": current_user.avatar_url,
+        "date_of_birth": current_user.date_of_birth,
+        "address": current_user.address,
+        "city": current_user.city,
+        "bio": current_user.bio
     }
 
 
@@ -250,7 +265,6 @@ async def admin_activate_user(
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
-    """Admin endpoint to activate a user account"""
     try:
         user_to_activate = db.query(User).filter(User.id == user_id).first()
         
@@ -285,7 +299,6 @@ async def get_pending_users(
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
-    """Get all users with pending activation"""
     try:
         pending_users = db.query(User).filter(
             User.is_activated == False,
@@ -301,7 +314,9 @@ async def get_pending_users(
                 "phone": u.phone,
                 "role_type": u.role_type,
                 "status": u.status,
-                "created_at": u.created_at.isoformat() if u.created_at else None
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "avatar_url": u.avatar_url,
+                "date_of_birth": u.date_of_birth
             }
             for u in pending_users
         ]

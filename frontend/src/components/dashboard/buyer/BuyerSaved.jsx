@@ -1,8 +1,7 @@
 // src/components/dashboard/buyer/BuyerSaved.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MapPin, Bed, Bath, Square, Trash2, Building2, ArrowRight, Loader, RefreshCw, Star, ImageOff } from 'lucide-react';
-import { listingsAPI } from '../../../services/api/listingsApi';
+import { Heart, MapPin, Bed, Bath, Square, ArrowRight, RefreshCw, Star, ImageOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000';
@@ -20,11 +19,9 @@ const getPropertyImage = (id) => PROPERTY_IMAGES[id % PROPERTY_IMAGES.length];
 const BuyerSaved = () => {
   const navigate = useNavigate();
   const [savedProperties, setSavedProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchingDetails, setFetchingDetails] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchSavedProperties = useCallback(async () => {
-    setLoading(true);
     try {
       // Get saved property IDs from localStorage
       const localSaved = localStorage.getItem('buyer_saved_properties');
@@ -39,12 +36,11 @@ const BuyerSaved = () => {
       
       if (savedIds.length === 0) {
         setSavedProperties([]);
-        setLoading(false);
+        setIsLoading(false);
         return;
       }
       
       // Fetch full property details from API
-      setFetchingDetails(true);
       const fullProperties = [];
       
       for (const id of savedIds) {
@@ -75,8 +71,7 @@ const BuyerSaved = () => {
       console.error('Error fetching saved properties:', error);
       toast.error('Failed to load saved properties');
     } finally {
-      setLoading(false);
-      setFetchingDetails(false);
+      setIsLoading(false);
     }
   }, []);
 
@@ -116,16 +111,8 @@ const BuyerSaved = () => {
     fetchSavedProperties(); 
   }, [fetchSavedProperties]);
 
-  if (loading || fetchingDetails) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64">
-        <Loader className="w-8 h-8 animate-spin text-blue-600 mb-3" />
-        <p className="text-gray-500 text-sm">{fetchingDetails ? 'Loading property details...' : 'Loading saved properties...'}</p>
-      </div>
-    );
-  }
-
-  if (savedProperties.length === 0) {
+  // Show content immediately, no spinner
+  if (savedProperties.length === 0 && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] bg-white rounded-2xl shadow-sm border p-12 text-center">
         <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4">
@@ -170,6 +157,7 @@ const BuyerSaved = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {savedProperties.map((property) => {
           const imageUrl = getImageUrl(property);
+          
           return (
             <div 
               key={property.id} 
@@ -222,9 +210,10 @@ const BuyerSaved = () => {
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleRemove(property.id); }} 
-                    className="px-3 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-200 transition"
+                    className="px-3 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-200 transition flex items-center gap-1"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Heart className="w-4 h-4 fill-current" />
+                    Remove
                   </button>
                 </div>
               </div>

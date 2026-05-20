@@ -10,7 +10,9 @@ import BuyerDashboard from '../components/dashboard/buyer/BuyerDashboard';
 import BuyerMessages from '../components/dashboard/buyer/BuyerMessages';
 import BuyerProperties from '../components/dashboard/buyer/BuyerProperties';
 import BuyerSaved from '../components/dashboard/buyer/BuyerSaved';
-import BuyerSettings from '../components/dashboard/buyer/BuyerSettings';
+
+// Common Settings Component (used for both buyer and seller)
+import Settings from '../components/dashboard/common/Settings';
 
 // Admin Component - Import directly for instant loading (NO lazy)
 import AdminDashboard from '../components/dashboard/admin/AdminDashboard';
@@ -23,7 +25,6 @@ const SellerDashboard = lazy(() => import('../components/dashboard/seller/seller
 const SellerListings = lazy(() => import('../components/dashboard/seller/SellerListings'));
 const SellerMessages = lazy(() => import('../components/dashboard/seller/SellerMessages'));
 const SellerProperties = lazy(() => import('../components/dashboard/seller/SellerProperties'));
-const SellerSettings = lazy(() => import('../components/dashboard/seller/SellerSettings'));
 const SellerSubscription = lazy(() => import('../components/dashboard/seller/SellerSubscription'));
 const SellerActivation = lazy(() => import('../components/dashboard/seller/SellerActivation'));
 const SellerCreateListing = lazy(() => import('../components/dashboard/seller/sellerCreateListing'));
@@ -64,32 +65,30 @@ const AppRoutes = () => {
   const [resolved, setResolved] = useState(false);
 
   useEffect(() => {
-    let userRole = null;
-    
-    if (user && user.role_type) {
-      userRole = user.role_type;
+    // IMPORTANT: Only check role if authenticated
+    if (isAuthenticated && user) {
+      let userRole = user.role_type || user.role;
+      if (!userRole) {
+        userRole = localStorage.getItem('user_role');
+      }
+      
+      let finalRole = userRole;
+      if (userRole === 'user') {
+        finalRole = 'buyer';
+      }
+      
+      setRole(finalRole);
+      setHasSelectedRole(!!finalRole && finalRole !== 'null' && finalRole !== null);
+    } else {
+      // When not authenticated, clear any stored role
+      setRole(null);
+      setHasSelectedRole(false);
     }
-    
-    if (!userRole) {
-      userRole = localStorage.getItem('user_role');
-    }
-    
-    let finalRole = userRole;
-    if (userRole === 'user') {
-      finalRole = 'buyer';
-    }
-    
-    setRole(finalRole);
-    setHasSelectedRole(!!finalRole && finalRole !== 'null' && finalRole !== null);
     setResolved(true);
   }, [user, isAuthenticated]);
 
-  // REMOVED: loading spinner - just render null or minimal placeholder
-  if (loading) {
-    return <div style={{ minHeight: '100vh' }}></div>;
-  }
-
-  if (!resolved) {
+  // Show nothing while checking auth
+  if (loading || !resolved) {
     return <div style={{ minHeight: '100vh' }}></div>;
   }
 
@@ -117,7 +116,7 @@ const AppRoutes = () => {
     );
   }
 
-  // AUTHENTICATED - ROLE SELECTION
+  // AUTHENTICATED - ROLE SELECTION (only shown if user is authenticated but no role)
   if (!hasSelectedRole) {
     return (
       <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
@@ -143,7 +142,7 @@ const AppRoutes = () => {
             <Route path="/messages" element={<SellerMessages />} />
             <Route path="/messages/:conversationId" element={<SellerMessages />} />
             <Route path="/properties" element={<SellerProperties />} />
-            <Route path="/settings" element={<SellerSettings />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/subscription" element={<SellerSubscription />} />
             <Route path="/activation" element={<SellerActivation />} />
             <Route path="/verification" element={<SellerDocumentVerification />} />
@@ -158,7 +157,7 @@ const AppRoutes = () => {
     );
   }
 
-  // ADMIN ROUTES - FIXED: Added /* for nested routes and direct import
+  // ADMIN ROUTES
   if (normalizedRole === 'admin') {
     return (
       <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
@@ -171,20 +170,23 @@ const AppRoutes = () => {
     );
   }
 
-  // BUYER ROUTES - NO SUSPENSE NEEDED (components are imported directly)
+  // BUYER ROUTES
   if (normalizedRole === 'buyer') {
     return (
       <BuyerLayout>
-        {/* No Suspense wrapper for buyer routes - components load instantly */}
         <Routes>
+          <Route path="/" element={<Navigate to="/dashboard/buyer" />} />
           <Route path="/dashboard/buyer/messages/:conversationId" element={<BuyerMessages />} />
           <Route path="/dashboard/buyer/messages" element={<BuyerMessages />} />
           <Route path="/dashboard/buyer/properties" element={<BuyerProperties />} />
           <Route path="/dashboard/buyer/saved" element={<BuyerSaved />} />
-          <Route path="/dashboard/buyer/settings" element={<BuyerSettings />} />
+          <Route path="/dashboard/buyer/settings" element={<Settings />} />
           <Route path="/dashboard/buyer/notifications" element={<Notifications />} />
           <Route path="/dashboard/buyer" element={<BuyerDashboard />} />
-          <Route path="/" element={<Navigate to="/dashboard/buyer" />} />
+          <Route path="/properties" element={<PropertiesPage />} />
+          <Route path="/properties/:id" element={<PropertyDetailPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="/payment/success" element={<PaymentSuccessPage />} />
           <Route path="/payment/return" element={<PaymentSuccessPage />} />
           <Route path="*" element={<Navigate to="/dashboard/buyer" />} />

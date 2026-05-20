@@ -9,37 +9,20 @@ from .admin_models import Company, Subscription, VerificationDocument, AdminActi
 from .role_document import RoleDocument, RoleSubscription, DocumentType, DocumentStatus
 
 __all__ = [
-    # User related
     'User',
-    
-    # Listing related
     'Listing',
-    
-    # Message/Chat related
     'Message',
     'Conversation',
     'MessageStatus',
-    
-    # Notification related
     'Notification',
-    
-    # Saved property related
     'SavedProperty',
-    
-    # Password reset related
     'PasswordReset',
-    
-    # Activation related
     'ActivationRequest',
     'ActivationStatus',
-    
-    # Admin models
     'Company',
     'Subscription',
     'VerificationDocument',
     'AdminActivity',
-    
-    # Role document models
     'RoleDocument',
     'RoleSubscription',
     'DocumentType',

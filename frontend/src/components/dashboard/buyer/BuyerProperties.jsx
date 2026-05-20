@@ -36,7 +36,6 @@ const BuyerProperties = () => {
   const navigate = useNavigate();
   const [allProperties, setAllProperties] = useState(MOCK_PROPERTIES);
   const [filteredProperties, setFilteredProperties] = useState(MOCK_PROPERTIES);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [listingType, setListingType] = useState('all');
   const [viewMode, setViewMode] = useState('grid');
@@ -50,6 +49,7 @@ const BuyerProperties = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [usingRealData, setUsingRealData] = useState(false);
   const [imageErrors, setImageErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
   const dataFetched = useRef(false);
 
   const formatApiProperty = (apiProp) => {
@@ -83,25 +83,20 @@ const BuyerProperties = () => {
   };
 
   const fetchRealProperties = async () => {
-    setLoading(true);
     try {
       const response = await listingsAPI.getPublicListingsFast({ limit: 50 });
       if (response && response.success && response.listings && response.listings.length > 0) {
         const formattedProperties = response.listings.map(formatApiProperty);
         setAllProperties(formattedProperties);
         setUsingRealData(true);
-        toast.success(`Loaded ${formattedProperties.length} properties`, { duration: 2000 });
       } else {
-        // If API returns no data, keep mock data
         setUsingRealData(false);
-        toast.info('Using demo properties', { duration: 2000 });
       }
     } catch (error) {
       console.error('Error fetching properties:', error);
       setUsingRealData(false);
-      toast.error('Connection issue, showing demo properties', { duration: 3000 });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -188,15 +183,7 @@ const BuyerProperties = () => {
   const hasActiveFilters = searchTerm !== '' || listingType !== 'all' || priceRange !== 'all' || 
                            bedrooms !== 'any' || bathrooms !== 'any' || selectedLocation !== 'all';
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64">
-        <Loader className="w-8 h-8 animate-spin text-blue-600 mb-3" />
-        <p className="text-gray-500 text-sm">Loading properties...</p>
-      </div>
-    );
-  }
-
+  // Show content immediately, no spinner
   return (
     <div>
       <div className="mb-6">

@@ -24,13 +24,11 @@ const BuyerLayout = ({ children }) => {
     return 'Dashboard';
   };
 
-  // Always show buyer dashboard header for all buyer routes
   return (
     <div className="min-h-screen bg-gray-50">
       <BuyerSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       
       <div className={`transition-all duration-300 min-h-screen ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
-        {/* Buyer Dashboard Header - Always show for all buyer routes */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white sticky top-0 z-10 shadow-md">
           <div className="px-6 py-4">
             <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
@@ -38,7 +36,6 @@ const BuyerLayout = ({ children }) => {
           </div>
         </div>
         
-        {/* Main Content */}
         <main className="p-6">
           {children}
         </main>

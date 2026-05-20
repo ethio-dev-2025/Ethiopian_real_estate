@@ -17,7 +17,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false); // CHANGED: false initially
+  const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -189,7 +189,6 @@ export const AuthProvider = ({ children }) => {
         clearAuthData();
       }
     }
-    // REMOVED: setLoading(false) - loading is already false
   }, [connectWebSocket, clearAuthData]);
 
   const login = async (email, password) => {
@@ -288,19 +287,27 @@ export const AuthProvider = ({ children }) => {
           userRole = 'buyer';
         }
         localStorage.setItem('user_role', userRole);
+        console.log('🔄 User refreshed:', freshUser);
+        return freshUser;
       }
     }
+    return null;
   }, [fetchFreshUserData]);
 
+  // UPDATE USER FUNCTION - Directly updates user in state and localStorage
   const updateUser = useCallback((updatedUser) => {
+    console.log('🔄 Updating user in context:', updatedUser);
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
+    
     let userRole = updatedUser.role_type || updatedUser.role || 'buyer';
     if (userRole === 'user') {
       userRole = 'buyer';
     }
     localStorage.setItem('user_role', userRole);
     localStorage.setItem('role_selected', 'true');
+    
+    return updatedUser;
   }, []);
 
   const value = {
@@ -314,7 +321,7 @@ export const AuthProvider = ({ children }) => {
     socket: socketRef.current,
     addMessageHandler,
     refreshUser,
-    updateUser,
+    updateUser,  // Make sure this is included
     clearAuthData,
     userRole: user?.role_type || user?.role || localStorage.getItem('user_role')
   };
