@@ -1,3 +1,4 @@
+# backend/app/routers/messages.py
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -61,9 +62,8 @@ def update_conversation_last_message(db: Session, conversation_id: int, message:
         db.commit()
 
 # =========================================================
-# EXISTING ENDPOINT: Send text message
+# SEND TEXT MESSAGE
 # =========================================================
-
 @router.post("/send")
 async def send_message(
     message_data: MessageCreate,
@@ -92,7 +92,6 @@ async def send_message(
         conversation = get_or_create_conversation(db, current_user.id, message_data.receiver_id)
         update_conversation_last_message(db, conversation.id, new_message)
         
-        # Get sender name for notification
         sender_name = current_user.full_name or current_user.username
         
         message_response = {
@@ -111,13 +110,11 @@ async def send_message(
         
         try:
             from .websocket import manager
-            # Send to receiver
             sent = await manager.send_personal_message({
                 "type": "new_message",
                 "message": message_response
             }, message_data.receiver_id)
             
-            # Send confirmation to sender
             await manager.send_personal_message({
                 "type": "message_sent",
                 "message": message_response
@@ -144,43 +141,33 @@ async def send_message(
 
 
 # =========================================================
-# NEW ENDPOINT 1: Upload file only (for chat)
+# UPLOAD FILE (for chat)
 # =========================================================
-
 @router.post("/upload")
 async def upload_message_file(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Upload a file for messaging
-    Endpoint: POST /api/messages/upload
-    """
     try:
-        # Validate file size (max 10MB)
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
         
-        if file_size > 10 * 1024 * 1024:  # 10MB
+        if file_size > 10 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="File too large. Max 10MB")
         
-        # Generate unique filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         user_id = current_user.id
         unique_id = str(uuid.uuid4())[:8]
         original_filename = file.filename.replace(" ", "_")
         safe_filename = f"{timestamp}_{user_id}_{unique_id}_{original_filename}"
         
-        # Create full file path
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
         
-        # Save the file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Determine file type for preview
         content_type = file.content_type or ""
         if content_type.startswith("image/"):
             file_type = "image"
@@ -191,7 +178,6 @@ async def upload_message_file(
         else:
             file_type = "file"
         
-        # Return the URL path
         file_url = f"/uploads/messages/{safe_filename}"
         
         return {
@@ -211,9 +197,8 @@ async def upload_message_file(
 
 
 # =========================================================
-# NEW ENDPOINT 2: Send message with file attachment
+# SEND MESSAGE WITH FILE ATTACHMENT
 # =========================================================
-
 @router.post("/send-with-attachment")
 async def send_message_with_attachment(
     receiver_id: int = Form(...),
@@ -222,25 +207,18 @@ async def send_message_with_attachment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Send a message with file attachment
-    Endpoint: POST /api/messages/send-with-attachment
-    """
     try:
-        # Verify receiver exists
         receiver = db.query(User).filter(User.id == receiver_id).first()
         if not receiver:
             raise HTTPException(status_code=404, detail="Receiver not found")
         
-        # Validate file size (max 10MB)
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
         
-        if file_size > 10 * 1024 * 1024:  # 10MB
+        if file_size > 10 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="File too large. Max 10MB")
         
-        # Upload the file first
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         user_id = current_user.id
         unique_id = str(uuid.uuid4())[:8]
@@ -249,11 +227,9 @@ async def send_message_with_attachment(
         
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
         
-        # Save the file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Determine file type for preview
         content_type = file.content_type or ""
         if content_type.startswith("image/"):
             attachment_type = "image"
@@ -266,7 +242,6 @@ async def send_message_with_attachment(
         
         file_url = f"/uploads/messages/{safe_filename}"
         
-        # Create message in database
         new_message = Message(
             sender_id=current_user.id,
             receiver_id=receiver_id,
@@ -282,11 +257,9 @@ async def send_message_with_attachment(
         db.commit()
         db.refresh(new_message)
         
-        # Update conversation
         conversation = get_or_create_conversation(db, current_user.id, receiver_id)
         update_conversation_last_message(db, conversation.id, new_message)
         
-        # Get sender name for notification
         sender_name = current_user.full_name or current_user.username
         
         message_response = {
@@ -303,22 +276,18 @@ async def send_message_with_attachment(
             "sender_name": sender_name
         }
         
-        # Send WebSocket notifications
         try:
             from .websocket import manager
-            # Send to receiver
             await manager.send_personal_message({
                 "type": "new_message",
                 "message": message_response
             }, receiver_id)
             
-            # Send confirmation to sender
             await manager.send_personal_message({
                 "type": "message_sent",
                 "message": message_response
             }, current_user.id)
             
-            # Mark as delivered
             new_message.status = MessageStatus.DELIVERED
             db.commit()
             message_response["status"] = "delivered"
@@ -340,9 +309,8 @@ async def send_message_with_attachment(
 
 
 # =========================================================
-# EXISTING ENDPOINT: Get conversations
+# GET CONVERSATIONS
 # =========================================================
-
 @router.get("/conversations")
 async def get_conversations(
     current_user: User = Depends(get_current_user),
@@ -384,9 +352,8 @@ async def get_conversations(
 
 
 # =========================================================
-# EXISTING ENDPOINT: Get messages between users
+# GET MESSAGES BETWEEN USERS
 # =========================================================
-
 @router.get("/messages/{user_id}")
 async def get_messages(
     user_id: int,
@@ -449,9 +416,8 @@ async def get_messages(
 
 
 # =========================================================
-# EXISTING ENDPOINT: Get unread count
+# GET UNREAD COUNT
 # =========================================================
-
 @router.get("/unread-count")
 async def get_unread_count(
     current_user: User = Depends(get_current_user),
@@ -469,9 +435,8 @@ async def get_unread_count(
 
 
 # =========================================================
-# NEW ENDPOINT 3: Mark message as delivered (for WebSocket)
+# MARK MESSAGE AS DELIVERED (for WebSocket)
 # =========================================================
-
 @router.post("/mark-delivered/{message_id}")
 async def mark_message_delivered(
     message_id: int,
@@ -484,7 +449,6 @@ async def mark_message_delivered(
             message.status = MessageStatus.DELIVERED
             db.commit()
             
-            # Notify sender
             try:
                 from .websocket import manager
                 await manager.send_personal_message({
@@ -503,9 +467,8 @@ async def mark_message_delivered(
 
 
 # =========================================================
-# NEW ENDPOINT 4: Mark message as read
+# MARK MESSAGE AS READ
 # =========================================================
-
 @router.post("/mark-read/{message_id}")
 async def mark_message_read(
     message_id: int,
@@ -520,7 +483,6 @@ async def mark_message_read(
             message.status = MessageStatus.READ
             db.commit()
             
-            # Notify sender
             try:
                 from .websocket import manager
                 await manager.send_personal_message({
@@ -536,3 +498,54 @@ async def mark_message_read(
     except Exception as e:
         print(f"Error marking message read: {e}")
         return {"success": False}
+
+
+# =========================================================
+# MARK ALL MESSAGES AS READ IN CONVERSATION
+# =========================================================
+@router.post("/mark-all-read/{user_id}")
+async def mark_all_messages_read(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Mark all messages from a specific user as read"""
+    try:
+        updated_count = db.query(Message).filter(
+            Message.sender_id == user_id,
+            Message.receiver_id == current_user.id,
+            Message.is_read == False
+        ).update({"is_read": True, "read_at": datetime.utcnow(), "status": MessageStatus.READ})
+        
+        # Update conversation unread count
+        conversation = db.query(Conversation).filter(
+            ((Conversation.buyer_id == current_user.id) & (Conversation.seller_id == user_id)) |
+            ((Conversation.buyer_id == user_id) & (Conversation.seller_id == current_user.id))
+        ).first()
+        
+        if conversation:
+            if conversation.buyer_id == current_user.id:
+                conversation.buyer_unread = 0
+            else:
+                conversation.seller_unread = 0
+            db.commit()
+        
+        db.commit()
+        
+        # Notify sender via WebSocket
+        try:
+            from .websocket import manager
+            await manager.send_personal_message({
+                "type": "messages_read",
+                "receiver_id": current_user.id,
+                "sender_id": user_id,
+                "read_count": updated_count
+            }, user_id)
+        except:
+            pass
+        
+        return {"success": True, "read_count": updated_count}
+        
+    except Exception as e:
+        print(f"Error marking messages as read: {e}")
+        return {"success": False, "read_count": 0}

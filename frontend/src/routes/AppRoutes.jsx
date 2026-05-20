@@ -34,8 +34,7 @@ const SellerDocumentVerification = lazy(() => import('../components/dashboard/se
 // Common Components
 const Notifications = lazy(() => import('../components/common/Notifications'));
 const RoleSelectionModal = lazy(() => import('../components/common/RoleSelectionModal'));
-const MessagesPage = lazy(() => import('../components/messages/MessagesPage'));
-
+ 
 // Auth pages
 const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
@@ -139,6 +138,7 @@ const AppRoutes = () => {
             <Route path="/listings" element={<SellerListings />} />
             <Route path="/create-listing" element={<SellerCreateListing />} />
             <Route path="/edit-listing/:id" element={<EditListingPage />} />
+            {/* SELLER MESSAGES ROUTES - CORRECTED */}
             <Route path="/messages" element={<SellerMessages />} />
             <Route path="/messages/:conversationId" element={<SellerMessages />} />
             <Route path="/properties" element={<SellerProperties />} />

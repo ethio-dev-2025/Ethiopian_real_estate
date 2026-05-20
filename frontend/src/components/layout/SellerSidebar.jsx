@@ -4,7 +4,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, PlusCircle, List, Building2, MessageSquare,
-  Shield, CreditCard, Settings, LogOut, Menu, X, ChevronRight, Camera
+  Shield, CreditCard, Settings, LogOut, Menu, X, ChevronRight, Camera,
+  User, Lock, Bell, Monitor, ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -15,26 +16,66 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
+  const settingsButtonRef = useRef(null);
+  const settingsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // Settings dropdown menu items
+  const settingsMenuItems = [
+    { id: 'profile', label: 'Profile Information', icon: User, tab: 'profile' },
+    { id: 'security', label: 'Security', icon: Lock, tab: 'security' },
+    { id: 'notifications', label: 'Notifications', icon: Bell, tab: 'notifications' },
+    { id: 'privacy', label: 'Privacy', icon: Shield, tab: 'privacy' },
+    { id: 'appearance', label: 'Appearance', icon: Monitor, tab: 'appearance' }
+  ];
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (settingsDropdownRef.current && 
+          !settingsDropdownRef.current.contains(event.target) &&
+          settingsButtonRef.current &&
+          !settingsButtonRef.current.contains(event.target)) {
+        setIsSettingsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close dropdown when route changes
+  useEffect(() => {
+    setIsSettingsDropdownOpen(false);
+  }, [location.pathname]);
+
+  // Check mobile screen
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Fetch initial unread count
+  useEffect(() => {
+    window.updateUnreadCount = (count) => {
+      setTotalUnreadCount(count);
+    };
     
     const fetchUnreadCount = async () => {
       try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch('http://localhost:8000/api/messages/unread-count', {
+        const response = await fetch(`${API_URL}/api/messages/unread-count`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
           const data = await response.json();
-          setUnreadCount(data.count || 0);
+          setTotalUnreadCount(data.count || 0);
         }
       } catch (error) {
         console.error('Error fetching unread count:', error);
@@ -43,8 +84,9 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000);
+    
     return () => {
-      window.removeEventListener('resize', checkMobile);
+      delete window.updateUnreadCount;
       clearInterval(interval);
     };
   }, []);
@@ -62,19 +104,25 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     }
   }, [user]);
 
+  // Main menu items
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'create-listing', label: 'Create Listing', icon: PlusCircle, path: '/create-listing' },
     { id: 'my-listings', label: 'My Listings', icon: List, path: '/listings' },
-    { id: 'my-properties', label: 'My Properties', icon: Building2, path: '/properties' },
-    { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/messages', badge: unreadCount },
+    { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/messages', badge: totalUnreadCount },
     { id: 'activation', label: 'Activation', icon: Shield, path: '/activation' },
-    { id: 'subscription', label: 'Subscription', icon: CreditCard, path: '/subscription' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' }
+    { id: 'subscription', label: 'Subscription', icon: CreditCard, path: '/subscription' }
   ];
 
   const handleNavigation = (path) => {
     navigate(path);
+    if (isMobile) setSidebarOpen(false);
+  };
+
+  // Handle settings dropdown navigation
+  const handleSettingsNavigation = (tab) => {
+    navigate(`/settings?tab=${tab}`);
+    setIsSettingsDropdownOpen(false);
     if (isMobile) setSidebarOpen(false);
   };
 
@@ -160,28 +208,27 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     return 'Seller';
   };
 
-  // FIXED: Determine correct status based on user.can_create_listings and user.is_activated
   const getUserStatus = () => {
-    // Check if user is fully activated (both documents and payment approved)
-    if (user?.can_create_listings === true && user?.is_activated === true && user?.payment_approved === true) {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-    }
-    // Check if user is at payment pending stage
-    if (user?.payment_approved === false && user?.is_activated === false) {
-      return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
-    }
-    // Default pending
-    return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+    return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
   };
 
   const status = getUserStatus();
+  const profileImageUrl = profileImage;
 
-  const getProfileImageUrl = () => {
-    if (!profileImage) return null;
-    return profileImage;
+  // Get current tab from URL params
+  const getCurrentTab = () => {
+    const params = new URLSearchParams(location.search);
+    return params.get('tab') || 'profile';
   };
+  
+  const currentTab = getCurrentTab();
+  const isSettingsActive = location.pathname === '/settings';
 
-  const profileImageUrl = getProfileImageUrl();
+  // Toggle dropdown - prevent event propagation
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    setIsSettingsDropdownOpen(!isSettingsDropdownOpen);
+  };
 
   return (
     <>
@@ -245,12 +292,61 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 </button>
               );
             })}
+
+            {/* Settings Menu Item with Dropdown */}
+            <div className="relative">
+              <button
+                ref={settingsButtonRef}
+                onClick={toggleDropdown}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150 ${
+                  isSettingsActive 
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Settings className="w-5 h-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium">Settings</span>}
+                </div>
+                {sidebarOpen && (
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSettingsDropdownOpen ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+              
+              {/* Dropdown Menu - Opens downward */}
+              {sidebarOpen && isSettingsDropdownOpen && (
+                <div 
+                  ref={settingsDropdownRef}
+                  className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50"
+                >
+                  {settingsMenuItems.map((item) => {
+                    const Icon = item.icon;
+                    // Check if this specific tab is active
+                    const isActive = isSettingsActive && currentTab === item.tab;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleSettingsNavigation(item.tab)}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 transition ${
+                          isActive 
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="text-sm">{item.label}</span>
+                        {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* User Info with Profile Picture */}
           <div className="p-4 pt-0 pb-5">
             <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-gray-800/50">
-              {/* Profile Picture with Upload */}
               <div className="relative group">
                 <div 
                   className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0 cursor-pointer"
@@ -272,7 +368,6 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 )}
-                {/* Camera icon on hover */}
                 <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                      onClick={() => fileInputRef.current?.click()}>
                   <Camera className="w-4 h-4 text-white" />
@@ -292,9 +387,7 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                   <p className="text-xs text-gray-400 truncate">{getRoleDisplay()}</p>
                   <div className="flex items-center gap-1 mt-1">
                     <div className={`w-2 h-2 ${status.dotColor} rounded-full animate-pulse`}></div>
-                    <span className={`text-xs text-${status.color}-400`}>
-                      {status.text}
-                    </span>
+                    <span className="text-xs text-green-400">{status.text}</span>
                   </div>
                 </div>
               )}

@@ -1,3 +1,4 @@
+# backend/app/routers/websocket.py
 from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -16,16 +17,17 @@ class ConnectionManager:
         self.user_status: Dict[int, str] = {}
     
     async def connect(self, user_id: int, websocket: WebSocket):
+        await websocket.accept()
         self.active_connections[user_id] = websocket
         self.user_status[user_id] = "online"
-        print(f"✅ User {user_id} connected. Active connections: {list(self.active_connections.keys())}")
+        print(f"✅ User {user_id} connected. Active: {list(self.active_connections.keys())}")
         await self.broadcast_user_status(user_id, "online")
     
     def disconnect(self, user_id: int):
         if user_id in self.active_connections:
             del self.active_connections[user_id]
         self.user_status[user_id] = "offline"
-        print(f"❌ User {user_id} disconnected. Active connections: {list(self.active_connections.keys())}")
+        print(f"❌ User {user_id} disconnected. Active: {list(self.active_connections.keys())}")
     
     async def send_personal_message(self, message: dict, user_id: int):
         if user_id in self.active_connections:
@@ -103,7 +105,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             await websocket.close(code=1008, reason="User not found")
             return
         
-        print(f"✅ User authenticated: ID={user.id}, Email={user.email}, Role={user.role_type}")
+        print(f"✅ User authenticated: ID={user.id}, Email={user.email}")
         
         await manager.connect(user.id, websocket)
         
@@ -137,7 +139,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                         await websocket.send_json({"type": "error", "message": "Receiver not found"})
                         continue
                     
-                    print(f"📝 Saving message from {user.id} to {receiver_id}: '{content}'")
+                    print(f"📝 Saving message from {user.id} to {receiver_id}")
                     
                     new_message = Message(
                         sender_id=user.id,
@@ -175,14 +177,13 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                     conversation.last_message_time = datetime.utcnow()
                     conversation.last_message_sender_id = user.id
                     
+                    # Update unread count for receiver ONLY (not for sender)
                     if conversation.buyer_id == receiver_id:
                         conversation.buyer_unread += 1
                     else:
                         conversation.seller_unread += 1
                     db.commit()
-                    print(f"📊 Updated conversation {conversation.id}, unread count updated")
                     
-                    # Prepare message response
                     message_response = {
                         "id": new_message.id,
                         "sender_id": new_message.sender_id,
@@ -197,16 +198,28 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                         "sender_name": user.full_name or user.username
                     }
                     
-                    # Send to receiver if online (REAL-TIME UPDATE FOR REDUSS)
+                    # Send to receiver (with unread count update)
                     receiver_online = manager.is_user_online(receiver_id)
-                    print(f"📡 Receiver {receiver_id} (reduss) online: {receiver_online}")
                     
+                    # Prepare conversation update for receiver
+                    conversation_data_for_receiver = {
+                        "id": conversation.id,
+                        "user_id": user.id,
+                        "user_name": user.full_name or user.username,
+                        "last_message": message_response["content"],
+                        "last_message_at": message_response["created_at"],
+                        "unread_count": conversation.buyer_unread if conversation.buyer_id == receiver_id else conversation.seller_unread
+                    }
+                    
+                    # Send to receiver with real-time conversation update
                     if receiver_online:
                         await manager.send_personal_message({
                             "type": "new_message",
-                            "message": message_response
+                            "message": message_response,
+                            "conversation_update": conversation_data_for_receiver
                         }, receiver_id)
-                        # Update status to delivered
+                        
+                        # Mark as delivered
                         new_message.status = MessageStatus.DELIVERED
                         db.commit()
                         message_response["status"] = "delivered"
@@ -214,31 +227,61 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                     else:
                         print(f"⚠️ Receiver {receiver_id} not online")
                     
-                    # Send confirmation to sender (REAL-TIME UPDATE FOR SHEGAW)
+                    # Send confirmation to sender (NO unread count for sender)
                     await websocket.send_json({
                         "type": "message_sent",
                         "message": message_response
                     })
                     print(f"✅ Confirmation sent to sender {user.id}")
+                    
+                    # Also send conversation update to sender (without unread count)
+                    conversation_data_for_sender = {
+                        "id": conversation.id,
+                        "user_id": receiver_id,
+                        "user_name": receiver.full_name or receiver.username,
+                        "last_message": message_response["content"],
+                        "last_message_at": message_response["created_at"],
+                        "unread_count": 0  # Sender sees 0 unread for their own messages
+                    }
+                    
+                    await websocket.send_json({
+                        "type": "conversation_update",
+                        "conversation": conversation_data_for_sender
+                    })
                 
                 elif msg_type == "read_receipt":
                     sender_id = message_data.get("sender_id")
                     if sender_id:
+                        # Mark all messages from sender as read
                         updated_count = db.query(Message).filter(
                             Message.sender_id == sender_id,
                             Message.receiver_id == user.id,
                             Message.is_read == False
                         ).update({"is_read": True, "read_at": datetime.utcnow(), "status": MessageStatus.READ})
                         
-                        db.commit()
+                        # Reset conversation unread count for this user
+                        conversation = db.query(Conversation).filter(
+                            ((Conversation.buyer_id == user.id) & (Conversation.seller_id == sender_id)) |
+                            ((Conversation.buyer_id == sender_id) & (Conversation.seller_id == user.id))
+                        ).first()
+                        
+                        if conversation:
+                            if conversation.buyer_id == user.id:
+                                conversation.buyer_unread = 0
+                            else:
+                                conversation.seller_unread = 0
+                            db.commit()
                         
                         if updated_count > 0:
                             print(f"📖 Marked {updated_count} messages as read from user {sender_id}")
+                            
+                            # Notify sender that messages were read
                             await manager.send_personal_message({
                                 "type": "messages_read",
                                 "receiver_id": user.id,
                                 "sender_id": sender_id,
-                                "read_count": updated_count
+                                "read_count": updated_count,
+                                "conversation_id": conversation.id if conversation else None
                             }, sender_id)
                 
                 elif msg_type == "typing":
@@ -268,4 +311,3 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
     finally:
         if db:
             db.close()
-            print(f"Database session closed")
