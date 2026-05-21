@@ -17,7 +17,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -166,30 +166,51 @@ export const AuthProvider = ({ children }) => {
     return null;
   }, [clearAuthData]);
 
+  // Initialize auth from localStorage - FIXED
   useEffect(() => {
-    const storedToken = localStorage.getItem('access_token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (storedToken && storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        console.log('AuthContext: Loaded user from storage:', parsedUser);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-        setToken(storedToken);
-        
-        if (parsedUser.role_type) {
-          localStorage.setItem('user_role', parsedUser.role_type);
-          localStorage.setItem('role_selected', 'true');
+    const initAuth = async () => {
+      const storedToken = localStorage.getItem('access_token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (storedToken && storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          console.log('AuthContext: Loaded user from storage:', parsedUser);
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+          setToken(storedToken);
+          
+          if (parsedUser.role_type) {
+            localStorage.setItem('user_role', parsedUser.role_type);
+            localStorage.setItem('role_selected', 'true');
+          }
+          
+          setTimeout(() => connectWebSocket(storedToken), 500);
+        } catch (error) {
+          console.error('AuthContext: Failed to parse user', error);
+          clearAuthData();
         }
-        
-        setTimeout(() => connectWebSocket(storedToken), 500);
-      } catch (error) {
-        console.error('AuthContext: Failed to parse user', error);
-        clearAuthData();
       }
-    }
+      setLoading(false);
+    };
+    
+    initAuth();
   }, [connectWebSocket, clearAuthData]);
+
+  // Helper function to set auth data directly (for immediate use)
+  const setAuthData = useCallback((accessToken, userData) => {
+    localStorage.setItem('access_token', accessToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('user_role', userData.role_type || 'dual');
+    localStorage.setItem('role_selected', 'true');
+    
+    setUser(userData);
+    setIsAuthenticated(true);
+    setToken(accessToken);
+    
+    // Connect WebSocket
+    setTimeout(() => connectWebSocket(accessToken), 500);
+  }, [connectWebSocket]);
 
   const login = async (email, password) => {
     try {
@@ -208,29 +229,13 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.error || 'Invalid credentials');
       }
       
-      localStorage.setItem('access_token', data.access_token);
-      setToken(data.access_token);
+      const userData = data.user;
+      const accessToken = data.access_token;
       
-      const freshUser = await fetchFreshUserData(data.access_token);
-      const userData = freshUser || data.user;
-      
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      let userRole = userData.role_type || userData.role || 'buyer';
-      if (userRole === 'user') {
-        userRole = 'buyer';
-      }
-      localStorage.setItem('user_role', userRole);
-      localStorage.setItem('role_selected', 'true');
-      
-      setUser(userData);
-      setIsAuthenticated(true);
-      
-      messageHandlersRef.current.clear();
-      setTimeout(() => connectWebSocket(data.access_token), 500);
+      setAuthData(accessToken, userData);
       
       toast.success(`Welcome back, ${userData.full_name || userData.username}!`);
-      return { success: true, user: userData, role: userRole };
+      return { success: true, user: userData, role: userData.role_type };
       
     } catch (error) {
       console.error('❌ Login error:', error);
@@ -294,7 +299,6 @@ export const AuthProvider = ({ children }) => {
     return null;
   }, [fetchFreshUserData]);
 
-  // UPDATE USER FUNCTION - Directly updates user in state and localStorage
   const updateUser = useCallback((updatedUser) => {
     console.log('🔄 Updating user in context:', updatedUser);
     setUser(updatedUser);
@@ -321,8 +325,9 @@ export const AuthProvider = ({ children }) => {
     socket: socketRef.current,
     addMessageHandler,
     refreshUser,
-    updateUser,  // Make sure this is included
+    updateUser,
     clearAuthData,
+    setAuthData, // Export this for immediate auth setting
     userRole: user?.role_type || user?.role || localStorage.getItem('user_role')
   };
 

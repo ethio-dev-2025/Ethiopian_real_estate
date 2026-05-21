@@ -63,10 +63,6 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
 
   // Fetch initial unread count
   useEffect(() => {
-    window.updateUnreadCount = (count) => {
-      setTotalUnreadCount(count);
-    };
-    
     const fetchUnreadCount = async () => {
       try {
         const token = localStorage.getItem('access_token');
@@ -84,11 +80,7 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000);
-    
-    return () => {
-      delete window.updateUnreadCount;
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   // Load profile image from user context
@@ -104,7 +96,7 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     }
   }, [user]);
 
-  // Main menu items
+  // Main menu items with correct paths
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'create-listing', label: 'Create Listing', icon: PlusCircle, path: '/create-listing' },
@@ -115,11 +107,12 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   ];
 
   const handleNavigation = (path) => {
+    console.log('Navigating to:', path);
     navigate(path);
     if (isMobile) setSidebarOpen(false);
+    setIsSettingsDropdownOpen(false);
   };
 
-  // Handle settings dropdown navigation
   const handleSettingsNavigation = (tab) => {
     navigate(`/settings?tab=${tab}`);
     setIsSettingsDropdownOpen(false);
@@ -208,14 +201,33 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     return 'Seller';
   };
 
+  // Determine user status based on is_activated and payment_approved
   const getUserStatus = () => {
-    return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+    // Admin is always active
+    if (user?.role_type === 'admin') {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+    }
+    
+    // Check activation and payment status
+    if (user?.is_activated === true && user?.payment_approved === true && user?.can_create_listings === true) {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+    }
+    
+    if (user?.is_activated === true && user?.payment_approved === false) {
+      return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+    }
+    
+    if (user?.is_activated === false) {
+      return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
+    }
+    
+    return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
   };
 
   const status = getUserStatus();
   const profileImageUrl = profileImage;
 
-  // Get current tab from URL params
+  // Check current tab from URL
   const getCurrentTab = () => {
     const params = new URLSearchParams(location.search);
     return params.get('tab') || 'profile';
@@ -224,7 +236,6 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const currentTab = getCurrentTab();
   const isSettingsActive = location.pathname === '/settings';
 
-  // Toggle dropdown - prevent event propagation
   const toggleDropdown = (e) => {
     e.stopPropagation();
     setIsSettingsDropdownOpen(!isSettingsDropdownOpen);
@@ -313,7 +324,7 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 )}
               </button>
               
-              {/* Dropdown Menu - Opens downward */}
+              {/* Dropdown Menu */}
               {sidebarOpen && isSettingsDropdownOpen && (
                 <div 
                   ref={settingsDropdownRef}
@@ -321,7 +332,6 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 >
                   {settingsMenuItems.map((item) => {
                     const Icon = item.icon;
-                    // Check if this specific tab is active
                     const isActive = isSettingsActive && currentTab === item.tab;
                     return (
                       <button
@@ -344,7 +354,7 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
             </div>
           </nav>
 
-          {/* User Info with Profile Picture */}
+          {/* User Info with Profile Picture and Status */}
           <div className="p-4 pt-0 pb-5">
             <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-gray-800/50">
               <div className="relative group">
@@ -387,7 +397,9 @@ const SellerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                   <p className="text-xs text-gray-400 truncate">{getRoleDisplay()}</p>
                   <div className="flex items-center gap-1 mt-1">
                     <div className={`w-2 h-2 ${status.dotColor} rounded-full animate-pulse`}></div>
-                    <span className="text-xs text-green-400">{status.text}</span>
+                    <span className={`text-xs ${status.color === 'green' ? 'text-green-400' : status.color === 'yellow' ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {status.text}
+                    </span>
                   </div>
                 </div>
               )}

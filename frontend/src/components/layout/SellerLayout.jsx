@@ -17,9 +17,9 @@ const SellerLayout = ({ children }) => {
 
   const getPageTitle = () => {
     const path = location.pathname;
+    if (path === '/dashboard') return 'Dashboard';
     if (path.includes('/create-listing')) return 'Create Listing';
-    if (path.includes('/my-listings')) return 'My Listings';
-    if (path.includes('/my-properties')) return 'My Properties';
+    if (path.includes('/listings')) return 'My Listings';
     if (path.includes('/messages')) return 'Messages';
     if (path.includes('/activation')) return 'Activation';
     if (path.includes('/subscription')) return 'Subscription';

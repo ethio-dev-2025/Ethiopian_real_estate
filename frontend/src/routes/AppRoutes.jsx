@@ -1,6 +1,6 @@
 // src/routes/AppRoutes.jsx
 import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import SellerLayout from '../components/layout/SellerLayout';
 import BuyerLayout from '../components/layout/BuyerLayout';
@@ -11,16 +11,16 @@ import BuyerMessages from '../components/dashboard/buyer/BuyerMessages';
 import BuyerProperties from '../components/dashboard/buyer/BuyerProperties';
 import BuyerSaved from '../components/dashboard/buyer/BuyerSaved';
 
-// Common Settings Component (used for both buyer and seller)
+// Common Settings Component
 import Settings from '../components/dashboard/common/Settings';
 
-// Admin Component - Import directly for instant loading (NO lazy)
+// Admin Component
 import AdminDashboard from '../components/dashboard/admin/AdminDashboard';
 
 // Payment Success Page
 import PaymentSuccessPage from '../pages/PaymentSuccessPage';
 
-// Seller Components (keep lazy - they're less frequently used by buyers)
+// Seller Components
 const SellerDashboard = lazy(() => import('../components/dashboard/seller/sellerDashboard'));
 const SellerListings = lazy(() => import('../components/dashboard/seller/SellerListings'));
 const SellerMessages = lazy(() => import('../components/dashboard/seller/SellerMessages'));
@@ -58,13 +58,25 @@ const PropertyDetailPage = lazy(() => import('../pages/public/PropertyDetailPage
 const EditListingPage = lazy(() => import('../pages/EditListingPage'));
 
 const AppRoutes = () => {
-  const { isAuthenticated, loading, user } = useAuth();
+  const { isAuthenticated, loading, user, refreshUser } = useAuth();
   const [role, setRole] = useState(null);
   const [hasSelectedRole, setHasSelectedRole] = useState(false);
   const [resolved, setResolved] = useState(false);
+  const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+  const navigate = useNavigate();
 
+  // Force refresh user data on mount
   useEffect(() => {
-    // IMPORTANT: Only check role if authenticated
+    const checkUser = async () => {
+      if (isAuthenticated && !user) {
+        await refreshUser();
+      }
+    };
+    checkUser();
+  }, [isAuthenticated, user, refreshUser]);
+
+  // Update role when user changes
+  useEffect(() => {
     if (isAuthenticated && user) {
       let userRole = user.role_type || user.role;
       if (!userRole) {
@@ -76,25 +88,56 @@ const AppRoutes = () => {
         finalRole = 'buyer';
       }
       
+      console.log('Setting role:', finalRole);
       setRole(finalRole);
       setHasSelectedRole(!!finalRole && finalRole !== 'null' && finalRole !== null);
-    } else {
-      // When not authenticated, clear any stored role
+    } else if (!isAuthenticated) {
       setRole(null);
       setHasSelectedRole(false);
     }
     setResolved(true);
   }, [user, isAuthenticated]);
 
-  // Show nothing while checking auth
+  // ONLY redirect ONCE after login - not on every route change
+  useEffect(() => {
+    if (!loading && resolved && isAuthenticated && hasSelectedRole && role && !initialRedirectDone) {
+      const normalizedRole = String(role).toLowerCase();
+      const currentPath = window.location.pathname;
+      
+      // Only redirect if user is on root path or login page
+      const shouldRedirect = currentPath === '/' || currentPath === '/login' || currentPath === '';
+      
+      if (shouldRedirect) {
+        console.log('Initial redirect to role-specific dashboard:', normalizedRole);
+        setInitialRedirectDone(true);
+        
+        if (normalizedRole === 'seller' || normalizedRole === 'landlord' || normalizedRole === 'dual') {
+          navigate('/dashboard');
+        } else if (normalizedRole === 'buyer') {
+          navigate('/dashboard/buyer');
+        } else if (normalizedRole === 'admin') {
+          navigate('/admin/dashboard');
+        }
+      }
+    }
+  }, [loading, resolved, isAuthenticated, hasSelectedRole, role, initialRedirectDone, navigate]);
+
+  // Show loading spinner while checking auth
   if (loading || !resolved) {
-    return <div style={{ minHeight: '100vh' }}></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   // NOT AUTHENTICATED - PUBLIC ROUTES
   if (!isAuthenticated) {
     return (
-      <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
@@ -115,22 +158,23 @@ const AppRoutes = () => {
     );
   }
 
-  // AUTHENTICATED - ROLE SELECTION (only shown if user is authenticated but no role)
+  // AUTHENTICATED - ROLE SELECTION
   if (!hasSelectedRole) {
     return (
-      <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
         <RoleSelectionModal open={true} />
       </Suspense>
     );
   }
 
   const normalizedRole = String(role).toLowerCase();
+  console.log('Normalized role for routing:', normalizedRole);
 
-  // SELLER ROUTES
+  // SELLER ROUTES (includes seller, landlord, dual)
   if (normalizedRole === 'seller' || normalizedRole === 'landlord' || normalizedRole === 'dual') {
     return (
       <SellerLayout>
-        <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="/dashboard" element={<SellerDashboard />} />
@@ -138,7 +182,6 @@ const AppRoutes = () => {
             <Route path="/listings" element={<SellerListings />} />
             <Route path="/create-listing" element={<SellerCreateListing />} />
             <Route path="/edit-listing/:id" element={<EditListingPage />} />
-            {/* SELLER MESSAGES ROUTES - CORRECTED */}
             <Route path="/messages" element={<SellerMessages />} />
             <Route path="/messages/:conversationId" element={<SellerMessages />} />
             <Route path="/properties" element={<SellerProperties />} />
@@ -160,7 +203,7 @@ const AppRoutes = () => {
   // ADMIN ROUTES
   if (normalizedRole === 'admin') {
     return (
-      <Suspense fallback={<div style={{ minHeight: '100vh' }}></div>}>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
         <Routes>
           <Route path="/" element={<Navigate to="/admin" />} />
           <Route path="/admin/*" element={<AdminDashboard />} />
