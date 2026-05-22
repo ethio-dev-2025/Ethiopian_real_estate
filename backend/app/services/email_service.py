@@ -1,101 +1,88 @@
+# backend/app/services/email_service.py
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from typing import Optional
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from ..config import settings
 
-def send_reset_password_email(to_email: str, reset_token: str):
-    """Send password reset email"""
-    try:
-        reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
+class EmailService:
+    def __init__(self):
+        self.host = settings.SMTP_HOST
+        self.port = settings.SMTP_PORT
+        self.username = settings.SMTP_USER
+        self.password = settings.SMTP_PASSWORD
+        self.from_email = settings.SMTP_FROM_EMAIL
+        self.from_name = settings.SMTP_FROM_NAME
+        self.use_tls = settings.SMTP_USE_TLS
         
-        subject = "Reset Your Password - RealEstate Pro"
+        print(f"📧 Email Service Initialized:")
+        print(f"   Host: {self.host}:{self.port}")
+        print(f"   User: {self.username}")
+        print(f"   From: {self.from_name} <{self.from_email}>")
+        print(f"   Password length: {len(self.password) if self.password else 0} characters")
         
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Password Reset</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    background-color: #f4f4f4;
-                    margin: 0;
-                    padding: 0;
-                }}
-                .container {{
-                    max-width: 600px;
-                    margin: 50px auto;
-                    background: white;
-                    border-radius: 10px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                }}
-                .header {{
-                    background: linear-gradient(135deg, #2563EB, #7C3AED);
-                    color: white;
-                    padding: 30px;
-                    text-align: center;
-                    border-radius: 10px 10px 0 0;
-                }}
-                .content {{
-                    padding: 30px;
-                }}
-                .button {{
-                    display: inline-block;
-                    padding: 12px 30px;
-                    background: linear-gradient(135deg, #2563EB, #7C3AED);
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 5px;
-                    margin: 20px 0;
-                }}
-                .footer {{
-                    text-align: center;
-                    padding: 20px;
-                    color: #666;
-                    font-size: 12px;
-                    border-top: 1px solid #eee;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>RealEstate Pro</h1>
-                    <p>Password Reset Request</p>
-                </div>
-                <div class="content">
-                    <h2>Hello,</h2>
-                    <p>We received a request to reset your password for your RealEstate Pro account.</p>
-                    <p>Click the button below to create a new password:</p>
-                    <div style="text-align: center;">
-                        <a href="{reset_link}" class="button">Reset Password</a>
-                    </div>
-                    <p>If you didn't request this, please ignore this email.</p>
-                    <p>This link will expire in 1 hour.</p>
-                </div>
-                <div class="footer">
-                    <p>&copy; 2024 RealEstate Pro. All rights reserved.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        
-        msg = MIMEMultipart()
-        msg['From'] = settings.SMTP_FROM_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        msg.attach(MIMEText(html_content, 'html'))
-        
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.send_message(msg)
-        
-        print(f"Password reset email sent to {to_email}")
-        return True
-    except Exception as e:
-        print(f"Email error: {e}")
-        return False
+    def _send_sync(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None):
+        """Synchronous email sending"""
+        try:
+            # Create message
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = f"{self.from_name} <{self.from_email}>"
+            msg["To"] = to_email
+            
+            # Add plain text version
+            if text_content:
+                text_part = MIMEText(text_content, "plain")
+                msg.attach(text_part)
+            
+            # Add HTML version
+            html_part = MIMEText(html_content, "html")
+            msg.attach(html_part)
+            
+            # Send email using TLS
+            print(f"📤 Connecting to {self.host}:{self.port}...")
+            with smtplib.SMTP(self.host, self.port) as server:
+                server.set_debuglevel(1)  # Enable debug output
+                server.starttls()
+                print(f"🔐 Logging in as {self.username}...")
+                server.login(self.username, self.password)
+                print(f"📧 Sending email to {to_email}...")
+                server.send_message(msg)
+            
+            print(f"✅ Email sent successfully to {to_email}")
+            return True
+            
+        except smtplib.SMTPAuthenticationError as e:
+            print(f"❌ SMTP Authentication Failed: {e}")
+            print(f"   Please check:")
+            print(f"   1. Email: {self.username}")
+            print(f"   2. App Password (not regular password)")
+            print(f"   3. 2-Step Verification is enabled on Google Account")
+            return False
+        except smtplib.SMTPException as e:
+            print(f"❌ SMTP Error: {e}")
+            return False
+        except Exception as e:
+            print(f"❌ Failed to send email to {to_email}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    async def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None):
+        """Async email sending"""
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            result = await loop.run_in_executor(
+                executor,
+                self._send_sync,
+                to_email,
+                subject,
+                html_content,
+                text_content
+            )
+            return {"success": result, "message": "Email sent" if result else "Failed to send"}
+
+# Create singleton instance
+email_service = EmailService()

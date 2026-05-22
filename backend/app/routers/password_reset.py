@@ -1,157 +1,232 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+# backend/app/routers/password_reset.py
+from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import secrets
 import bcrypt
-from pydantic import BaseModel, EmailStr
 from ..database import get_db
-from ..models import User, PasswordReset
+from ..models.user import User
+from ..services.email_service import email_service
+from ..services.email_templates import get_password_reset_email_html
 
-router = APIRouter()
+router = APIRouter(prefix="/api/password-reset", tags=["password_reset"])
 
-# Pydantic Models
+# In-memory storage for reset codes
+reset_codes = {}
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
+class VerifyResetCodeRequest(BaseModel):
+    email: EmailStr
+    code: str
+
 class ResetPasswordRequest(BaseModel):
-    token: str
+    email: EmailStr
+    code: str
     new_password: str
 
-def get_password_hash(password: str) -> str:
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
 
 @router.post("/forgot-password")
-async def forgot_password(
-    request: ForgotPasswordRequest,
-    db: Session = Depends(get_db)
-):
-    """Send password reset email"""
+async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Send password reset code to user's email"""
     try:
-        print(f"\n=== PASSWORD RESET REQUEST ===")
-        print(f"Email: {request.email}")
+        print(f"📧 POST /api/password-reset/forgot-password - Email: {request.email}")
         
-        # Find user by email
         user = db.query(User).filter(User.email == request.email).first()
         
-        # For security, always return success even if user doesn't exist
         if not user:
-            print(f"User not found: {request.email}")
-            return {
-                "message": "If your email is registered, you will receive a reset link",
-                "reset_link": None
-            }
+            print(f"⚠️ User not found: {request.email}")
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "message": "If your email is registered, you will receive a reset code"}
+            )
         
-        # Generate unique token
-        token = secrets.token_urlsafe(32)
+        reset_code = str(secrets.randbelow(900000) + 100000)
         
-        # Delete any existing unused tokens for this user
-        db.query(PasswordReset).filter(
-            PasswordReset.user_id == user.id,
-            PasswordReset.used == False
-        ).delete()
-        
-        # Create new reset token (expires in 1 hour)
-        expires_at = datetime.utcnow() + timedelta(hours=1)
-        
-        reset_entry = PasswordReset(
-            user_id=user.id,
-            token=token,
-            used=False,
-            expires_at=expires_at
-        )
-        
-        db.add(reset_entry)
-        db.commit()
-        
-        # Create reset link (for frontend)
-        reset_link = f"http://localhost:5173/reset-password?token={token}"
-        
-        print(f"✅ Reset token created for {user.email}")
-        print(f"🔗 Reset link: {reset_link}")
-        print(f"⏰ Expires at: {expires_at}")
-        print(f"===========================\n")
-        
-        # In a real application, send email here
-        # For now, return the reset link for testing
-        return {
-            "message": "Password reset link sent to your email",
-            "reset_link": reset_link,
+        # Store reset code
+        email_key = request.email.lower()
+        reset_codes[email_key] = {
+            "code": reset_code,
+            "expires_at": datetime.now() + timedelta(minutes=10),
+            "user_id": user.id,
             "email": request.email
         }
         
+        print(f"\n{'='*60}")
+        print(f"🔐 PASSWORD RESET CODE")
+        print(f"📧 Email: {request.email}")
+        print(f"🔢 CODE: {reset_code}")
+        print(f"⏰ Expires in 10 minutes")
+        print(f"{'='*60}\n")
+        
+        # Try to send email
+        email_sent = False
+        email_error = None
+        
+        try:
+            username = user.full_name or user.username or "User"
+            html_content = get_password_reset_email_html(username, reset_code)
+            
+            email_result = await email_service.send_email(
+                to_email=request.email,
+                subject="Reset Your Password - EstateHub",
+                html_content=html_content,
+                text_content=f"Your password reset code is: {reset_code}\n\nThis code expires in 10 minutes."
+            )
+            
+            if email_result["success"]:
+                email_sent = True
+                print(f"✅ Password reset email sent to {request.email}")
+            else:
+                email_error = email_result.get("message", "Unknown error")
+                print(f"⚠️ Failed to send email: {email_error}")
+        except Exception as e:
+            email_error = str(e)
+            print(f"⚠️ Email exception: {e}")
+        
+        # Return response
+        if email_sent:
+            message = "Reset code sent to your email"
+        else:
+            message = f"Reset code: {reset_code} (Email delivery failed. Please use this code to reset your password.)"
+            print(f"⚠️ Using fallback: Code shown in console")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True, 
+                "message": message,
+                "code": reset_code if not email_sent else None
+            }
+        )
+        
     except Exception as e:
-        print(f"Error in forgot_password: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Error in forgot-password: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
+
+
+@router.post("/verify-reset-code")
+async def verify_reset_code(request: VerifyResetCodeRequest):
+    """Verify the reset code"""
+    try:
+        email_key = request.email.lower()
+        print(f"🔐 Verifying code for: {request.email}")
+        
+        if email_key not in reset_codes:
+            return JSONResponse(
+                status_code=400,
+                content={"valid": False, "detail": "No reset request found. Please request a new code."}
+            )
+        
+        reset_data = reset_codes[email_key]
+        
+        if datetime.now() > reset_data["expires_at"]:
+            del reset_codes[email_key]
+            return JSONResponse(
+                status_code=400,
+                content={"valid": False, "detail": "Reset code has expired. Please request a new one."}
+            )
+        
+        if reset_data["code"] != request.code:
+            return JSONResponse(
+                status_code=400,
+                content={"valid": False, "detail": "Invalid reset code"}
+            )
+        
+        return JSONResponse(
+            status_code=200,
+            content={"valid": True, "message": "Code verified successfully"}
+        )
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"valid": False, "detail": str(e)}
+        )
+
 
 @router.post("/reset-password")
-async def reset_password(
-    request: ResetPasswordRequest,
-    db: Session = Depends(get_db)
-):
-    """Reset password using token"""
+async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset password using verified code"""
     try:
-        print(f"\n=== PASSWORD RESET VERIFICATION ===")
-        print(f"Token: {request.token[:20]}...")
+        email_key = request.email.lower()
+        print(f"🔐 Resetting password for: {request.email}")
         
-        # Find valid reset token
-        reset_entry = db.query(PasswordReset).filter(
-            PasswordReset.token == request.token,
-            PasswordReset.used == False,
-            PasswordReset.expires_at > datetime.utcnow()
-        ).first()
+        if email_key not in reset_codes:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "No reset request found. Please request a new code."}
+            )
         
-        if not reset_entry:
-            print("❌ Invalid or expired token")
-            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        reset_data = reset_codes[email_key]
         
-        # Get user
-        user = db.query(User).filter(User.id == reset_entry.user_id).first()
+        if datetime.now() > reset_data["expires_at"]:
+            del reset_codes[email_key]
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Reset code has expired. Please request a new one."}
+            )
+        
+        if reset_data["code"] != request.code:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Invalid reset code"}
+            )
+        
+        user = db.query(User).filter(User.id == reset_data["user_id"]).first()
+        
         if not user:
-            print(f"❌ User not found for token")
-            raise HTTPException(status_code=404, detail="User not found")
+            del reset_codes[email_key]
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "User not found"}
+            )
         
-        # Update password
-        user.hashed_password = get_password_hash(request.new_password)
+        if len(request.new_password) < 6:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Password must be at least 6 characters"}
+            )
         
-        # Mark token as used
-        reset_entry.used = True
-        reset_entry.used_at = datetime.utcnow()
+        # Hash new password
+        salt = bcrypt.gensalt()
+        new_hashed_password = bcrypt.hashpw(request.new_password.encode('utf-8'), salt)
+        user.hashed_password = new_hashed_password.decode('utf-8')
         
         db.commit()
         
-        print(f"✅ Password reset successful for: {user.email}")
-        print(f"===========================\n")
+        # Remove used reset code
+        del reset_codes[email_key]
         
-        return {"message": "Password reset successful"}
+        print(f"✅ Password successfully updated for user: {user.email}")
         
-    except HTTPException:
-        raise
+        return JSONResponse(
+            status_code=200,
+            content={"success": True, "message": "Password reset successful"}
+        )
+        
     except Exception as e:
-        print(f"Error in reset_password: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
 
-@router.get("/verify-token/{token}")
-async def verify_reset_token(
-    token: str,
-    db: Session = Depends(get_db)
-):
-    """Verify if a reset token is valid"""
-    try:
-        reset_entry = db.query(PasswordReset).filter(
-            PasswordReset.token == token,
-            PasswordReset.used == False,
-            PasswordReset.expires_at > datetime.utcnow()
-        ).first()
-        
-        if reset_entry:
-            return {"valid": True, "message": "Token is valid"}
-        else:
-            return {"valid": False, "message": "Token is invalid or expired"}
-            
-    except Exception as e:
-        print(f"Error verifying token: {e}")
-        return {"valid": False, "message": "Error verifying token"}
+
+print("=" * 60)
+print("📋 PASSWORD RESET ROUTES REGISTERED:")
+print("   POST /api/password-reset/forgot-password")
+print("   POST /api/password-reset/verify-reset-code")
+print("   POST /api/password-reset/reset-password")
+print("=" * 60)

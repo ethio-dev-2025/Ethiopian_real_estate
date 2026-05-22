@@ -40,6 +40,8 @@ const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'));
+const SetNewPasswordPage = lazy(() => import('../pages/auth/SetNewPasswordPage'));
+const VerifyEmailPage = lazy(() => import('../pages/auth/VerifyEmailPage'));
 
 // Buyer Auth pages
 const BuyerLoginPage = lazy(() => import('../pages/buyer/BuyerLoginPage'));
@@ -149,7 +151,9 @@ const AppRoutes = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/set-new-password" element={<SetNewPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/buyer/login" element={<BuyerLoginPage />} />
           <Route path="/buyer/register" element={<BuyerRegisterPage />} />
           <Route path="*" element={<Navigate to="/" />} />
@@ -170,7 +174,7 @@ const AppRoutes = () => {
   const normalizedRole = String(role).toLowerCase();
   console.log('Normalized role for routing:', normalizedRole);
 
-  // SELLER ROUTES (includes seller, landlord, dual)
+  // SELLER ROUTES
   if (normalizedRole === 'seller' || normalizedRole === 'landlord' || normalizedRole === 'dual') {
     return (
       <SellerLayout>

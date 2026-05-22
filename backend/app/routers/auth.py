@@ -70,10 +70,18 @@ def is_test_user(email: str) -> bool:
     return email in ["dani@gmail.com", "reduss@gmail.com", "test@example.com", "reduss"]
 
 def get_password_hash(password: str) -> str:
+    """Hash a password using bcrypt"""
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a plain password against a hashed password"""
+    try:
+        result = pwd_context.verify(plain_password, hashed_password)
+        print(f"🔐 Password verification: {'SUCCESS' if result else 'FAILED'}")
+        return result
+    except Exception as e:
+        print(f"❌ Password verification error: {e}")
+        return False
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -117,7 +125,6 @@ async def get_current_admin_user(current_user: User = Depends(get_current_user))
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
-# ADD THIS FUNCTION - FIXES THE IMPORT ERROR
 async def get_current_buyer_user(current_user: User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -206,23 +213,36 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# ============ LOGIN ENDPOINT ============
+# ============ LOGIN ENDPOINT - FIXED ============
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
+        print(f"🔐 Login attempt for: {login_data.email}")
+        
+        # Find user by email first
         user = db.query(User).filter(User.email == login_data.email).first()
         
+        # If not found, try by username
         if not user:
             user = db.query(User).filter(User.username == login_data.email).first()
         
         if not user:
+            print(f"❌ User not found: {login_data.email}")
             return {"success": False, "error": "Invalid email/username or password"}
         
-        if not verify_password(login_data.password, user.hashed_password):
+        # Verify password
+        password_valid = verify_password(login_data.password, user.hashed_password)
+        
+        if not password_valid:
+            print(f"❌ Invalid password for user: {user.email}")
             return {"success": False, "error": "Invalid email/username or password"}
         
+        print(f"✅ Login successful for: {user.email}")
+        
+        # Update last login
         user.last_login = datetime.utcnow()
         
+        # Update test user status
         if is_test_user(user.email):
             user.status = "active"
             user.is_active = True
@@ -230,11 +250,11 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
             user.is_activated = True
             user.can_create_listings = True
             user.payment_approved = True
-            db.commit()
         
         db.commit()
         db.refresh(user)
         
+        # Create access token
         access_token = create_access_token(data={"sub": user.email})
         
         return {
@@ -262,7 +282,9 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"Login error: {e}")
+        print(f"❌ Login error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"success": False, "error": "Internal server error"}
 
 # ============ GET CURRENT USER ============

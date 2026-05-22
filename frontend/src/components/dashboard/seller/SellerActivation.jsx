@@ -6,7 +6,8 @@ import {
   Store, Home, Shield, Upload, CheckCircle, 
   XCircle, AlertCircle, Eye, Trash2, Plus,
   Building2, UserCheck, Clock, Send, FileText,
-  Award, BadgeCheck, Loader, CreditCard
+  Award, BadgeCheck, Loader, CreditCard,
+  ArrowRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -39,7 +40,7 @@ const SellerActivation = () => {
     government_id: null
   });
   
-  // File name display states (green text)
+  // File name display states
   const [sellerFiles, setSellerFiles] = useState({});
   const [landlordFiles, setLandlordFiles] = useState({});
   
@@ -392,6 +393,7 @@ const SellerActivation = () => {
     { value: 'land', label: 'Land' }
   ];
 
+  // Show submitted confirmation
   if (submitted) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
@@ -405,80 +407,96 @@ const SellerActivation = () => {
     );
   }
 
-  // Show status message based on activation status
-  if (activationStatus && activationStatus.status !== 'not_submitted') {
-    const getStatusDisplay = () => {
-      switch(activationStatus.status) {
-        case 'documents_pending':
-          return {
-            title: 'Documents Under Review',
-            message: 'Your documents are being reviewed by our admin team.',
-            icon: <Clock className="w-12 h-12 text-yellow-500" />,
-            color: 'yellow'
-          };
-        case 'documents_approved':
-          return {
-            title: 'Documents Approved!',
-            message: 'Your documents have been approved. Please subscribe to activate your account.',
-            icon: <CheckCircle className="w-12 h-12 text-green-500" />,
-            color: 'green',
-            showSubscribeButton: true
-          };
-        case 'payment_pending':
-          return {
-            title: 'Payment Under Review',
-            message: 'Your payment is being verified by our admin team.',
-            icon: <Clock className="w-12 h-12 text-yellow-500" />,
-            color: 'yellow'
-          };
-        case 'fully_activated':
-          return {
-            title: 'Account Fully Activated!',
-            message: 'Your account is now fully activated. You can start creating listings.',
-            icon: <BadgeCheck className="w-12 h-12 text-green-500" />,
-            color: 'green'
-          };
-        case 'rejected':
-          return {
-            title: 'Request Rejected',
-            message: activationStatus.message || 'Your activation request was rejected.',
-            icon: <XCircle className="w-12 h-12 text-red-500" />,
-            color: 'red'
-          };
-        default:
-          return null;
-      }
-    };
-
-    const statusDisplay = getStatusDisplay();
-    
-    if (statusDisplay) {
-      return (
-        <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
-          <div className="flex justify-center mb-4">{statusDisplay.icon}</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">{statusDisplay.title}</h2>
-          <p className="text-gray-600 mb-6">{statusDisplay.message}</p>
-          {statusDisplay.showSubscribeButton && (
-            <button
-              onClick={handleGoToSubscription}
-              className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
-            >
-              <CreditCard className="w-5 h-5" /> Subscribe Now
-            </button>
-          )}
-          {activationStatus.status === 'fully_activated' && (
-            <button
-              onClick={() => navigate('/create-listing')}
-              className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
-            >
-              Create Your First Listing
-            </button>
-          )}
+  // ============ STATUS-BASED RENDERING ============
+  // Show different UI based on activation status
+  
+  // Case 1: Fully activated
+  if (activationStatus?.status === 'fully_activated') {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <BadgeCheck className="w-10 h-10 text-green-600" />
         </div>
-      );
-    }
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Fully Activated!</h2>
+        <p className="text-gray-600 mb-6">Your account is now fully activated. You can start creating listings.</p>
+        <button
+          onClick={() => navigate('/create-listing')}
+          className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
+        >
+          Create Your First Listing <ArrowRight className="w-5 h-5" />
+        </button>
+      </div>
+    );
   }
 
+  // Case 2: Documents approved - Show Subscribe button
+  if (activationStatus?.status === 'documents_approved') {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CheckCircle className="w-10 h-10 text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Documents Approved!</h2>
+        <p className="text-gray-600 mb-4">Your documents have been approved by the admin.</p>
+        <p className="text-gray-600 mb-6">Please subscribe to activate your account and start listing properties.</p>
+        <button
+          onClick={handleGoToSubscription}
+          className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
+        >
+          <CreditCard className="w-5 h-5" /> Subscribe Now
+        </button>
+      </div>
+    );
+  }
+
+  // Case 3: Payment pending
+  if (activationStatus?.status === 'payment_pending') {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
+        <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Clock className="w-10 h-10 text-yellow-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Under Review</h2>
+        <p className="text-gray-600 mb-4">Your payment is being verified by our admin team.</p>
+        <p className="text-sm text-gray-500">You will be notified once your account is activated.</p>
+      </div>
+    );
+  }
+
+  // Case 4: Documents pending review
+  if (activationStatus?.status === 'documents_pending') {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
+        <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Clock className="w-10 h-10 text-yellow-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Documents Under Review</h2>
+        <p className="text-gray-600 mb-4">Your documents are being reviewed by our admin team.</p>
+        <p className="text-sm text-gray-500">You will be notified once approved.</p>
+      </div>
+    );
+  }
+
+  // Case 5: Rejected
+  if (activationStatus?.status === 'rejected') {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <XCircle className="w-10 h-10 text-red-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Request Rejected</h2>
+        <p className="text-gray-600 mb-4">{activationStatus.message || 'Your activation request was rejected.'}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  // Case 6: Not submitted - Show the form
   return (
     <div className="max-w-4xl mx-auto">
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -487,7 +505,7 @@ const SellerActivation = () => {
           <p className="text-blue-100 mt-1">Activate your seller and/or landlord account</p>
         </div>
 
-        {/* Role Selection - 3 Options */}
+        {/* Role Selection */}
         <div className="flex border-b">
           {roleOptions.map((option) => {
             const Icon = option.icon;
@@ -515,15 +533,13 @@ const SellerActivation = () => {
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Status Banner */}
-          {activationStatus && activationStatus.status === 'documents_approved' && (
-            <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-green-800 font-medium">Documents approved! Please subscribe to activate your account.</span>
-              </div>
+          {/* Info Banner */}
+          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-blue-600" />
+              <span className="text-blue-800 font-medium">Please fill all required fields and upload documents</span>
             </div>
-          )}
+          </div>
 
           {/* Seller Form */}
           {(activeRole === 'seller' || activeRole === 'both') && (
@@ -680,7 +696,7 @@ const SellerActivation = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Property Type <span className="text-red-500">*</span>
+                    Property Type
                   </label>
                   <select
                     name="property_type"

@@ -1,12 +1,12 @@
-// src/pages/auth/ResetPasswordPage.jsx
+// src/pages/auth/VerifyEmailPage.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Shield, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000';
 
-const ResetPasswordPage = () => {
+const VerifyEmailPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const email = location.state?.email || '';
@@ -14,25 +14,32 @@ const ResetPasswordPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [verified, setVerified] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [canResend, setCanResend] = useState(true);
 
   useEffect(() => {
-    if (!email) {
-      navigate('/forgot-password');
-    }
+    if (!email) navigate('/register');
   }, [email, navigate]);
+
+  useEffect(() => {
+    let timer;
+    if (countdown > 0 && !canResend) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (countdown === 0) {
+      setCanResend(true);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown, canResend]);
 
   const handleCodeChange = (index, value) => {
     if (value.length > 1) return;
     const newCode = [...code];
     newCode[index] = value;
     setCode(newCode);
-    
-    if (value && index < 5) {
-      document.getElementById(`code-input-${index + 1}`)?.focus();
-    }
+    if (value && index < 5) document.getElementById(`code-input-${index + 1}`)?.focus();
   };
 
-  const handleVerifyCode = async () => {
+  const handleVerify = async () => {
     const verificationCode = code.join('');
     if (verificationCode.length !== 6) {
       setError('Please enter the 6-digit verification code');
@@ -43,7 +50,7 @@ const ResetPasswordPage = () => {
     setError('');
     
     try {
-      const response = await fetch(`${API_URL}/api/password-reset/verify-reset-code`, {
+      const response = await fetch(`${API_URL}/api/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: verificationCode })
@@ -51,22 +58,44 @@ const ResetPasswordPage = () => {
       
       const data = await response.json();
       
-      if (response.ok && data.valid) {
+      if (response.ok && data.success) {
         setVerified(true);
-        toast.success('Code verified! Redirecting...');
-        localStorage.setItem('reset_code', verificationCode);
-        localStorage.setItem('reset_email', email);
-        setTimeout(() => {
-          navigate('/set-new-password', { state: { email, code: verificationCode } });
-        }, 1000);
+        toast.success('Email verified successfully!');
+        setTimeout(() => navigate('/login'), 2000);
       } else {
         setError(data.detail || 'Invalid verification code');
         toast.error(data.detail || 'Invalid code');
       }
     } catch (error) {
-      console.error('Verify error:', error);
-      setError('Failed to verify code. Please try again.');
+      setError('Failed to verify email');
       toast.error('Connection failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        toast.success('New verification code sent!');
+        setCountdown(45);
+        setCanResend(false);
+        setCode(['', '', '', '', '', '']);
+        setError('');
+      } else {
+        toast.error(data.detail || 'Failed to resend code');
+      }
+    } catch (error) {
+      toast.error('Failed to resend code');
     } finally {
       setLoading(false);
     }
@@ -88,8 +117,9 @@ const ResetPasswordPage = () => {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Code Verified!</h2>
-          <p className="text-gray-600 mb-4">Redirecting you to set a new password...</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Email Verified!</h2>
+          <p className="text-gray-600 mb-4">Your email has been successfully verified.</p>
+          <p className="text-sm text-gray-500 mb-6">Redirecting to login...</p>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
         </div>
 
@@ -123,9 +153,9 @@ const ResetPasswordPage = () => {
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           {/* Header - Green/TEAL gradient */}
-          <div className="bg-gradient-to-r from-teal-600 to-emerald-600 p-6 text-center text-white">
-            <Mail className="w-12 h-12 mx-auto mb-2" />
-            <h2 className="text-2xl font-bold">Reset Password</h2>
+          <div className="bg-gradient-to-r from-teal-600 to-emerald-600 p-6 text-center">
+            <Mail className="w-12 h-12 text-white mx-auto mb-3" />
+            <h2 className="text-2xl font-bold text-white">Verify Your Email</h2>
             <p className="text-teal-100 text-sm mt-1">
               We've sent a verification code to <strong>{email}</strong>
             </p>
@@ -139,36 +169,45 @@ const ResetPasswordPage = () => {
               </div>
             )}
             
-            <p className="text-gray-600 text-sm text-center mb-4">
-              Please enter the 6-digit code below to verify your email
-            </p>
-            
             <div className="flex justify-center gap-2 mb-6">
               {code.map((digit, index) => (
-                <input
-                  key={index}
-                  id={`code-input-${index}`}
-                  type="text"
-                  maxLength={1}
+                <input 
+                  key={index} 
+                  id={`code-input-${index}`} 
+                  type="text" 
+                  maxLength={1} 
                   value={digit}
-                  onChange={(e) => handleCodeChange(index, e.target.value)}
-                  className="w-12 h-12 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none"
+                  onChange={(e) => handleCodeChange(index, e.target.value)} 
+                  className="w-12 h-12 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none" 
                 />
               ))}
             </div>
             
-            <button
-              onClick={handleVerifyCode}
+            <button 
+              onClick={handleVerify} 
               disabled={loading}
               className="w-full py-3 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50"
             >
-              {loading ? 'Verifying...' : 'Verify Code'}
+              {loading ? 'Verifying...' : 'Verify Email'}
             </button>
             
+            <div className="text-center mt-4">
+              <p className="text-sm text-gray-500">
+                Didn't receive the code?{' '}
+                {canResend ? (
+                  <button onClick={handleResendCode} disabled={loading} className="text-teal-600 hover:text-teal-700 font-medium">
+                    Resend code
+                  </button>
+                ) : (
+                  <span className="text-gray-400">Resend code in {countdown}s</span>
+                )}
+              </p>
+            </div>
+            
             <div className="mt-6 pt-4 border-t text-center">
-              <Link to="/login" className="text-sm text-teal-600 hover:text-teal-700 flex items-center justify-center gap-1">
-                <ArrowLeft className="w-3 h-3" /> Back to Login
-              </Link>
+              <button onClick={() => navigate('/register')} className="text-sm text-teal-600 hover:text-teal-700 flex items-center justify-center gap-1 mx-auto">
+                <ArrowLeft className="w-3 h-3" /> Back to Sign Up
+              </button>
             </div>
           </div>
         </div>
@@ -177,4 +216,4 @@ const ResetPasswordPage = () => {
   );
 };
 
-export default ResetPasswordPage;
+export default VerifyEmailPage;

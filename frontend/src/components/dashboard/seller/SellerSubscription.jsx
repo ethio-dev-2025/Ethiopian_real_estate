@@ -1,6 +1,6 @@
 // src/components/dashboard/seller/SellerSubscription.jsx
 import React, { useState, useEffect } from 'react';
-import { CreditCard, CheckCircle, Shield, Home, Crown, Lock, Wallet, X, Loader, AlertCircle, Trash2 } from 'lucide-react';
+import { CreditCard, CheckCircle, Shield, Home, Crown, Lock, Wallet, X, Loader, AlertCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -12,7 +12,6 @@ const SellerSubscription = () => {
   const [loading, setLoading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [activationStatus, setActivationStatus] = useState(null);
-  const [paymentSubmitted, setPaymentSubmitted] = useState(false);
 
   useEffect(() => {
     fetchActivationStatus();
@@ -25,19 +24,11 @@ const SellerSubscription = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      console.log('Activation status:', data);
+      console.log('Activation status in Subscription:', data);
       setActivationStatus(data);
     } catch (error) {
       console.error('Error fetching status:', error);
     }
-  };
-
-  const canSubscribe = () => {
-    return activationStatus?.status === 'documents_approved';
-  };
-
-  const isFullyActivated = () => {
-    return activationStatus?.status === 'fully_activated';
   };
 
   const plans = [
@@ -47,7 +38,7 @@ const SellerSubscription = () => {
   ];
 
   const handleSubscribe = (planId) => {
-    if (!canSubscribe()) {
+    if (activationStatus?.status !== 'documents_approved') {
       toast.error('Please complete document verification first');
       return;
     }
@@ -140,22 +131,10 @@ const SellerSubscription = () => {
     );
   };
 
-  // Show pending payment message
-  if (activationStatus?.status === 'payment_pending') {
-    return (
-      <div className="text-center py-12">
-        <div className="bg-yellow-50 rounded-2xl p-8 max-w-md mx-auto">
-          <Clock className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Under Review</h2>
-          <p className="text-gray-600 mb-4">Your payment is being verified by our admin team.</p>
-          <p className="text-sm text-gray-500">You will be notified once your account is activated.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show fully activated message
-  if (isFullyActivated()) {
+  // ============ STATUS-BASED RENDERING ============
+  
+  // Case 1: Fully activated - Show success message
+  if (activationStatus?.status === 'fully_activated') {
     return (
       <div className="text-center py-12">
         <div className="bg-green-50 rounded-2xl p-8 max-w-md mx-auto">
@@ -173,8 +152,22 @@ const SellerSubscription = () => {
     );
   }
 
-  // Show message if documents not approved
-  if (!canSubscribe() && activationStatus?.status !== 'fully_activated' && activationStatus?.status !== 'payment_pending') {
+  // Case 2: Payment pending - Show waiting message
+  if (activationStatus?.status === 'payment_pending') {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-yellow-50 rounded-2xl p-8 max-w-md mx-auto">
+          <Clock className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Under Review</h2>
+          <p className="text-gray-600 mb-4">Your payment is being verified by our admin team.</p>
+          <p className="text-sm text-gray-500">You will be notified once your account is activated.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Case 3: Documents not approved yet
+  if (activationStatus?.status !== 'documents_approved' && activationStatus?.status !== 'fully_activated' && activationStatus?.status !== 'payment_pending') {
     return (
       <div className="text-center py-12">
         <div className="bg-blue-50 rounded-2xl p-8 max-w-md mx-auto">
@@ -192,6 +185,7 @@ const SellerSubscription = () => {
     );
   }
 
+  // Case 4: Documents approved - Show subscription plans
   return (
     <div>
       <PaymentModal />
