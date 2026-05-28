@@ -22,13 +22,12 @@ const SellerCreateListing = () => {
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
   const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [savingDraft, setSavingDraft] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [listingType, setListingType] = useState(null);
   const [needsActivation, setNeedsActivation] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(true);
   const fileInputRef = useRef(null);
   const hasChecked = useRef(false);
 
@@ -53,6 +52,7 @@ const SellerCreateListing = () => {
 
   const [uploadedImages, setUploadedImages] = useState([]);
   const [coverImageIndex, setCoverImageIndex] = useState(0);
+  const [imageErrors, setImageErrors] = useState({});
 
   const propertyTypes = [
     { value: 'house', label: 'House' },
@@ -87,41 +87,31 @@ const SellerCreateListing = () => {
     return TEST_USERS.includes(user.email) || TEST_USERS.includes(user.username);
   };
 
-  // Check activation status - removed spinner for faster load
+  // Check activation status - NO SPINNER, immediate check
   useEffect(() => {
     if (!hasChecked.current) {
       hasChecked.current = true;
-      checkActivationStatus();
-    }
-  }, [user]);
-
-  const checkActivationStatus = async () => {
-    try {
-      if (refreshUser) await refreshUser();
       
       const storedUser = localStorage.getItem('user');
       let currentUser = user;
-      if (storedUser) currentUser = JSON.parse(storedUser);
+      if (storedUser && !currentUser) {
+        try {
+          currentUser = JSON.parse(storedUser);
+        } catch (e) {}
+      }
       
       const isTest = isTestUser();
-      
       if (isTest || currentUser?.is_activated === true) {
         setNeedsActivation(false);
       } else {
         setNeedsActivation(true);
       }
-    } catch (error) {
-      console.error('Error checking status:', error);
-      setNeedsActivation(false);
-    } finally {
-      setCheckingStatus(false);
+      
+      if (refreshUser) {
+        refreshUser().catch(() => {});
+      }
     }
-  };
-
-  // No loading spinner - show content immediately
-  if (checkingStatus) {
-    return <div className="py-12"></div>; // Empty placeholder, no spinner
-  }
+  }, [user]);
 
   // Show activation required message
   if (needsActivation) {
@@ -191,6 +181,10 @@ const SellerCreateListing = () => {
         ? prev.amenities.filter(a => a !== amenity)
         : [...prev.amenities, amenity]
     }));
+  };
+
+  const handleImageError = (id) => {
+    setImageErrors(prev => ({ ...prev, [id]: true }));
   };
 
   const handleImageUpload = async (e) => {
@@ -278,14 +272,14 @@ const SellerCreateListing = () => {
       return;
     }
     
-    setSavingDraft(true);
-    const toastId = toast.loading('Saving draft...');
+    setIsSavingDraft(true);
+    toast.loading('Saving draft...', { id: 'draft-toast' });
     
     try {
       const token = localStorage.getItem('access_token');
       if (!token) {
-        toast.error('Please login again', { id: toastId });
-        setSavingDraft(false);
+        toast.error('Please login again', { id: 'draft-toast' });
+        setIsSavingDraft(false);
         return;
       }
       
@@ -332,16 +326,16 @@ const SellerCreateListing = () => {
       const data = await response.json();
       
       if (response.ok && data.success) {
-        toast.success('Draft saved successfully!', { id: toastId });
+        toast.success('Draft saved successfully!', { id: 'draft-toast' });
         setTimeout(() => navigate('/listings'), 1500);
       } else {
-        toast.error(data.detail || 'Failed to save draft', { id: toastId });
+        toast.error(data.detail || 'Failed to save draft', { id: 'draft-toast' });
       }
     } catch (error) {
       console.error('Save draft error:', error);
-      toast.error(error.message || 'Failed to save draft', { id: toastId });
+      toast.error(error.message || 'Failed to save draft', { id: 'draft-toast' });
     } finally {
-      setSavingDraft(false);
+      setIsSavingDraft(false);
     }
   };
 
@@ -359,14 +353,14 @@ const SellerCreateListing = () => {
       return;
     }
     
-    setLoading(true);
-    const toastId = toast.loading('Publishing listing...');
+    setIsPublishing(true);
+    toast.loading('Publishing listing...', { id: 'publish-toast' });
     
     try {
       const token = localStorage.getItem('access_token');
       if (!token) {
-        toast.error('Please login again', { id: toastId });
-        setLoading(false);
+        toast.error('Please login again', { id: 'publish-toast' });
+        setIsPublishing(false);
         return;
       }
       
@@ -374,8 +368,8 @@ const SellerCreateListing = () => {
       if (uploadedImages.length > 0) {
         uploadedImageUrls = await uploadImagesToServer();
         if (uploadedImageUrls.length === 0 && uploadedImages.length > 0) {
-          toast.error('Failed to upload images. Please try again.', { id: toastId });
-          setLoading(false);
+          toast.error('Failed to upload images. Please try again.', { id: 'publish-toast' });
+          setIsPublishing(false);
           return;
         }
       }
@@ -418,17 +412,17 @@ const SellerCreateListing = () => {
       const data = await response.json();
       
       if (response.ok && data.success) {
-        toast.success('Listing published successfully!', { id: toastId });
+        toast.success('Listing published successfully!', { id: 'publish-toast' });
         setTimeout(() => navigate('/listings'), 1500);
       } else {
         const errorMsg = data.detail || data.message || 'Failed to publish listing';
-        toast.error(typeof errorMsg === 'string' ? errorMsg : 'Failed to publish', { id: toastId });
+        toast.error(typeof errorMsg === 'string' ? errorMsg : 'Failed to publish', { id: 'publish-toast' });
       }
     } catch (error) {
       console.error('Publish error:', error);
-      toast.error(error.message || 'Network error. Please check your connection.', { id: toastId });
+      toast.error(error.message || 'Network error. Please check your connection.', { id: 'publish-toast' });
     } finally {
-      setLoading(false);
+      setIsPublishing(false);
     }
   };
 
@@ -468,41 +462,47 @@ const SellerCreateListing = () => {
 
   const progress = ((step - 1) / 4) * 100;
 
-  const PreviewModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={() => setShowPreview(false)}>
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold">Preview Listing</h2>
-          <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="p-6">
-          <div className="relative h-64 bg-gray-200 rounded-xl mb-4 overflow-hidden">
-            {uploadedImages[coverImageIndex] ? (
-              <img 
-                src={uploadedImages[coverImageIndex].preview} 
-                className="w-full h-full object-cover" 
-                alt="Preview"
-                onError={(e) => { e.target.src = 'https://via.placeholder.com/800x400?text=No+Image'; }}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-300">
-                <Image className="w-16 h-16 text-gray-400" />
-              </div>
-            )}
+  const PreviewModal = () => {
+    const coverImage = uploadedImages[coverImageIndex];
+    const hasImageError = coverImage && imageErrors[coverImage.id];
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={() => setShowPreview(false)}>
+        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+            <h2 className="text-xl font-bold">Preview Listing</h2>
+            <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
           </div>
-          <h2 className="text-2xl font-bold">{formData.title || 'Untitled'}</h2>
-          <p className="text-2xl text-blue-600">ETB {formData.price ? Number(formData.price).toLocaleString() : '0'}</p>
-          <p className="text-gray-500 mt-2">{formData.address || 'Address not set'}, {formData.city || 'City not set'}</p>
-          <div className="flex gap-3 mt-3 text-gray-500">
-            <div className="flex items-center gap-1"><Bed className="w-4 h-4" /> {formData.bedrooms || 0} beds</div>
-            <div className="flex items-center gap-1"><Bath className="w-4 h-4" /> {formData.bathrooms || 0} baths</div>
-            <div className="flex items-center gap-1"><Square className="w-4 h-4" /> {formData.sqft || 0} sqft</div>
+          <div className="p-6">
+            <div className="relative h-64 bg-gray-200 rounded-xl mb-4 overflow-hidden">
+              {coverImage && !hasImageError ? (
+                <img 
+                  src={coverImage.preview} 
+                  className="w-full h-full object-cover" 
+                  alt="Preview"
+                  onError={() => handleImageError(coverImage.id)}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-gray-200 to-gray-300">
+                  <Image className="w-16 h-16 text-gray-400" />
+                  <p className="text-gray-500 ml-2">No image preview</p>
+                </div>
+              )}
+            </div>
+            <h2 className="text-2xl font-bold">{formData.title || 'Untitled'}</h2>
+            <p className="text-2xl text-blue-600 mt-2">ETB {formData.price ? Number(formData.price).toLocaleString() : '0'}</p>
+            <p className="text-gray-500 mt-2">{formData.address || 'Address not set'}, {formData.city || 'City not set'}</p>
+            <div className="flex gap-3 mt-3 text-gray-500">
+              <div className="flex items-center gap-1"><Bed className="w-4 h-4" /> {formData.bedrooms || 0} beds</div>
+              <div className="flex items-center gap-1"><Bath className="w-4 h-4" /> {formData.bathrooms || 0} baths</div>
+              <div className="flex items-center gap-1"><Square className="w-4 h-4" /> {formData.sqft || 0} sqft</div>
+            </div>
+            <p className="mt-4 text-gray-600">{formData.description || 'No description provided'}</p>
           </div>
-          <p className="mt-4 text-gray-600">{formData.description || 'No description provided'}</p>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -546,17 +546,17 @@ const SellerCreateListing = () => {
           <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border p-6">
             <h2 className="text-lg font-bold mb-4">Basic Information</h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium mb-1">Property Title *</label><input name="title" value={formData.title} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder="e.g., Luxury Apartment in Bole" /></div>
+              <div><label className="block text-sm font-medium mb-1">Property Title *</label><input name="title" value={formData.title} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Luxury Apartment in Bole" /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Property Type</label><select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-3 border rounded-lg">{propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
-                <div><label className="block text-sm font-medium mb-1">{listingType === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} *</label><input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
+                <div><label className="block text-sm font-medium mb-1">Property Type</label><select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">{propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+                <div><label className="block text-sm font-medium mb-1">{listingType === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} *</label><input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Bedrooms</label><input name="bedrooms" type="number" value={formData.bedrooms} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
-                <div><label className="block text-sm font-medium mb-1">Bathrooms</label><input name="bathrooms" type="number" value={formData.bathrooms} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
-                <div><label className="block text-sm font-medium mb-1">Square Feet</label><input name="sqft" type="number" value={formData.sqft} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
+                <div><label className="block text-sm font-medium mb-1">Bedrooms</label><input name="bedrooms" type="number" value={formData.bedrooms} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label className="block text-sm font-medium mb-1">Bathrooms</label><input name="bathrooms" type="number" value={formData.bathrooms} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label className="block text-sm font-medium mb-1">Square Feet</label><input name="sqft" type="number" value={formData.sqft} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
               </div>
-              <div><label className="block text-sm font-medium mb-1">Year Built</label><input name="year_built" type="number" value={formData.year_built} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
+              <div><label className="block text-sm font-medium mb-1">Year Built</label><input name="year_built" type="number" value={formData.year_built} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
             </div>
           </motion.div>
         )}
@@ -565,10 +565,10 @@ const SellerCreateListing = () => {
           <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border p-6">
             <h2 className="text-lg font-bold mb-4">Location</h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium mb-1">Address *</label><input name="address" value={formData.address} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
+              <div><label className="block text-sm font-medium mb-1">Address *</label><input name="address" value={formData.address} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">City *</label><input name="city" value={formData.city} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
-                <div><label className="block text-sm font-medium mb-1">Region</label><input name="region" value={formData.region} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
+                <div><label className="block text-sm font-medium mb-1">City *</label><input name="city" value={formData.city} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label className="block text-sm font-medium mb-1">Region</label><input name="region" value={formData.region} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
               </div>
             </div>
           </motion.div>
@@ -579,8 +579,8 @@ const SellerCreateListing = () => {
             <h2 className="text-lg font-bold mb-4">Address Details</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Sub City</label><input name="sub_city" value={formData.sub_city} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
-                <div><label className="block text-sm font-medium mb-1">Kebele</label><input name="kebele" value={formData.kebele} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
+                <div><label className="block text-sm font-medium mb-1">Sub City</label><input name="sub_city" value={formData.sub_city} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label className="block text-sm font-medium mb-1">Kebele</label><input name="kebele" value={formData.kebele} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
               </div>
               <div className="bg-blue-50 rounded-lg p-4"><p className="text-sm text-blue-700">Complete Address: {formData.address}, {formData.sub_city && `${formData.sub_city}, `}{formData.kebele && `Kebele ${formData.kebele}, `}{formData.city}, {formData.region}</p></div>
             </div>
@@ -620,8 +620,8 @@ const SellerCreateListing = () => {
                 
                 {uploadingImages && (
                   <div className="text-center py-2">
-                    <Loader className="w-5 h-5 animate-spin text-blue-600 mx-auto" />
-                    <p className="text-xs text-gray-500 mt-1">Uploading...</p>
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin inline-block"></div>
+                    <p className="text-xs text-gray-500 mt-1 inline ml-2">Uploading...</p>
                   </div>
                 )}
                 
@@ -629,26 +629,40 @@ const SellerCreateListing = () => {
                   <div className="mt-3">
                     <p className="text-sm font-medium mb-2">{uploadedImages.length} photo(s)</p>
                     <div className="grid grid-cols-4 gap-2">
-                      {uploadedImages.map((img, idx) => (
-                        <div key={img.id} className="relative group">
-                          <img src={img.preview} className="w-full h-20 object-cover rounded-lg" alt={`Upload ${idx + 1}`} onError={(e) => { e.target.src = 'https://via.placeholder.com/100x100?text=Error'; }} />
-                          <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
-                            <button onClick={() => setAsCover(idx)} className={`p-1 rounded-full ${coverImageIndex === idx ? 'bg-green-600' : 'bg-blue-600'} text-white`}><Star className="w-3 h-3" /></button>
-                            <button onClick={() => removeImage(img.id)} className="p-1 bg-red-600 text-white rounded-full"><Trash2 className="w-3 h-3" /></button>
+                      {uploadedImages.map((img, idx) => {
+                        const hasError = imageErrors[img.id];
+                        return (
+                          <div key={img.id} className="relative group">
+                            {!hasError && img.preview ? (
+                              <img 
+                                src={img.preview} 
+                                className="w-full h-20 object-cover rounded-lg" 
+                                alt={`Upload ${idx + 1}`}
+                                onError={() => handleImageError(img.id)}
+                              />
+                            ) : (
+                              <div className="w-full h-20 bg-gray-200 rounded-lg flex items-center justify-center">
+                                <Image className="w-6 h-6 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
+                              <button onClick={() => setAsCover(idx)} className={`p-1 rounded-full ${coverImageIndex === idx ? 'bg-green-600' : 'bg-blue-600'} text-white`}><Star className="w-3 h-3" /></button>
+                              <button onClick={() => removeImage(img.id)} className="p-1 bg-red-600 text-white rounded-full"><Trash2 className="w-3 h-3" /></button>
+                            </div>
+                            {coverImageIndex === idx && <div className="absolute top-0 left-0 bg-yellow-500 text-white text-[10px] px-1 rounded-tl-lg rounded-br-lg">Cover</div>}
                           </div>
-                          {coverImageIndex === idx && <div className="absolute top-0 left-0 bg-yellow-500 text-white text-[10px] px-1 rounded-tl-lg rounded-br-lg">Cover</div>}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
               </div>
 
-              <div><label className="block text-sm font-medium mb-1">Description *</label><textarea name="description" rows="4" value={formData.description} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder="Describe your property in detail..." /></div>
+              <div><label className="block text-sm font-medium mb-1">Description *</label><textarea name="description" rows="4" value={formData.description} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Describe your property in detail..." /></div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Phone Number</label><input name="phone_number" value={formData.phone_number} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder="+251 911 111 111" /></div>
-                <div><label className="block text-sm font-medium mb-1">Email Address</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder="contact@property.com" /></div>
+                <div><label className="block text-sm font-medium mb-1">Phone Number</label><input name="phone_number" value={formData.phone_number} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="+251 911 111 111" /></div>
+                <div><label className="block text-sm font-medium mb-1">Email Address</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="contact@property.com" /></div>
               </div>
             </div>
           </motion.div>
@@ -660,17 +674,52 @@ const SellerCreateListing = () => {
         <div className="flex gap-2 ml-auto">
           {step === 5 && (
             <>
-              <button onClick={handleSaveAsDraft} disabled={savingDraft} className="px-4 py-2 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition disabled:opacity-50 flex items-center gap-1">
-                {savingDraft ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Save Draft
+              <button 
+                onClick={handleSaveAsDraft} 
+                disabled={isSavingDraft}
+                className="px-4 py-2 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition disabled:opacity-50 flex items-center gap-1"
+              >
+                {isSavingDraft ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Save Draft</span>
+                  </>
+                )}
               </button>
-              <button onClick={() => setShowPreview(true)} className="px-4 py-2 border rounded-lg font-medium hover:bg-gray-50 flex items-center gap-1"><Eye className="w-4 h-4" /> Preview</button>
+              <button 
+                onClick={() => setShowPreview(true)} 
+                className="px-4 py-2 border rounded-lg font-medium hover:bg-gray-50 flex items-center gap-1"
+              >
+                <Eye className="w-4 h-4" /> Preview
+              </button>
             </>
           )}
           {step < 5 ? (
-            <button onClick={nextStep} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-1">Continue <ChevronRight className="w-4 h-4" /></button>
+            <button onClick={nextStep} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-1">
+              Continue <ChevronRight className="w-4 h-4" />
+            </button>
           ) : (
-            <button onClick={handlePublish} disabled={loading} className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50">
-              {loading ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Publish Listing
+            <button 
+              onClick={handlePublish} 
+              disabled={isPublishing}
+              className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50"
+            >
+              {isPublishing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Publishing...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Publish Listing</span>
+                </>
+              )}
             </button>
           )}
         </div>

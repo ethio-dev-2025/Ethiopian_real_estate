@@ -8,7 +8,7 @@ from .routers import (
     payments, settings as settings_router, password_reset, activation, buyer, 
     buyer_auth, admin_messages, websocket
 )
-from .database import engine, Base, init_db
+from .database import init_db
 from .config import settings
 
 # Create uploads directories
@@ -52,7 +52,7 @@ app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(payments.router, prefix="/api/payment", tags=["payment"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
-app.include_router(password_reset.router, tags=["password_reset"])  # No extra prefix
+app.include_router(password_reset.router, tags=["password_reset"])
 app.include_router(activation.router, prefix="/api/activation", tags=["activation"])
 app.include_router(buyer.router, prefix="/api/buyer", tags=["buyer"])
 app.include_router(buyer_auth.router, prefix="/api/buyer/auth", tags=["buyer-auth"])
@@ -66,9 +66,12 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "message": "Server is running", "timestamp": str(__import__("datetime").datetime.now())}
+    return {"status": "ok", "message": "Server is running"}
 
-# ============ OPTIONS HANDLER FOR CORS PREFLIGHT ============
-@app.options("/{path:path}")
-async def options_handler():
-    return {}
+# ============ CATCH-ALL ERROR HANDLER ============
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    print(f"Global error: {exc}")
+    return {"status": "error", "message": str(exc)}
+
+print("✅ Server started with CORS properly configured!")

@@ -1,3 +1,4 @@
+# backend/app/models/__init__.py
 from .user import User
 from .listing import Listing
 from .message import Message, Conversation, MessageStatus
@@ -7,6 +8,7 @@ from .password_reset import PasswordReset
 from .activation import ActivationRequest, ActivationStatus
 from .admin_models import Company, Subscription, VerificationDocument, AdminActivity
 from .role_document import RoleDocument, RoleSubscription, DocumentType, DocumentStatus
+from .payment import PaymentTransaction
 
 __all__ = [
     'User',
@@ -27,4 +29,5 @@ __all__ = [
     'RoleSubscription',
     'DocumentType',
     'DocumentStatus',
+    'PaymentTransaction',
 ]

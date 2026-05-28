@@ -1,498 +1,459 @@
-// src/component/dashboard/seller/sellerDocumentVerification.jsx
-import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Grid,
-  Button,
-  Card,
-  CardContent,
-  CardActions,
-  LinearProgress,
-  Alert,
-  Chip,
-  IconButton,
-  Stepper,
-  Step,
-  StepLabel,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  Tooltip
-} from '@mui/material';
+// src/components/dashboard/seller/sellerDocumentVerification.jsx
+
+import React, { useState, useEffect } from 'react'
 import {
   Upload,
   CheckCircle,
-  Cancel,
-  Pending,
-  Warning,
-  Description,
-  AssignmentInd,
-  Business,
-  AccountBalance,
-  Receipt,
-  Visibility,
-  Download,
-  VerifiedUser,
-  Error
-} from '@mui/icons-material';
-import { useDropzone } from 'react-dropzone';
+  XCircle,
+  Clock,
+  Eye,
+  Trash2,
+  ShieldCheck
+} from 'lucide-react'
 
 const documentTypes = [
   {
     id: 'id_proof',
     name: 'Government ID Proof',
-    description: 'Passport, Driver\'s License, or National ID Card',
-    icon: <AssignmentInd />,
-    required: true,
-    status: 'pending'
+    description: 'Passport, Driver License, or National ID',
+    required: true
   },
   {
     id: 'business_license',
     name: 'Business License',
-    description: 'Valid business license or registration certificate',
-    icon: <Business />,
-    required: true,
-    status: 'pending'
+    description: 'Business registration certificate',
+    required: true
   },
   {
     id: 'tax_id',
-    name: 'Tax ID / VAT Certificate',
-    description: 'Tax registration document',
-    icon: <AccountBalance />,
-    required: true,
-    status: 'pending'
+    name: 'Tax ID Certificate',
+    description: 'Official tax registration document',
+    required: true
   },
   {
     id: 'bank_details',
-    name: 'Bank Account Details',
-    description: 'Bank statement or cancelled cheque',
-    icon: <Receipt />,
-    required: true,
-    status: 'pending'
-  },
-  {
-    id: 'property_ownership',
-    name: 'Property Ownership Proof',
-    description: 'Title deed or ownership certificate (if applicable)',
-    icon: <Description />,
-    required: false,
-    status: 'pending'
+    name: 'Bank Details',
+    description: 'Bank statement or account proof',
+    required: true
   }
-];
-
-const verificationSteps = [
-  'Documents Submitted',
-  'Initial Review',
-  'Verification in Progress',
-  'Final Approval'
-];
+]
 
 const SellerDocumentVerification = () => {
-  const [documents, setDocuments] = useState(documentTypes);
-  const [uploadedFiles, setUploadedFiles] = useState({});
-  const [verificationStatus, setVerificationStatus] = useState('pending'); // pending, in_review, approved, rejected
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [currentDocument, setCurrentDocument] = useState(null);
-  const [filePreview, setFilePreview] = useState(null);
-  const [verificationProgress, setVerificationProgress] = useState(25);
+  const [documents, setDocuments] = useState(documentTypes)
+
+  const [uploadedFiles, setUploadedFiles] = useState({})
+
+  const [verificationStatus, setVerificationStatus] =
+    useState('pending')
+
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // Fetch existing verification status from API
-    fetchVerificationStatus();
-  }, []);
+    const saved =
+      JSON.parse(
+        localStorage.getItem('sellerDocuments')
+      ) || {}
 
-  const fetchVerificationStatus = async () => {
-    // Simulate API call
-    setTimeout(() => {
-      // Mock data - in real app, fetch from backend
-      const savedDocs = JSON.parse(localStorage.getItem('sellerDocuments') || '{}');
-      if (Object.keys(savedDocs).length > 0) {
-        setUploadedFiles(savedDocs);
-        updateDocumentStatuses(savedDocs);
-      }
-    }, 1000);
-  };
+    setUploadedFiles(saved)
 
-  const updateDocumentStatuses = (files) => {
-    const updatedDocs = documents.map(doc => ({
+    const updated = documents.map((doc) => ({
       ...doc,
-      status: files[doc.id] ? 'uploaded' : 'pending'
-    }));
-    setDocuments(updatedDocs);
-    
-    const allUploaded = updatedDocs.every(doc => doc.status === 'uploaded');
-    if (allUploaded && verificationStatus === 'pending') {
-      setVerificationStatus('in_review');
-      setVerificationProgress(50);
+      status: saved[doc.id]
+        ? 'uploaded'
+        : 'pending'
+    }))
+
+    setDocuments(updated)
+  }, [])
+
+  const handleFileUpload = (e, documentId) => {
+    const file = e.target.files[0]
+
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Max file size is 5MB')
+      return
     }
-  };
 
-  const { getRootProps, getInputProps } = useDropzone({
-    accept: {
-      'application/pdf': ['.pdf'],
-      'image/jpeg': ['.jpg', '.jpeg'],
-      'image/png': ['.png']
-    },
-    maxSize: 5242880, // 5MB
-    onDrop: (acceptedFiles, fileRejections) => {
-      if (fileRejections.length > 0) {
-        alert('File too large or invalid format. Max size 5MB, allowed: PDF, JPG, PNG');
-        return;
-      }
-      if (currentDocument) {
-        handleFileUpload(acceptedFiles[0]);
-      }
-    },
-    multiple: false
-  });
+    const fileData = {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      preview: URL.createObjectURL(file),
+      uploadedAt: new Date().toISOString()
+    }
 
-  const handleFileUpload = async (file) => {
-    if (!currentDocument) return;
-    
-    setLoading(true);
-    
-    // Simulate file upload to server
+    const updatedFiles = {
+      ...uploadedFiles,
+      [documentId]: fileData
+    }
+
+    setUploadedFiles(updatedFiles)
+
+    localStorage.setItem(
+      'sellerDocuments',
+      JSON.stringify(updatedFiles)
+    )
+
+    const updatedDocs = documents.map((doc) =>
+      doc.id === documentId
+        ? { ...doc, status: 'uploaded' }
+        : doc
+    )
+
+    setDocuments(updatedDocs)
+  }
+
+  const removeDocument = (documentId) => {
+    const updatedFiles = { ...uploadedFiles }
+
+    delete updatedFiles[documentId]
+
+    setUploadedFiles(updatedFiles)
+
+    localStorage.setItem(
+      'sellerDocuments',
+      JSON.stringify(updatedFiles)
+    )
+
+    const updatedDocs = documents.map((doc) =>
+      doc.id === documentId
+        ? { ...doc, status: 'pending' }
+        : doc
+    )
+
+    setDocuments(updatedDocs)
+  }
+
+  const submitVerification = async () => {
+    const allRequiredUploaded = documents
+      .filter((doc) => doc.required)
+      .every((doc) => uploadedFiles[doc.id])
+
+    if (!allRequiredUploaded) {
+      alert('Upload all required documents')
+      return
+    }
+
+    setLoading(true)
+
     setTimeout(() => {
-      const fileData = {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        uploadDate: new Date().toISOString(),
-        preview: URL.createObjectURL(file)
-      };
-      
-      const updatedFiles = { ...uploadedFiles, [currentDocument.id]: fileData };
-      setUploadedFiles(updatedFiles);
-      
-      const updatedDocs = documents.map(doc =>
-        doc.id === currentDocument.id ? { ...doc, status: 'uploaded' } : doc
-      );
-      setDocuments(updatedDocs);
-      
-      // Save to localStorage (temporary - use backend in production)
-      localStorage.setItem('sellerDocuments', JSON.stringify(updatedFiles));
-      
-      setLoading(false);
-      setOpenDialog(false);
-      setCurrentDocument(null);
-      
-      // Check if all required documents are uploaded
-      const allRequiredUploaded = updatedDocs
-        .filter(doc => doc.required)
-        .every(doc => doc.status === 'uploaded');
-      
-      if (allRequiredUploaded && verificationStatus === 'pending') {
-        setVerificationStatus('in_review');
-        setVerificationProgress(50);
-      }
-    }, 1500);
-  };
+      setVerificationStatus('in_review')
+      setLoading(false)
 
-  const handleViewDocument = (docId) => {
-    const file = uploadedFiles[docId];
-    if (file && file.preview) {
-      window.open(file.preview, '_blank');
-    }
-  };
-
-  const handleDeleteDocument = (docId) => {
-    const updatedFiles = { ...uploadedFiles };
-    delete updatedFiles[docId];
-    setUploadedFiles(updatedFiles);
-    
-    const updatedDocs = documents.map(doc =>
-      doc.id === docId ? { ...doc, status: 'pending' } : doc
-    );
-    setDocuments(updatedDocs);
-    
-    localStorage.setItem('sellerDocuments', JSON.stringify(updatedFiles));
-    
-    if (verificationStatus === 'in_review') {
-      setVerificationStatus('pending');
-      setVerificationProgress(25);
-    }
-  };
-
-  const handleSubmitForVerification = async () => {
-    const requiredDocs = documents.filter(doc => doc.required);
-    const allUploaded = requiredDocs.every(doc => doc.status === 'uploaded');
-    
-    if (!allUploaded) {
-      alert('Please upload all required documents before submitting for verification');
-      return;
-    }
-    
-    setLoading(true);
-    
-    // Simulate API call to submit for verification
-    setTimeout(() => {
-      setVerificationStatus('in_review');
-      setVerificationProgress(50);
-      setLoading(false);
-      
-      // Show success message
-      alert('Documents submitted for verification successfully!');
-    }, 2000);
-  };
+      alert(
+        'Documents submitted successfully!'
+      )
+    }, 1500)
+  }
 
   const getStatusIcon = (status) => {
-    switch(status) {
-      case 'approved': return <CheckCircle sx={{ color: 'success.main' }} />;
-      case 'rejected': return <Cancel sx={{ color: 'error.main' }} />;
-      case 'uploaded': return <CheckCircle sx={{ color: 'info.main' }} />;
-      case 'in_review': return <Pending sx={{ color: 'warning.main' }} />;
-      default: return <Warning sx={{ color: 'text.secondary' }} />;
-    }
-  };
+    switch (status) {
+      case 'uploaded':
+        return (
+          <CheckCircle
+            size={18}
+            color="#10b981"
+          />
+        )
 
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'approved': return 'success';
-      case 'rejected': return 'error';
-      case 'uploaded': return 'info';
-      case 'in_review': return 'warning';
-      default: return 'default';
+      case 'pending':
+      default:
+        return (
+          <Clock
+            size={18}
+            color="#f59e0b"
+          />
+        )
     }
-  };
-
-  const getVerificationStep = () => {
-    if (verificationStatus === 'approved') return 3;
-    if (verificationStatus === 'in_review') return 2;
-    if (verificationStatus === 'rejected') return 1;
-    return 0;
-  };
+  }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+    <div
+      style={{
+        padding: 24,
+        maxWidth: 1100,
+        margin: '0 auto'
+      }}
+    >
       {/* Header */}
-      <Paper sx={{ p: 3, mb: 3, bgcolor: 'primary.main', color: 'white' }}>
-        <Typography variant="h4" gutterBottom>Document Verification</Typography>
-        <Typography variant="body1">
-          Complete your verification to unlock all seller features and start listing properties
-        </Typography>
-      </Paper>
 
-      {/* Verification Progress */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>Verification Status</Typography>
-        
-        <Box sx={{ mb: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              {verificationStatus === 'approved' && '✓ Verified Account'}
-              {verificationStatus === 'in_review' && '⏳ Verification in Progress'}
-              {verificationStatus === 'rejected' && '✗ Verification Failed'}
-              {verificationStatus === 'pending' && '📄 Documents Pending'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {verificationProgress}%
-            </Typography>
-          </Box>
-          <LinearProgress 
-            variant="determinate" 
-            value={verificationProgress} 
-            sx={{ height: 8, borderRadius: 4 }}
-            color={verificationStatus === 'approved' ? 'success' : 'primary'}
-          />
-        </Box>
+      <div
+        style={{
+          background: '#2563eb',
+          color: '#fff',
+          padding: 24,
+          borderRadius: 16,
+          marginBottom: 24
+        }}
+      >
+        <h1
+          style={{
+            marginBottom: 10,
+            fontSize: 28
+          }}
+        >
+          Seller Verification
+        </h1>
 
-        <Stepper activeStep={getVerificationStep()} alternativeLabel sx={{ mt: 3 }}>
-          {verificationSteps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
+        <p style={{ opacity: 0.9 }}>
+          Upload required documents to verify
+          your seller account.
+        </p>
+      </div>
 
-        {verificationStatus === 'rejected' && (
-          <Alert severity="error" sx={{ mt: 3 }}>
-            <Typography variant="subtitle2">Verification Failed</Typography>
-            <Typography variant="body2">Reason: {rejectionReason || 'Documents are invalid or unclear. Please re-upload clear copies.'}</Typography>
-          </Alert>
-        )}
+      {/* Status */}
 
-        {verificationStatus === 'approved' && (
-          <Alert severity="success" sx={{ mt: 3 }}>
-            <Typography variant="subtitle2">Verification Complete!</Typography>
-            <Typography variant="body2">Your account is fully verified. You can now list properties and receive payments.</Typography>
-          </Alert>
-        )}
-      </Paper>
+      <div
+        style={{
+          background: '#fff',
+          border: '1px solid #eee',
+          borderRadius: 16,
+          padding: 24,
+          marginBottom: 24
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 16
+          }}
+        >
+          <ShieldCheck color="#2563eb" />
 
-      {/* Documents Section */}
-      <Typography variant="h6" gutterBottom>Required Documents</Typography>
-      <Grid container spacing={3}>
-        {documents.map((doc) => (
-          <Grid item xs={12} md={6} key={doc.id}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Box sx={{ mr: 2, color: doc.required ? 'primary.main' : 'text.secondary' }}>
-                    {doc.icon}
-                  </Box>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6">
-                      {doc.name}
-                      {doc.required && (
-                        <Chip label="Required" size="small" color="error" sx={{ ml: 1 }} />
-                      )}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {doc.description}
-                    </Typography>
-                  </Box>
-                  {getStatusIcon(doc.status)}
-                </Box>
-                
-                {uploadedFiles[doc.id] && (
-                  <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                    <Typography variant="caption" display="block" color="text.secondary">
-                      Uploaded: {new Date(uploadedFiles[doc.id].uploadDate).toLocaleDateString()}
-                    </Typography>
-                    <Typography variant="caption" display="block" color="text.secondary">
-                      File: {uploadedFiles[doc.id].name}
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-              <CardActions>
-                {!uploadedFiles[doc.id] ? (
-                  <Button
-                    startIcon={<Upload />}
-                    onClick={() => {
-                      setCurrentDocument(doc);
-                      setOpenDialog(true);
-                    }}
-                    disabled={loading || verificationStatus === 'approved'}
-                  >
-                    Upload Document
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      size="small"
-                      startIcon={<Visibility />}
-                      onClick={() => handleViewDocument(doc.id)}
-                    >
-                      View
-                    </Button>
-                    <Button
-                      size="small"
-                      startIcon={<Download />}
-                      onClick={() => handleViewDocument(doc.id)}
-                    >
-                      Download
-                    </Button>
-                    {verificationStatus !== 'approved' && (
-                      <Button
-                        size="small"
-                        color="error"
-                        startIcon={<Cancel />}
-                        onClick={() => handleDeleteDocument(doc.id)}
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </>
-                )}
-              </CardActions>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Submit Button */}
-      {verificationStatus === 'pending' && (
-        <Paper sx={{ p: 3, mt: 3, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            Once you've uploaded all required documents, submit them for verification
-          </Typography>
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<VerifiedUser />}
-            onClick={handleSubmitForVerification}
-            disabled={loading}
-            sx={{ mt: 2 }}
-          >
-            {loading ? 'Submitting...' : 'Submit for Verification'}
-          </Button>
-        </Paper>
-      )}
-
-      {verificationStatus === 'in_review' && (
-        <Alert severity="info" sx={{ mt: 3 }}>
-          <Typography variant="subtitle2">Under Review</Typography>
-          <Typography variant="body2">
-            Our team is reviewing your documents. This usually takes 1-2 business days.
-            You will be notified once the verification is complete.
-          </Typography>
-        </Alert>
-      )}
-
-      {/* Upload Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          Upload {currentDocument?.name}
-          {currentDocument?.required && <Chip label="Required" size="small" color="error" sx={{ ml: 2 }} />}
-        </DialogTitle>
-        <DialogContent>
-          <Box
-            {...getRootProps()}
-            sx={{
-              border: '2px dashed',
-              borderColor: 'grey.400',
-              borderRadius: 2,
-              p: 4,
-              textAlign: 'center',
-              cursor: 'pointer',
-              mt: 2,
-              '&:hover': { borderColor: 'primary.main', bgcolor: 'grey.50' }
+          <h2
+            style={{
+              fontSize: 20,
+              margin: 0
             }}
           >
-            <input {...getInputProps()} />
-            <Upload sx={{ fontSize: 48, color: 'grey.500', mb: 2 }} />
-            <Typography variant="body1">Drag & drop or click to upload</Typography>
-            <Typography variant="caption" color="text.secondary">
-              Supported formats: PDF, JPG, PNG (Max 5MB)
-            </Typography>
-          </Box>
-          
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Requirements:
-          </Typography>
-          <List dense>
-            <ListItem>
-              <ListItemIcon><CheckCircle fontSize="small" /></ListItemIcon>
-              <ListItemText primary="Clear and legible document" />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon><CheckCircle fontSize="small" /></ListItemIcon>
-              <ListItemText primary="Maximum file size: 5MB" />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon><CheckCircle fontSize="small" /></ListItemIcon>
-              <ListItemText primary="Document must be valid and not expired" />
-            </ListItem>
-          </List>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
-};
+            Verification Status
+          </h2>
+        </div>
 
-export default SellerDocumentVerification;
+        <div
+          style={{
+            height: 10,
+            background: '#eee',
+            borderRadius: 20,
+            overflow: 'hidden'
+          }}
+        >
+          <div
+            style={{
+              width:
+                verificationStatus ===
+                'in_review'
+                  ? '70%'
+                  : '25%',
+              height: '100%',
+              background: '#2563eb'
+            }}
+          />
+        </div>
+
+        <p
+          style={{
+            marginTop: 12,
+            color: '#666'
+          }}
+        >
+          {verificationStatus ===
+          'in_review'
+            ? 'Documents are under review'
+            : 'Pending document upload'}
+        </p>
+      </div>
+
+      {/* Documents */}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: 20
+        }}
+      >
+        {documents.map((doc) => (
+          <div
+            key={doc.id}
+            style={{
+              background: '#fff',
+              border: '1px solid #eee',
+              borderRadius: 16,
+              padding: 20
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent:
+                  'space-between',
+                marginBottom: 14
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    marginBottom: 6
+                  }}
+                >
+                  {doc.name}
+                </h3>
+
+                <p
+                  style={{
+                    color: '#666',
+                    fontSize: 14
+                  }}
+                >
+                  {doc.description}
+                </p>
+              </div>
+
+              {getStatusIcon(doc.status)}
+            </div>
+
+            {uploadedFiles[doc.id] ? (
+              <>
+                <div
+                  style={{
+                    background: '#f9fafb',
+                    padding: 12,
+                    borderRadius: 10,
+                    marginBottom: 14
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      marginBottom: 4
+                    }}
+                  >
+                    {
+                      uploadedFiles[doc.id]
+                        .name
+                    }
+                  </div>
+
+                  <div
+                    style={{
+                      color: '#666',
+                      fontSize: 12
+                    }}
+                  >
+                    Uploaded successfully
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 10
+                  }}
+                >
+                  <button
+                    onClick={() =>
+                      window.open(
+                        uploadedFiles[doc.id]
+                          .preview,
+                        '_blank'
+                      )
+                    }
+                    style={buttonStyle}
+                  >
+                    <Eye size={16} />
+                    View
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      removeDocument(doc.id)
+                    }
+                    style={{
+                      ...buttonStyle,
+                      background: '#ef4444'
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    Remove
+                  </button>
+                </div>
+              </>
+            ) : (
+              <label
+                style={{
+                  ...buttonStyle,
+                  display: 'inline-flex',
+                  cursor: 'pointer'
+                }}
+              >
+                <Upload size={16} />
+
+                Upload
+
+                <input
+                  type="file"
+                  hidden
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) =>
+                    handleFileUpload(
+                      e,
+                      doc.id
+                    )
+                  }
+                />
+              </label>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Submit */}
+
+      <div
+        style={{
+          marginTop: 30,
+          textAlign: 'center'
+        }}
+      >
+        <button
+          onClick={submitVerification}
+          disabled={loading}
+          style={{
+            background: '#2563eb',
+            color: '#fff',
+            border: 'none',
+            padding: '14px 28px',
+            borderRadius: 12,
+            fontSize: 16,
+            cursor: 'pointer'
+          }}
+        >
+          {loading
+            ? 'Submitting...'
+            : 'Submit Verification'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const buttonStyle = {
+  border: 'none',
+  background: '#2563eb',
+  color: '#fff',
+  padding: '10px 14px',
+  borderRadius: 10,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  cursor: 'pointer',
+  fontSize: 14
+}
+
+export default SellerDocumentVerification

@@ -1,3 +1,4 @@
+# backend/app/models/listing.py
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -17,6 +18,10 @@ class Listing(Base):
     sqft = Column(Float, default=0)
     year_built = Column(Integer, nullable=True)
     status = Column(String(50), default="draft")
+    
+    # ============ MAP COORDINATES - ADD THESE ============
+    latitude = Column(Float, nullable=True)   # For map markers
+    longitude = Column(Float, nullable=True)  # For map markers
     
     address = Column(String(255), nullable=True)
     city = Column(String(100), nullable=True)
@@ -48,3 +53,38 @@ class Listing(Base):
     
     # Relationship - Use 'user'
     user = relationship("User", back_populates="listings")
+    
+    def to_dict(self):
+        import json
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "price": self.price,
+            "listing_type": self.listing_type,
+            "property_type": self.property_type,
+            "bedrooms": self.bedrooms,
+            "bathrooms": self.bathrooms,
+            "sqft": self.sqft,
+            "year_built": self.year_built,
+            "status": self.status,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "address": self.address,
+            "city": self.city,
+            "region": self.region,
+            "sub_city": self.sub_city,
+            "kebele": self.kebele,
+            "images": json.loads(self.images) if self.images else [],
+            "cover_image": self.cover_image,
+            "amenities": json.loads(self.amenities) if self.amenities else [],
+            "phone_number": self.phone_number,
+            "email": self.email,
+            "views_count": self.views_count,
+            "featured": self.featured,
+            "is_draft": self.is_draft,
+            "user_id": self.user_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
+        }

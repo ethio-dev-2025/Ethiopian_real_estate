@@ -1,4 +1,3 @@
-// src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 
@@ -19,12 +18,15 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const [token, setToken] = useState(localStorage.getItem('access_token'));
   const reconnectAttempts = useRef(0);
   const messageHandlersRef = useRef(new Map());
   const pingIntervalRef = useRef(null);
+  const isRefreshingRef = useRef(false);
 
   const clearAuthData = useCallback(() => {
     localStorage.removeItem('access_token');
@@ -49,9 +51,12 @@ export const AuthProvider = ({ children }) => {
     
     setUser(null);
     setIsAuthenticated(false);
+    setIsInitialized(false);
+    setAuthReady(false);
     setToken(null);
     reconnectAttempts.current = 0;
     messageHandlersRef.current.clear();
+    isRefreshingRef.current = false;
   }, []);
 
   const addMessageHandler = useCallback((handler) => {
@@ -62,89 +67,18 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  // FIX 1: DISABLE WEBSOCKET COMPLETELY - COMMENTED OUT
   const connectWebSocket = useCallback((authToken) => {
-    if (!authToken) return null;
-    
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      return socketRef.current;
-    }
-    
-    if (socketRef.current && socketRef.current.readyState === WebSocket.CONNECTING) {
-      return socketRef.current;
-    }
-    
-    if (socketRef.current) {
-      socketRef.current.close();
-      socketRef.current = null;
-    }
-    
-    try {
-      const ws = new WebSocket(`${WS_URL}/api/ws/${authToken}`);
-      
-      ws.onopen = () => {
-        console.log('✅ WebSocket connected successfully');
-        reconnectAttempts.current = 0;
-        
-        if (pingIntervalRef.current) {
-          clearInterval(pingIntervalRef.current);
-        }
-        
-        pingIntervalRef.current = setInterval(() => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'ping' }));
-          }
-        }, 30000);
-      };
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          messageHandlersRef.current.forEach((handler) => {
-            try {
-              handler(data);
-            } catch (err) {
-              console.error('Error in message handler:', err);
-            }
-          });
-        } catch (err) {
-          console.error('Error parsing WebSocket message:', err);
-        }
-      };
-      
-      ws.onclose = (event) => {
-        console.log('🔌 WebSocket disconnected:', event.code);
-        socketRef.current = null;
-        
-        if (pingIntervalRef.current) {
-          clearInterval(pingIntervalRef.current);
-          pingIntervalRef.current = null;
-        }
-        
-        if (event.code !== 1000 && localStorage.getItem('access_token')) {
-          const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(reconnectAttempts.current, 5)));
-          setTimeout(() => {
-            if (localStorage.getItem('access_token')) {
-              reconnectAttempts.current += 1;
-              connectWebSocket(localStorage.getItem('access_token'));
-            }
-          }, delay);
-        }
-      };
-      
-      ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
-      };
-      
-      socketRef.current = ws;
-      return ws;
-    } catch (error) {
-      console.error('Failed to create WebSocket:', error);
-      return null;
-    }
+    // WEBSOCKET DISABLED - Performance improvement
+    console.log('🔌 WebSocket is disabled for performance');
+    return null;
   }, []);
 
   const fetchFreshUserData = useCallback(async (accessToken) => {
     if (!accessToken) return null;
+    if (isRefreshingRef.current) return null;
+    
+    isRefreshingRef.current = true;
     
     try {
       const response = await fetch(`${API_URL}/api/auth/me`, {
@@ -162,12 +96,18 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error fetching fresh user data:', error);
+    } finally {
+      setTimeout(() => {
+        isRefreshingRef.current = false;
+      }, 500);
     }
     return null;
   }, [clearAuthData]);
 
-  // Initialize auth from localStorage - FIXED
+  // Initialize auth from localStorage - ONLY ONCE
   useEffect(() => {
+    if (isInitialized) return;
+    
     const initAuth = async () => {
       const storedToken = localStorage.getItem('access_token');
       const storedUser = localStorage.getItem('user');
@@ -179,25 +119,29 @@ export const AuthProvider = ({ children }) => {
           setUser(parsedUser);
           setIsAuthenticated(true);
           setToken(storedToken);
+          setAuthReady(true);
           
           if (parsedUser.role_type) {
             localStorage.setItem('user_role', parsedUser.role_type);
             localStorage.setItem('role_selected', 'true');
           }
           
-          setTimeout(() => connectWebSocket(storedToken), 500);
+          // WebSocket disabled - no connection attempt
+          // setTimeout(() => connectWebSocket(storedToken), 1000);
         } catch (error) {
           console.error('AuthContext: Failed to parse user', error);
           clearAuthData();
         }
+      } else {
+        setAuthReady(true);
       }
       setLoading(false);
+      setIsInitialized(true);
     };
     
     initAuth();
-  }, [connectWebSocket, clearAuthData]);
+  }, [connectWebSocket, clearAuthData, isInitialized]);
 
-  // Helper function to set auth data directly (for immediate use)
   const setAuthData = useCallback((accessToken, userData) => {
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('user', JSON.stringify(userData));
@@ -207,10 +151,11 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
     setIsAuthenticated(true);
     setToken(accessToken);
+    setAuthReady(true);
     
-    // Connect WebSocket
-    setTimeout(() => connectWebSocket(accessToken), 500);
-  }, [connectWebSocket]);
+    // WebSocket disabled - no connection attempt
+    // setTimeout(() => connectWebSocket(accessToken), 1000);
+  }, []);
 
   const login = async (email, password) => {
     try {
@@ -282,19 +227,28 @@ export const AuthProvider = ({ children }) => {
 
   const refreshUser = useCallback(async () => {
     const currentToken = localStorage.getItem('access_token');
-    if (currentToken) {
+    if (!currentToken) return null;
+    if (isRefreshingRef.current) return null;
+    
+    isRefreshingRef.current = true;
+    
+    try {
       const freshUser = await fetchFreshUserData(currentToken);
       if (freshUser) {
         setUser(freshUser);
         localStorage.setItem('user', JSON.stringify(freshUser));
         let userRole = freshUser.role_type || freshUser.role || 'buyer';
-        if (userRole === 'user') {
-          userRole = 'buyer';
-        }
+        if (userRole === 'user') userRole = 'buyer';
         localStorage.setItem('user_role', userRole);
         console.log('🔄 User refreshed:', freshUser);
         return freshUser;
       }
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setTimeout(() => {
+        isRefreshingRef.current = false;
+      }, 500);
     }
     return null;
   }, [fetchFreshUserData]);
@@ -305,9 +259,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(updatedUser));
     
     let userRole = updatedUser.role_type || updatedUser.role || 'buyer';
-    if (userRole === 'user') {
-      userRole = 'buyer';
-    }
+    if (userRole === 'user') userRole = 'buyer';
     localStorage.setItem('user_role', userRole);
     localStorage.setItem('role_selected', 'true');
     
@@ -318,6 +270,8 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     isAuthenticated,
+    isInitialized,
+    authReady,
     login,
     logout,
     register,
@@ -327,7 +281,7 @@ export const AuthProvider = ({ children }) => {
     refreshUser,
     updateUser,
     clearAuthData,
-    setAuthData, // Export this for immediate auth setting
+    setAuthData,
     userRole: user?.role_type || user?.role || localStorage.getItem('user_role')
   };
 

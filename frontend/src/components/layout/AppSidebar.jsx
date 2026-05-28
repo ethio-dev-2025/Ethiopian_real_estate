@@ -6,6 +6,11 @@ import {
   PlusCircle, List, Shield, CreditCard, Menu, X,
   LayoutDashboard, Users, UserCheck, TrendingUp, DollarSign
 } from 'lucide-react'
+  // Add import
+import { cachedFetch, invalidateCache } from '../../utils/apiCache';
+
+
+const API_URL = 'http://localhost:8000'
 
 const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const { user: authUser, logout } = useAuth()
@@ -13,6 +18,7 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const location = useLocation()
   const [isMobile, setIsMobile] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [pendingVerifications, setPendingVerifications] = useState(0)
   const [user, setUser] = useState(null)
   const navigationTimeoutRef = useRef(null)
 
@@ -39,24 +45,91 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     checkMobile()
     window.addEventListener('resize', checkMobile)
     
-    const fetchUnreadCount = async () => {
+  
+
+// Replace the fetch functions:
+const fetchUnreadCount = async () => {
+  try {
+    const token = localStorage.getItem('access_token')
+    if (!token) return
+    const data = await cachedFetch(`${API_URL}/api/messages/unread-count`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    setUnreadCount(data.count || 0)
+  } catch (error) {
+    console.error('Error fetching unread count:', error)
+  }
+}
+
+const fetchPendingVerifications = async () => {
+  try {
+    const token = localStorage.getItem('access_token')
+    if (!token) return
+    
+    let userRole = 'user'
+    if (authUser && authUser.role_type) {
+      userRole = authUser.role_type
+    } else {
+      try {
+        const storedUser = localStorage.getItem('user')
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser)
+          userRole = parsedUser.role_type || 'user'
+        }
+      } catch (e) {}
+    }
+    
+    if (userRole === 'admin') {
+      const data = await cachedFetch(`${API_URL}/api/activation/admin/pending-count`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      setPendingVerifications(data.count || 0)
+    }
+  } catch (error) {
+    console.error('Error fetching pending verifications:', error)
+  }
+}
+    
+    const fetchPendingVerifications = async () => {
       try {
         const token = localStorage.getItem('access_token')
         if (!token) return
-        const response = await fetch('http://localhost:8000/api/messages/unread-count', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        if (response.ok) {
-          const data = await response.json()
-          setUnreadCount(data.count || 0)
+        
+        let userRole = 'user'
+        if (authUser && authUser.role_type) {
+          userRole = authUser.role_type
+        } else {
+          try {
+            const storedUser = localStorage.getItem('user')
+            if (storedUser) {
+              const parsedUser = JSON.parse(storedUser)
+              userRole = parsedUser.role_type || 'user'
+            }
+          } catch (e) {}
+        }
+        
+        if (userRole === 'admin') {
+          const response = await fetch(`${API_URL}/api/activation/admin/pending-count`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          if (response.ok) {
+            const data = await response.json()
+            setPendingVerifications(data.count || 0)
+          }
         }
       } catch (error) {
-        console.error('Error fetching unread count:', error)
+        console.error('Error fetching pending verifications:', error)
       }
     }
     
     fetchUnreadCount()
-    const interval = setInterval(fetchUnreadCount, 30000)
+    fetchPendingVerifications()
+    
+    // FIX 3: Increased interval from 30 seconds to 60 seconds
+    const interval = setInterval(() => {
+      fetchUnreadCount()
+      fetchPendingVerifications()
+    }, 60000)  // Changed from 30000 to 60000
     
     return () => {
       window.removeEventListener('resize', checkMobile)
@@ -65,7 +138,7 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
       }
       clearInterval(interval)
     }
-  }, [])
+  }, [authUser])
 
   const handleLogout = useCallback(() => {
     logout()
@@ -84,7 +157,7 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     }, 50)
   }, [navigate, location.pathname])
 
-  // Get user role - check multiple sources
+  // Get user role
   let userRole = 'user'
   
   if (user && user.role_type) {
@@ -107,7 +180,7 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const isSeller = userRole === 'seller' || userRole === 'dual'
   const isLandlord = userRole === 'landlord' || userRole === 'dual'
 
-  // ============ SELLER/LANDLORD MENU ITEMS (ONLY - NO BUYER) ============
+  // ============ SELLER/LANDLORD MENU ITEMS ============
   const sellerMenuItems = [
     { id: 'seller-dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'seller-create-listing', label: 'Create Listing', icon: PlusCircle, path: '/create-listing' },
@@ -118,11 +191,11 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     { id: 'seller-settings', label: 'Settings', icon: Settings, path: '/settings' }
   ]
 
-  // ============ ADMIN MENU ITEMS ============
+  // ADMIN MENU ITEMS - ONLY ONE BADGE
   const adminMenuItems = [
     { id: 'admin-dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
     { id: 'admin-users', label: 'User Management', icon: Users, path: '/admin/users' },
-    { id: 'admin-verification', label: 'Verification Queue', icon: UserCheck, path: '/admin/verification-queue' },
+    { id: 'admin-verification', label: 'Verification Queue', icon: UserCheck, path: '/admin/verification-queue', badge: pendingVerifications },
     { id: 'admin-payments', label: 'Payment Approvals', icon: DollarSign, path: '/admin/payments' },
     { id: 'admin-reports', label: 'Reports', icon: TrendingUp, path: '/admin/reports' },
     { id: 'admin-messages', label: 'Messages', icon: MessageSquare, path: '/admin/messages', badge: unreadCount },
@@ -136,7 +209,7 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     { id: 'default-settings', label: 'Settings', icon: Settings, path: '/settings' }
   ]
 
-  // Select menu items based on user role (NO BUYER)
+  // Select menu items based on user role
   let menuItems = []
   let defaultPath = '/'
   
@@ -147,8 +220,6 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     menuItems = sellerMenuItems
     defaultPath = '/dashboard'
   } else {
-    // For any other role (including buyer), show default/dashboard
-    // Buyers should use BuyerLayout with BuyerSidebar, not this sidebar
     menuItems = defaultMenuItems
     defaultPath = '/dashboard'
   }
@@ -166,9 +237,7 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
           const parsedUser = JSON.parse(storedUser)
           userStatus = parsedUser.status || 'pending'
         }
-      } catch (e) {
-        console.error('Error parsing user status:', e)
-      }
+      } catch (e) {}
     }
     
     if (userStatus === 'active') {
@@ -245,6 +314,8 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 (item.path === '/admin/dashboard' && location.pathname.startsWith('/admin')) ||
                 (item.path === '/dashboard/messages' && location.pathname === '/dashboard/messages')
               
+              const hasBadge = item.badge && item.badge > 0
+              
               return (
                 <div
                   key={item.id}
@@ -259,18 +330,21 @@ const AppSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                   onKeyDown={(e) => e.key === 'Enter' && handleNavigation(item.path)}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  {sidebarOpen && (
+                  {sidebarOpen ? (
                     <>
                       <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
-                      {item.badge > 0 && (
-                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-5 text-center">
+                      {hasBadge && (
+                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-5 text-center animate-pulse">
                           {item.badge > 99 ? '99+' : item.badge}
                         </span>
                       )}
                     </>
-                  )}
-                  {!sidebarOpen && item.badge > 0 && (
-                    <span className="absolute right-2 top-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                  ) : (
+                    <>
+                      {hasBadge && (
+                        <span className="absolute right-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                      )}
+                    </>
                   )}
                 </div>
               )

@@ -1,48 +1,77 @@
 // src/components/dashboard/seller/sellerDashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
 import {
   UnorderedListOutlined,
   EyeOutlined,
   ShoppingOutlined,
   HomeOutlined,
-  RiseOutlined,
-  DollarOutlined,
-  BarChartOutlined
 } from '@ant-design/icons';
 
 const SellerDashboard = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
   const [stats, setStats] = useState({
     totalListings: 0,
     activeProperties: 0,
     totalViews: 0,
     rentalUnits: 0
   });
+  const [loading, setLoading] = useState(true);
+  const hasFetchedRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  const fetchStats = async () => {
+    // Prevent multiple calls
+    if (hasFetchedRef.current) {
+      console.log('✅ Already fetched my-listings, skipping...');
+      return;
+    }
+    
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    hasFetchedRef.current = true;
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/listings/my-listings', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok && isMountedRef.current) {
+        const data = await response.json();
+        const listings = data.listings || [];
+        setStats({
+          totalListings: listings.length,
+          activeProperties: listings.filter(l => l.status === 'active').length,
+          totalViews: listings.reduce((sum, l) => sum + (l.views_count || 0), 0),
+          rentalUnits: listings.filter(l => l.listing_type === 'rent').length
+        });
+        console.log('📊 My-listings fetched once:', listings.length);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('http://localhost:8000/api/listings/my-listings', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const listings = data.listings || [];
-          setStats({
-            totalListings: listings.length,
-            activeProperties: listings.filter(l => !l.is_draft && l.status === 'active').length,
-            totalViews: listings.reduce((sum, l) => sum + (l.views_count || 0), 0),
-            rentalUnits: listings.filter(l => l.listing_type === 'rent').length
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      }
+    isMountedRef.current = true;
+    
+    // Fetch once after component mounts
+    const timer = setTimeout(() => {
+      fetchStats();
+    }, 1500);
+    
+    return () => {
+      clearTimeout(timer);
+      isMountedRef.current = false;
     };
-    fetchStats();
-  }, []);
+  }, []); // Empty dependency array - runs ONCE
 
   const StatCard = ({ title, value, icon, color, gradient, onClick }) => (
     <div
@@ -93,7 +122,6 @@ const SellerDashboard = () => {
           {icon}
         </div>
       </div>
-      {/* Decorative element */}
       <div style={{
         position: 'absolute',
         bottom: -20,
@@ -107,9 +135,21 @@ const SellerDashboard = () => {
     </div>
   );
 
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="bg-white rounded-2xl p-6 animate-pulse">
+            <div className="h-10 w-24 bg-gray-200 rounded mb-2"></div>
+            <div className="h-4 w-32 bg-gray-200 rounded"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div>
-      {/* Stats Grid - Beautiful cards */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',

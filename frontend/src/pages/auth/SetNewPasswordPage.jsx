@@ -291,12 +291,6 @@ const SetNewPasswordPage = () => {
             </div>
           </div>
         </div>
-        
-        <div className="mt-6 flex justify-center gap-6">
-          <div className="flex items-center gap-2 text-xs text-gray-400"><Shield className="w-3 h-3" /> Secure</div>
-          <div className="flex items-center gap-2 text-xs text-gray-400"><Shield className="w-3 h-3" /> Fast</div>
-          <div className="flex items-center gap-2 text-xs text-gray-400"><Shield className="w-3 h-3" /> Private</div>
-        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
+# backend/app/routers/listings.py
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_, text
+from sqlalchemy import desc, and_, text, or_
 from typing import Optional, List
 import json
 import os
@@ -40,6 +41,9 @@ class ListingCreate(BaseModel):
     email: Optional[str] = None
     status: str = "draft"
     is_draft: bool = True
+    # Map fields
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 class ListingUpdate(BaseModel):
     title: Optional[str] = None
@@ -63,6 +67,83 @@ class ListingUpdate(BaseModel):
     email: Optional[str] = None
     status: Optional[str] = None
     is_draft: Optional[bool] = None
+    # Map fields
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
+# ============ MAP DATA ENDPOINT - GET ALL PROPERTIES WITH COORDINATES ============
+@router.get("/map-data")
+async def get_map_data(
+    db: Session = Depends(get_db),
+    listing_type: Optional[str] = Query(None, description="Filter by 'sale' or 'rent'")
+):
+    """
+    Get all properties with coordinates for map display
+    """
+    try:
+        print(f"🗺️ Map data request: type={listing_type}")
+        
+        query = db.query(Listing).filter(
+            Listing.is_draft == False,
+            Listing.status == "active"
+        )
+        
+        if listing_type and listing_type in ['sale', 'rent']:
+            query = query.filter(Listing.listing_type == listing_type)
+        
+        # Only get properties that have coordinates
+        listings = query.filter(
+            Listing.latitude.isnot(None),
+            Listing.longitude.isnot(None)
+        ).all()
+        
+        result = []
+        for listing in listings:
+            # Parse images
+            images = []
+            if listing.images:
+                try:
+                    images = json.loads(listing.images) if isinstance(listing.images, str) else listing.images
+                except:
+                    images = []
+            
+            result.append({
+                "id": listing.id,
+                "title": listing.title,
+                "price": listing.price,
+                "listing_type": listing.listing_type,
+                "property_type": listing.property_type,
+                "bedrooms": listing.bedrooms,
+                "bathrooms": listing.bathrooms,
+                "sqft": listing.sqft,
+                "latitude": listing.latitude,
+                "longitude": listing.longitude,
+                "address": listing.address,
+                "city": listing.city,
+                "images": images[:3] if images else [],
+                "featured": listing.featured,
+                "created_at": listing.created_at.isoformat() if listing.created_at else None
+            })
+        
+        print(f"✅ Returning {len(result)} properties for map")
+        
+        return {
+            "success": True,
+            "properties": result,
+            "total": len(result)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching map data: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "properties": [],
+            "total": 0
+        }
 
 
 # ============ FAST PUBLIC ENDPOINT WITH RAW SQL (NO ORM DELAY) ============
@@ -85,7 +166,7 @@ async def get_public_listings_fast(
                 l.property_type, l.bedrooms, l.bathrooms, l.sqft, l.year_built,
                 l.address, l.city, l.region, l.sub_city, l.kebele,
                 l.images, l.cover_image, l.amenities, l.phone_number, l.email,
-                l.views_count, l.featured, l.created_at,
+                l.views_count, l.featured, l.created_at, l.latitude, l.longitude,
                 u.id as owner_id, u.full_name as owner_name, u.phone as owner_phone
             FROM listings l
             LEFT JOIN users u ON l.user_id = u.id
@@ -118,7 +199,7 @@ async def get_public_listings_fast(
             for row in rows:
                 # Parse images JSON
                 images = []
-                if row[15]:  # images column
+                if row[15]:
                     try:
                         images = json.loads(row[15]) if isinstance(row[15], str) else row[15]
                     except:
@@ -126,7 +207,7 @@ async def get_public_listings_fast(
                 
                 # Parse amenities JSON
                 amenities = []
-                if row[17]:  # amenities column
+                if row[17]:
                     try:
                         amenities = json.loads(row[17]) if isinstance(row[17], str) else row[17]
                     except:
@@ -156,11 +237,13 @@ async def get_public_listings_fast(
                     "views_count": row[20] or 0,
                     "featured": row[21] or False,
                     "created_at": row[22].isoformat() if row[22] else None,
+                    "latitude": float(row[23]) if row[23] else None,
+                    "longitude": float(row[24]) if row[24] else None,
                     "owner": {
-                        "id": row[23],
-                        "name": row[24],
-                        "phone": row[25]
-                    } if row[23] else None
+                        "id": row[25],
+                        "name": row[26],
+                        "phone": row[27]
+                    } if row[25] else None
                 })
             
             print(f"✅ Returning {len(listings)} fast public listings")
@@ -258,6 +341,8 @@ async def get_public_listings(
                 "email": listing.email,
                 "views_count": listing.views_count,
                 "featured": listing.featured,
+                "latitude": listing.latitude,
+                "longitude": listing.longitude,
                 "created_at": listing.created_at.isoformat() if listing.created_at else None,
                 "owner": {
                     "id": owner.id if owner else None,
@@ -351,6 +436,8 @@ async def get_public_listing(
             "email": listing.email,
             "views_count": listing.views_count,
             "featured": listing.featured,
+            "latitude": listing.latitude,
+            "longitude": listing.longitude,
             "created_at": listing.created_at.isoformat() if listing.created_at else None,
             "owner": {
                 "id": owner.id if owner else None,
@@ -376,6 +463,66 @@ async def get_all_public_listings(
     listing_type: Optional[str] = Query(None, description="Filter by 'sale' or 'rent'")
 ):
     return await get_public_listings(db, limit, offset, listing_type)
+
+
+# ============ SEARCH LISTINGS ============
+@router.get("/search")
+async def search_listings(
+    q: str = Query(..., description="Search query"),
+    db: Session = Depends(get_db),
+    limit: int = Query(20, description="Number of results"),
+    listing_type: Optional[str] = Query(None)
+):
+    try:
+        query = db.query(Listing).filter(
+            Listing.is_draft == False,
+            Listing.status == "active",
+            or_(
+                Listing.title.ilike(f"%{q}%"),
+                Listing.description.ilike(f"%{q}%"),
+                Listing.city.ilike(f"%{q}%"),
+                Listing.address.ilike(f"%{q}%")
+            )
+        )
+        
+        if listing_type and listing_type in ['sale', 'rent']:
+            query = query.filter(Listing.listing_type == listing_type)
+        
+        listings = query.order_by(desc(Listing.created_at)).limit(limit).all()
+        
+        result = []
+        for listing in listings:
+            images = []
+            if listing.images:
+                try:
+                    images = json.loads(listing.images) if isinstance(listing.images, str) else listing.images
+                except:
+                    images = []
+            
+            result.append({
+                "id": listing.id,
+                "title": listing.title,
+                "price": listing.price,
+                "listing_type": listing.listing_type,
+                "property_type": listing.property_type,
+                "bedrooms": listing.bedrooms,
+                "bathrooms": listing.bathrooms,
+                "sqft": listing.sqft,
+                "latitude": listing.latitude,
+                "longitude": listing.longitude,
+                "city": listing.city,
+                "images": images[:1] if images else []
+            })
+        
+        return {
+            "success": True,
+            "results": result,
+            "total": len(result)
+        }
+        
+    except Exception as e:
+        print(f"Error searching listings: {e}")
+        return {"success": False, "results": [], "total": 0}
 
 
 # ============ IMAGE UPLOAD ============
@@ -468,6 +615,8 @@ async def create_listing(
             amenities=amenities_value,
             phone_number=listing_data.phone_number,
             email=listing_data.email,
+            latitude=listing_data.latitude,
+            longitude=listing_data.longitude,
             videos=None,
             documents=None,
             views_count=0,
@@ -539,6 +688,8 @@ async def get_my_listings(
                 "address": l.address,
                 "city": l.city,
                 "region": l.region,
+                "latitude": l.latitude,
+                "longitude": l.longitude,
                 "is_draft": l.is_draft,
                 "created_at": l.created_at.isoformat() if l.created_at else None
             })
@@ -596,7 +747,9 @@ async def get_listing(
             "email": listing.email,
             "status": listing.status,
             "is_draft": listing.is_draft,
-            "views_count": listing.views_count
+            "views_count": listing.views_count,
+            "latitude": listing.latitude,
+            "longitude": listing.longitude
         }
         
     except HTTPException:

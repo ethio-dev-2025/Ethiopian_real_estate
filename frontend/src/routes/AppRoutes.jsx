@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import SellerLayout from '../components/layout/SellerLayout';
 import BuyerLayout from '../components/layout/BuyerLayout';
+import AdminLayout from '../components/layout/AdminLayout';
 
 // IMPORTANT: Import ALL buyer components directly (NOT lazy) for instant loading
 import BuyerDashboard from '../components/dashboard/buyer/BuyerDashboard';
@@ -14,11 +15,22 @@ import BuyerSaved from '../components/dashboard/buyer/BuyerSaved';
 // Common Settings Component
 import Settings from '../components/dashboard/common/Settings';
 
-// Admin Component
+// Admin Components - Import directly (not lazy) for instant loading
 import AdminDashboard from '../components/dashboard/admin/AdminDashboard';
+import DashboardOverview from '../components/dashboard/admin/DashboardOverview';
+import UserManagement from '../components/dashboard/admin/UserManagement';
+import VerificationQueue from '../components/dashboard/admin/VerificationQueue';
+import PaymentApprovals from '../components/dashboard/admin/PaymentApprovals';
+import ReportsAnalytics from '../components/dashboard/admin/ReportsAnalytics';
+import AdminMessages from '../components/dashboard/admin/AdminMessages';
+import AdminSettings from '../components/dashboard/admin/AdminSettings';
 
 // Payment Success Page
 import PaymentSuccessPage from '../pages/PaymentSuccessPage';
+
+// Map Test Pages - Import directly (not lazy) for public access
+import SimpleMapTest from '../pages/SimpleMapTest';
+import MapTestPage from '../pages/MapTestPage';
 
 // Seller Components
 const SellerDashboard = lazy(() => import('../components/dashboard/seller/sellerDashboard'));
@@ -34,7 +46,7 @@ const SellerDocumentVerification = lazy(() => import('../components/dashboard/se
 // Common Components
 const Notifications = lazy(() => import('../components/common/Notifications'));
 const RoleSelectionModal = lazy(() => import('../components/common/RoleSelectionModal'));
- 
+
 // Auth pages
 const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
@@ -136,11 +148,12 @@ const AppRoutes = () => {
     );
   }
 
-  // NOT AUTHENTICATED - PUBLIC ROUTES
+  // ============ PUBLIC ROUTES (NOT AUTHENTICATED) ============
   if (!isAuthenticated) {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
         <Routes>
+          {/* Public pages */}
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
@@ -148,6 +161,12 @@ const AppRoutes = () => {
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/properties" element={<PropertiesPage />} />
           <Route path="/properties/:id" element={<PropertyDetailPage />} />
+          
+          {/* Map test routes - PUBLIC ACCESS */}
+          <Route path="/simple-map" element={<SimpleMapTest />} />
+          <Route path="/map-test" element={<MapTestPage />} />
+          
+          {/* Auth routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -156,13 +175,15 @@ const AppRoutes = () => {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/buyer/login" element={<BuyerLoginPage />} />
           <Route path="/buyer/register" element={<BuyerRegisterPage />} />
+          
+          {/* Catch all - redirect to home */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Suspense>
     );
   }
 
-  // AUTHENTICATED - ROLE SELECTION
+  // ============ AUTHENTICATED - ROLE SELECTION ============
   if (!hasSelectedRole) {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -174,7 +195,28 @@ const AppRoutes = () => {
   const normalizedRole = String(role).toLowerCase();
   console.log('Normalized role for routing:', normalizedRole);
 
-  // SELLER ROUTES
+  // ============ ADMIN ROUTES - FULLY CONFIGURED ============
+  if (normalizedRole === 'admin') {
+    return (
+      <AdminLayout>
+        <Routes>
+          <Route path="/" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin" element={<DashboardOverview />} />
+          <Route path="/admin/dashboard" element={<DashboardOverview />} />
+          <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/admin/verification-queue" element={<VerificationQueue />} />
+          <Route path="/admin/payment-approvals" element={<PaymentApprovals />} />
+          <Route path="/admin/reports" element={<ReportsAnalytics />} />
+          <Route path="/admin/messages" element={<AdminMessages />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Routes>
+      </AdminLayout>
+    );
+  }
+
+  // ============ SELLER ROUTES ============
   if (normalizedRole === 'seller' || normalizedRole === 'landlord' || normalizedRole === 'dual') {
     return (
       <SellerLayout>
@@ -204,32 +246,19 @@ const AppRoutes = () => {
     );
   }
 
-  // ADMIN ROUTES
-  if (normalizedRole === 'admin') {
-    return (
-      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
-        <Routes>
-          <Route path="/" element={<Navigate to="/admin" />} />
-          <Route path="/admin/*" element={<AdminDashboard />} />
-          <Route path="*" element={<Navigate to="/admin" />} />
-        </Routes>
-      </Suspense>
-    );
-  }
-
-  // BUYER ROUTES
+  // ============ BUYER ROUTES ============
   if (normalizedRole === 'buyer') {
     return (
       <BuyerLayout>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard/buyer" />} />
-          <Route path="/dashboard/buyer/messages/:conversationId" element={<BuyerMessages />} />
+          <Route path="/dashboard/buyer" element={<BuyerDashboard />} />
           <Route path="/dashboard/buyer/messages" element={<BuyerMessages />} />
+          <Route path="/dashboard/buyer/messages/:conversationId" element={<BuyerMessages />} />
           <Route path="/dashboard/buyer/properties" element={<BuyerProperties />} />
           <Route path="/dashboard/buyer/saved" element={<BuyerSaved />} />
           <Route path="/dashboard/buyer/settings" element={<Settings />} />
           <Route path="/dashboard/buyer/notifications" element={<Notifications />} />
-          <Route path="/dashboard/buyer" element={<BuyerDashboard />} />
           <Route path="/properties" element={<PropertiesPage />} />
           <Route path="/properties/:id" element={<PropertyDetailPage />} />
           <Route path="/about" element={<AboutPage />} />

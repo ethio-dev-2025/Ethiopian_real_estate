@@ -1,10 +1,11 @@
+// src/components/layout/AdminSidebar.jsx
 import React, { useState, useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { 
   Building2, LayoutDashboard, Users, FileCheck, 
   CreditCard, MessageCircle, Settings, LogOut,
   Menu, X, BarChart3, User, ChevronDown, ChevronUp,
-  Activity, Bell, Shield, Award, TrendingUp
+  Activity, Bell, Home, Shield, DollarSign
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -16,23 +17,41 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
   const [user, setUser] = useState(null)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0)
+  const [isMobile, setIsMobile] = useState(false)
 
-  // Fetch pending activation requests count for badge
-  const fetchPendingCount = async () => {
+  const fetchPendingCounts = async () => {
     try {
       const token = localStorage.getItem('access_token')
       if (!token) return
       
-      const response = await fetch(`${API_URL}/api/activation/pending-count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      // Fetch pending verifications
+      try {
+        const verifyResponse = await fetch(`${API_URL}/api/activation/admin/pending-count`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (verifyResponse.ok) {
+          const data = await verifyResponse.json()
+          setPendingCount(data.count || 0)
+        }
+      } catch (e) {
+        console.error('Error fetching pending count:', e)
+      }
       
-      if (response.ok) {
-        const data = await response.json()
-        setPendingCount(data.count || 0)
+      // Fetch pending payments
+      try {
+        const paymentResponse = await fetch(`${API_URL}/api/activation/admin/pending-payments`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (paymentResponse.ok) {
+          const payments = await paymentResponse.json()
+          setPendingPaymentsCount(Array.isArray(payments) ? payments.length : 0)
+        }
+      } catch (e) {
+        console.error('Error fetching payments:', e)
       }
     } catch (error) {
-      console.error('Error fetching pending count:', error)
+      console.error('Error fetching counts:', error)
     }
   }
 
@@ -46,19 +65,24 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
       }
     }
     
-    // Fetch pending count on mount
-    fetchPendingCount()
+    fetchPendingCounts()
+    const interval = setInterval(fetchPendingCounts, 30000)
     
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchPendingCount, 30000)
-    return () => clearInterval(interval)
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('resize', checkMobile)
+    }
   }, [])
 
   const menuItems = [
     { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true, badge: 0 },
     { path: '/admin/users', label: 'User Management', icon: Users, badge: 0 },
     { path: '/admin/verification-queue', label: 'Verification Queue', icon: FileCheck, badge: pendingCount },
-    { path: '/admin/payment-approvals', label: 'Payment Approvals', icon: CreditCard, badge: 0 },
+    { path: '/admin/payment-approvals', label: 'Payment Approvals', icon: CreditCard, badge: pendingPaymentsCount },
     { path: '/admin/reports', label: 'Reports & Analytics', icon: BarChart3, badge: 0 },
     { path: '/admin/messages', label: 'Messages', icon: MessageCircle, badge: unreadCount },
     { path: '/admin/settings', label: 'Settings', icon: Settings, badge: 0 }
@@ -71,32 +95,41 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     navigate('/login')
   }
 
+  const getUserName = () => {
+    if (user?.full_name) return user.full_name
+    if (user?.username) return user.username
+    return 'Admin'
+  }
+
   return (
     <>
-      {/* Mobile menu button */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-blue-600 text-white rounded-lg shadow-lg"
-      >
-        {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </button>
-
-      {/* Sidebar */}
-      <div className={`fixed left-0 top-0 h-full bg-gradient-to-b from-gray-900 to-gray-800 text-white transition-all duration-300 z-40 shadow-xl flex flex-col ${sidebarOpen ? 'w-64' : 'w-20'}`}>
-        {/* Logo - Top */}
+      {/* Mobile overlay */}
+      {isMobile && sidebarOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-30" onClick={() => setSidebarOpen(false)} />
+      )}
+      
+      <aside className={`fixed left-0 top-0 h-full bg-gradient-to-b from-gray-900 to-gray-800 text-white transition-all duration-300 z-40 shadow-xl flex flex-col ${sidebarOpen ? 'w-64' : 'w-20'} ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}`}>
+        {/* Logo */}
         <div className="p-5 border-b border-gray-700">
-          <div className="flex items-center gap-3">
-            <Building2 className="w-8 h-8 text-blue-400 flex-shrink-0" />
-            {sidebarOpen && (
-              <div className="overflow-hidden">
-                <h1 className="font-bold text-lg">EstateHub</h1>
-                <p className="text-xs text-gray-400">Real Estate Pro</p>
-              </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/admin')}>
+              <Building2 className="w-8 h-8 text-blue-400 flex-shrink-0" />
+              {sidebarOpen && (
+                <div className="overflow-hidden">
+                  <h1 className="font-bold text-lg">EstateHub</h1>
+                  <p className="text-xs text-gray-400">Admin Portal</p>
+                </div>
+              )}
+            </div>
+            {!isMobile && (
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-gray-700 transition">
+                {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
             )}
           </div>
         </div>
 
-        {/* Navigation Menu - Middle (grows to fill space) */}
+        {/* Navigation Menu */}
         <nav className="flex-1 py-4 overflow-y-auto">
           <div className="px-3 mb-2">
             {sidebarOpen && <p className="text-xs text-gray-500 uppercase tracking-wider">Main Menu</p>}
@@ -141,29 +174,20 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
           })}
         </nav>
 
-        {/* User Account Section - Bottom */}
+        {/* Bottom Section */}
         <div className="border-t border-gray-700">
-          {/* Collapse Button */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full flex items-center gap-3 px-5 py-3 text-gray-400 hover:text-white transition-colors hover:bg-gray-800"
-          >
-            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            {sidebarOpen && <span className="text-sm">Collapse Menu</span>}
-          </button>
-
-          {/* User Profile */}
+          {/* User Info */}
           <div className="p-3">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-800 transition-colors"
             >
               <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0">
-                {user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'A'}
+                {getUserName().charAt(0).toUpperCase()}
               </div>
               {sidebarOpen && (
                 <div className="flex-1 text-left">
-                  <p className="font-semibold text-sm truncate">{user?.full_name || user?.username || 'Admin'}</p>
+                  <p className="font-semibold text-sm truncate">{getUserName()}</p>
                   <p className="text-xs text-gray-400">Administrator</p>
                 </div>
               )}
@@ -174,10 +198,18 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
               )}
             </button>
             
-            {/* User Dropdown Menu */}
             {userMenuOpen && sidebarOpen && (
               <div className="mt-2 pl-12 space-y-1">
-                <button className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2">
+                <button 
+                  onClick={() => { navigate('/admin/settings'); setUserMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Settings className="w-4 h-4" /> Settings
+                </button>
+                <button 
+                  onClick={() => { navigate('/admin/profile'); setUserMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
+                >
                   <User className="w-4 h-4" /> Profile
                 </button>
                 <button className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2">
@@ -201,7 +233,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
             </button>
           </div>
         </div>
-      </div>
+      </aside>
     </>
   )
 }

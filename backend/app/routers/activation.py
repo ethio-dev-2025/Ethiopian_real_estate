@@ -1,6 +1,6 @@
-# app/routers/activation.py
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Optional, List
 import json
 import os
@@ -11,7 +11,6 @@ from ..database import get_db
 from ..models import User, ActivationRequest, ActivationStatus
 from .auth import get_current_user, get_current_admin_user
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -119,7 +118,6 @@ async def submit_activation_request(
     db: Session = Depends(get_db)
 ):
     try:
-        # Check for existing pending request
         existing_request = db.query(ActivationRequest).filter(
             ActivationRequest.user_id == current_user.id,
             ActivationRequest.status.in_([
@@ -155,6 +153,12 @@ async def submit_activation_request(
         )
         
         db.add(activation_request)
+        
+        if current_user.role_type in ['seller', 'dual']:
+            current_user.seller_documents_submitted = True
+        if current_user.role_type in ['landlord', 'dual']:
+            current_user.landlord_documents_submitted = True
+        
         db.commit()
         db.refresh(activation_request)
         
@@ -179,7 +183,6 @@ async def get_activation_status(
     db: Session = Depends(get_db)
 ):
     try:
-        # First check if user is a buyer - buyers are always activated
         if current_user.role_type == 'buyer':
             return {
                 "is_activated": True,
@@ -188,7 +191,6 @@ async def get_activation_status(
                 "can_create_listings": False
             }
         
-        # Check if fully activated
         if current_user.can_create_listings and current_user.is_activated and current_user.payment_approved:
             return {
                 "is_activated": True, 
@@ -197,7 +199,6 @@ async def get_activation_status(
                 "can_create_listings": True
             }
         
-        # Get the latest activation request
         activation_request = db.query(ActivationRequest).filter(
             ActivationRequest.user_id == current_user.id
         ).order_by(ActivationRequest.created_at.desc()).first()
@@ -210,7 +211,6 @@ async def get_activation_status(
                 "can_create_listings": False
             }
         
-        # Map status to response
         status_map = {
             ActivationStatus.DOCUMENTS_PENDING: {
                 "status": "documents_pending",
@@ -260,12 +260,23 @@ async def get_pending_document_requests(
     db: Session = Depends(get_db)
 ):
     try:
+        # Use string comparison - now works since status is String type
         requests = db.query(ActivationRequest).filter(
-            ActivationRequest.status == ActivationStatus.DOCUMENTS_PENDING
+            ActivationRequest.status == "documents_pending"
         ).order_by(ActivationRequest.created_at.desc()).all()
+        
+        print(f"📊 Found {len(requests)} pending document requests")
         
         result = []
         for req in requests:
+            property_photos = req.property_photos
+            if property_photos:
+                try:
+                    if isinstance(property_photos, str):
+                        property_photos = json.loads(property_photos)
+                except:
+                    pass
+            
             result.append({
                 "id": req.id,
                 "user_id": req.user_id,
@@ -280,8 +291,75 @@ async def get_pending_document_requests(
                 "title_deed": req.title_deed,
                 "tax_clearance": req.tax_clearance,
                 "government_id": req.government_id,
+                "property_photos": property_photos,
                 "created_at": req.created_at.isoformat() if req.created_at else None,
-                "status": "documents_pending"
+                "status": req.status
+            })
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error in pending-documents: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+# ============ ADMIN: GET PENDING COUNT ============
+@router.get("/admin/pending-count")
+async def get_admin_pending_count(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        count = db.query(ActivationRequest).filter(
+            ActivationRequest.status == "documents_pending"
+        ).count()
+        print(f"📊 Pending count for sidebar: {count}")
+        return {"count": count}
+    except Exception as e:
+        print(f"Error getting pending count: {e}")
+        return {"count": 0}
+
+
+# ============ ADMIN: GET ALL PAYMENTS ============
+@router.get("/admin/payments")
+async def get_all_payments(
+    status: str = "all",
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        query = db.query(ActivationRequest)
+        
+        if status == "pending":
+            query = query.filter(ActivationRequest.status == "payment_pending")
+        elif status == "approved":
+            query = query.filter(ActivationRequest.status == "fully_activated")
+        elif status == "rejected":
+            query = query.filter(ActivationRequest.status == "rejected")
+        
+        requests = query.order_by(ActivationRequest.created_at.desc()).all()
+        
+        result = []
+        for req in requests:
+            user = db.query(User).filter(User.id == req.user_id).first()
+            
+            result.append({
+                "id": req.id,
+                "user_id": req.user_id,
+                "full_name": req.full_name,
+                "email": req.email,
+                "phone_number": req.phone_number,
+                "plan_type": req.plan_type,
+                "payment_amount": req.payment_amount,
+                "payment_receipt": req.payment_receipt,
+                "payment_transaction_id": req.payment_transaction_id,
+                "status": req.status,
+                "rejection_reason": req.rejection_reason,
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+                "user_name": user.full_name if user else req.full_name,
+                "user_email": user.email if user else req.email
             })
         
         return result
@@ -345,8 +423,9 @@ async def get_all_payments(
         
         result = []
         for req in requests:
-            # Get user info
             user = db.query(User).filter(User.id == req.user_id).first()
+            
+            status_value = req.status.value if hasattr(req.status, 'value') else str(req.status)
             
             result.append({
                 "id": req.id,
@@ -358,7 +437,7 @@ async def get_all_payments(
                 "payment_amount": req.payment_amount,
                 "payment_receipt": req.payment_receipt,
                 "payment_transaction_id": req.payment_transaction_id,
-                "status": req.status.value if req.status else "pending",
+                "status": status_value,
                 "rejection_reason": req.rejection_reason,
                 "created_at": req.created_at.isoformat() if req.created_at else None,
                 "user_name": user.full_name if user else req.full_name,
@@ -393,6 +472,12 @@ async def approve_documents(
         activation_request.status = ActivationStatus.DOCUMENTS_APPROVED
         activation_request.reviewed_by = current_user.id
         activation_request.reviewed_at = datetime.utcnow()
+        
+        user = db.query(User).filter(User.id == activation_request.user_id).first()
+        if user:
+            user.is_verified = True
+            user.documents_approved = True
+            user.documents_approved_at = datetime.utcnow()
         
         db.commit()
         
@@ -462,7 +547,6 @@ async def approve_payment(
         activation_request.payment_approved_by = current_user.id
         activation_request.payment_approved_at = datetime.utcnow()
         
-        # Update user to fully activated
         user = db.query(User).filter(User.id == activation_request.user_id).first()
         if user:
             user.is_activated = True
@@ -474,7 +558,6 @@ async def approve_payment(
             user.activated_at = datetime.utcnow()
             user.status = "active"
             
-            # Set role based on plan
             if activation_request.plan_type == 'seller':
                 user.role_type = 'seller'
                 user.seller_enabled = True
@@ -583,13 +666,10 @@ async def get_user_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's activation status for sidebar display"""
     try:
-        # Check if fully activated
         if current_user.can_create_listings and current_user.is_activated and current_user.payment_approved:
             return {"status": "active", "message": "Account fully activated"}
         
-        # Check if payment is pending
         activation_request = db.query(ActivationRequest).filter(
             ActivationRequest.user_id == current_user.id,
             ActivationRequest.status == ActivationStatus.PAYMENT_PENDING
@@ -598,7 +678,6 @@ async def get_user_status(
         if activation_request:
             return {"status": "pending", "message": "Payment under review"}
         
-        # Check if documents are approved
         activation_request = db.query(ActivationRequest).filter(
             ActivationRequest.user_id == current_user.id,
             ActivationRequest.status == ActivationStatus.DOCUMENTS_APPROVED
@@ -607,7 +686,6 @@ async def get_user_status(
         if activation_request:
             return {"status": "pending", "message": "Documents approved. Please subscribe"}
         
-        # Check if documents are pending
         activation_request = db.query(ActivationRequest).filter(
             ActivationRequest.user_id == current_user.id,
             ActivationRequest.status == ActivationStatus.DOCUMENTS_PENDING
@@ -623,20 +701,58 @@ async def get_user_status(
         return {"status": "pending", "message": "Unknown status"}
 
 
-# ============ GET PENDING COUNT (for sidebar badge) ============
-@router.get("/pending-count")
-async def get_pending_count(
-    current_user: User = Depends(get_current_user),
+# ============ ADMIN: GET PENDING COUNT FOR SIDEBAR ============
+@router.get("/admin/pending-count")
+async def get_admin_pending_count(
+    current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
     try:
-        if current_user.role_type == "admin":
-            count = db.query(ActivationRequest).filter(
-                ActivationRequest.status == ActivationStatus.DOCUMENTS_PENDING
-            ).count()
-            return {"count": count}
-        else:
-            return {"count": 0}
+        # Use string comparison to avoid enum issues
+        count = db.query(ActivationRequest).filter(
+            func.lower(ActivationRequest.status) == 'documents_pending'
+        ).count()
+        print(f"📊 Pending count for sidebar: {count}")
+        return {"count": count}
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error getting pending count: {e}")
         return {"count": 0}
+
+
+# ============ ADMIN: REJECT DOCUMENT REQUEST ============
+@router.post("/admin/reject/{request_id}")
+async def reject_document_request(
+    request_id: int,
+    rejection_data: RejectRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        activation_request = db.query(ActivationRequest).filter(
+            ActivationRequest.id == request_id
+        ).first()
+        
+        if not activation_request:
+            raise HTTPException(status_code=404, detail="Activation request not found")
+        
+        if activation_request.status != ActivationStatus.DOCUMENTS_PENDING:
+            raise HTTPException(status_code=400, detail="This request is not in pending state")
+        
+        activation_request.status = ActivationStatus.REJECTED
+        activation_request.rejection_reason = rejection_data.rejection_reason
+        activation_request.reviewed_by = current_user.id
+        activation_request.reviewed_at = datetime.utcnow()
+        
+        db.commit()
+        
+        return {"success": True, "message": "Request rejected successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error rejecting request: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+print("✅ Activation router loaded successfully!")

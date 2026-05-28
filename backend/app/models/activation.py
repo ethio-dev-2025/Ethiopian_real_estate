@@ -1,5 +1,4 @@
-# app/models/activation.py
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Enum, Float, Index
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, Index
 from sqlalchemy.sql import func
 from ..database import Base
 import enum
@@ -42,15 +41,15 @@ class ActivationRequest(Base):
     reason_for_activation = Column(Text, nullable=True)
     
     # ========== PAYMENT FIELDS ==========
-    plan_type = Column(String(50), nullable=True)  # seller, landlord, dual
+    plan_type = Column(String(50), nullable=True)
     payment_amount = Column(Float, nullable=True)
     payment_receipt = Column(String(500), nullable=True)
     payment_transaction_id = Column(String(255), nullable=True)
     payment_approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     payment_approved_at = Column(DateTime(timezone=True), nullable=True)
     
-    # ========== STATUS FIELDS ==========
-    status = Column(Enum(ActivationStatus), default=ActivationStatus.DOCUMENTS_PENDING)
+    # ========== STATUS FIELDS - CHANGE FROM Enum TO String ==========
+    status = Column(String(50), default="documents_pending")  # Changed from Enum to String
     rejection_reason = Column(Text, nullable=True)
     reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)

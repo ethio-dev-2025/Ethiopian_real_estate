@@ -1,5 +1,5 @@
 // src/pages/auth/LoginPage.jsx
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { 
@@ -15,13 +15,15 @@ const API_URL = 'http://localhost:8000'
 const LoginPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { setAuthData, refreshUser } = useAuth()
+  const { setAuthData, isInitialized } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [error, setError] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
+  const isProcessingRef = useRef(false)
+  const googleProcessedRef = useRef(false)
 
   const returnTo = location.state?.returnTo
   const openContact = location.state?.openContact
@@ -45,18 +47,21 @@ const LoginPage = () => {
 
   const redirectToDashboard = (role) => {
     if (role === 'seller' || role === 'landlord' || role === 'dual') {
-      navigate('/dashboard')
+      window.location.href = '/dashboard'
     } else if (role === 'buyer') {
-      navigate('/dashboard/buyer')
+      window.location.href = '/dashboard/buyer'
     } else if (role === 'admin') {
-      navigate('/admin/dashboard')
+      window.location.href = '/admin/dashboard'
     } else {
-      navigate('/dashboard')
+      window.location.href = '/dashboard'
     }
   }
 
   const handleGoogleSuccess = async (credentialResponse) => {
-    if (isLoggingIn) return
+    // Prevent multiple processing
+    if (isProcessingRef.current || isLoggingIn || googleProcessedRef.current) return
+    
+    isProcessingRef.current = true
     setIsLoggingIn(true)
     
     const loadingToast = toast.loading('Authenticating with Google...')
@@ -82,36 +87,50 @@ const LoginPage = () => {
       if (response.ok && data.success) {
         const userRole = data.user.role_type || 'dual'
         
+        // Mark as processed to prevent duplicate
+        googleProcessedRef.current = true
+        
+        // Clear any existing data first
+        localStorage.clear()
+        
+        // Set new auth data
+        localStorage.setItem('access_token', data.access_token)
+        localStorage.setItem('user', JSON.stringify(data.user))
+        localStorage.setItem('user_role', userRole)
+        localStorage.setItem('role_selected', 'true')
+        
         setAuthData(data.access_token, data.user)
         
         toast.dismiss(loadingToast)
         toast.success(`Welcome, ${data.user.full_name || data.user.username}!`)
         
+        // Force hard redirect to prevent any additional API calls
         redirectToDashboard(userRole)
-        
-        setTimeout(() => {
-          refreshUser().catch(console.error)
-        }, 500)
       } else {
         toast.dismiss(loadingToast)
         toast.error(data.message || data.detail || 'Google authentication failed')
         setIsLoggingIn(false)
+        isProcessingRef.current = false
       }
     } catch (error) {
       console.error('Google auth error:', error)
       toast.dismiss(loadingToast)
       toast.error('Failed to authenticate with Google. Please try again.')
       setIsLoggingIn(false)
+      isProcessingRef.current = false
     }
   }
 
   const handleGoogleError = () => {
     toast.error('Google login failed. Please try again.')
     setIsLoggingIn(false)
+    isProcessingRef.current = false
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    if (isProcessingRef.current || isLoggingIn) return
     
     if (!email || !password) {
       setError('Please enter both email and password')
@@ -119,7 +138,7 @@ const LoginPage = () => {
       return
     }
     
-    if (isLoggingIn) return
+    isProcessingRef.current = true
     setIsLoggingIn(true)
     setError('')
     
@@ -143,6 +162,15 @@ const LoginPage = () => {
       
       const userRole = data.user.role_type
       
+      // Clear existing data
+      localStorage.clear()
+      
+      // Set new auth data
+      localStorage.setItem('access_token', data.access_token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+      localStorage.setItem('user_role', userRole)
+      localStorage.setItem('role_selected', 'true')
+      
       setAuthData(data.access_token, data.user)
       
       if (rememberMe) {
@@ -158,11 +186,8 @@ const LoginPage = () => {
       toast.dismiss(loadingToast)
       toast.success(`Welcome back, ${data.user.full_name || data.user.username}!`)
       
+      // Force hard redirect
       redirectToDashboard(userRole)
-      
-      setTimeout(() => {
-        refreshUser().catch(console.error)
-      }, 500)
       
     } catch (err) {
       toast.dismiss(loadingToast)
@@ -175,12 +200,12 @@ const LoginPage = () => {
       setError(errorMessage)
       toast.error(errorMessage)
       setIsLoggingIn(false)
+      isProcessingRef.current = false
     }
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-      {/* Back to Home Button - Top Left Corner */}
       <button
         onClick={() => navigate('/')}
         className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl text-gray-700 hover:bg-white transition-all duration-300 border border-gray-200 shadow-sm group"
@@ -191,7 +216,6 @@ const LoginPage = () => {
 
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Header - Green/TEAL gradient */}
           <div className="bg-gradient-to-r from-teal-600 to-emerald-600 p-6 text-center">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
               <Building2 className="w-8 h-8 text-white" />
@@ -200,7 +224,6 @@ const LoginPage = () => {
             <p className="text-teal-100 text-sm mt-1">Sign in to your account</p>
           </div>
 
-          {/* Form */}
           <div className="p-6">
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">

@@ -1,4 +1,3 @@
-# backend/app/routers/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -132,7 +131,7 @@ async def get_current_buyer_user(current_user: User = Depends(get_current_user))
         raise HTTPException(status_code=403, detail="Buyer access required")
     return current_user
 
-# ============ REGISTER ENDPOINT ============
+# ============ REGISTER ENDPOINT - FIXED ============
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     try:
@@ -153,11 +152,14 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             is_activated = True
             can_create_listings = True
             payment_approved = True
+            is_verified = True
         else:
-            user_status = "pending" if not is_test else "active"
-            is_activated = is_test
+            # SELLERS, LANDLORDS, DUAL - MUST be approved by admin
+            user_status = "pending"
+            is_activated = False
             can_create_listings = False
             payment_approved = False
+            is_verified = False  # FIXED: was True, now False
         
         db_user = User(
             email=user_data.email,
@@ -168,15 +170,15 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             role_type=user_role,
             status=user_status,
             is_active=True,
-            is_verified=True,
+            is_verified=is_verified,
             is_activated=is_activated,
             can_create_listings=can_create_listings,
             payment_approved=payment_approved,
-            seller_enabled=False if user_role != 'buyer' else True,
-            seller_approved=False if user_role != 'buyer' else True,
+            seller_enabled=False,
+            seller_approved=False,
             seller_paid=False,
-            landlord_enabled=False if user_role != 'buyer' else True,
-            landlord_approved=False if user_role != 'buyer' else True,
+            landlord_enabled=False,
+            landlord_approved=False,
             landlord_paid=False,
             avatar_url=None
         )
@@ -213,16 +215,14 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# ============ LOGIN ENDPOINT - FIXED ============
+# ============ LOGIN ENDPOINT ============
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
         print(f"🔐 Login attempt for: {login_data.email}")
         
-        # Find user by email first
         user = db.query(User).filter(User.email == login_data.email).first()
         
-        # If not found, try by username
         if not user:
             user = db.query(User).filter(User.username == login_data.email).first()
         
@@ -230,7 +230,6 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
             print(f"❌ User not found: {login_data.email}")
             return {"success": False, "error": "Invalid email/username or password"}
         
-        # Verify password
         password_valid = verify_password(login_data.password, user.hashed_password)
         
         if not password_valid:
@@ -239,10 +238,8 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         
         print(f"✅ Login successful for: {user.email}")
         
-        # Update last login
         user.last_login = datetime.utcnow()
         
-        # Update test user status
         if is_test_user(user.email):
             user.status = "active"
             user.is_active = True
@@ -254,7 +251,6 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
         
-        # Create access token
         access_token = create_access_token(data={"sub": user.email})
         
         return {
@@ -314,7 +310,7 @@ async def get_current_user_endpoint(current_user: User = Depends(get_current_use
         "bio": current_user.bio
     }
 
-# ============ GOOGLE OAUTH ENDPOINT ============
+# ============ GOOGLE OAUTH ENDPOINT - FIXED ============
 @router.post("/google-auth")
 async def google_auth(
     auth_data: GoogleAuthRequest,
@@ -328,7 +324,6 @@ async def google_auth(
         full_name = None
         picture = None
         
-        # Try different verification methods
         if GOOGLE_AUTH_AVAILABLE:
             try:
                 idinfo = id_token.verify_oauth2_token(
@@ -343,7 +338,6 @@ async def google_auth(
             except Exception as e:
                 print(f"⚠️ Library verification failed: {e}")
         
-        # Fallback: Manual JWT decode
         if not email:
             try:
                 import jwt
@@ -362,14 +356,11 @@ async def google_auth(
         if not email:
             return {"success": False, "message": "Email not provided by Google"}
         
-        # Always use 'dual' role for Google login
         user_role = "dual"
         
-        # Check if user exists
         user = db.query(User).filter(User.email == email).first()
         
         if not user:
-            # Create new user with dual role
             username = email.split('@')[0]
             base_username = username
             counter = 1
@@ -380,6 +371,7 @@ async def google_auth(
             random_password = secrets.token_urlsafe(16)
             hashed_password = get_password_hash(random_password)
             
+            # FIXED: For Google users, is_verified = False (admin must approve documents)
             user = User(
                 email=email,
                 username=username,
@@ -389,7 +381,7 @@ async def google_auth(
                 role_type="dual",
                 status="pending",
                 is_active=True,
-                is_verified=True,
+                is_verified=False,  # FIXED: was True, now False
                 is_activated=False,
                 can_create_listings=False,
                 payment_approved=False,
@@ -407,7 +399,6 @@ async def google_auth(
             
             print(f"✅ New DUAL user created via Google: {email}")
         else:
-            # Update existing user to DUAL if they are a buyer
             if user.role_type == 'buyer':
                 user.role_type = 'dual'
                 user.seller_enabled = True
@@ -417,13 +408,11 @@ async def google_auth(
                 db.commit()
                 print(f"✅ Updated buyer to DUAL: {email}")
             
-            # Update avatar if not set
             if picture and not user.avatar_url:
                 user.avatar_url = picture
                 db.commit()
             print(f"✅ Existing user logged in via Google: {email} (Role: {user.role_type})")
         
-        # Create access token
         access_token = create_access_token(data={"sub": user.email})
         
         return {
