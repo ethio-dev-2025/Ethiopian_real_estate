@@ -13,6 +13,7 @@ from . import buyer
 from . import buyer_auth
 from . import admin_messages
 from . import websocket
+from . import transactions
 
 __all__ = [
     'auth',
@@ -29,4 +30,5 @@ __all__ = [
     'buyer_auth',
     'admin_messages',
     'websocket',
+    'transactions',
 ]

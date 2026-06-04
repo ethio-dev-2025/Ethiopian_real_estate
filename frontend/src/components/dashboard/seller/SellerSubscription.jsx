@@ -15,7 +15,7 @@ const SellerSubscription = () => {
 
   useEffect(() => {
     fetchActivationStatus();
-  }, []);
+  }, [refreshUser]);
 
   const fetchActivationStatus = async () => {
     try {
@@ -26,6 +26,11 @@ const SellerSubscription = () => {
       const data = await response.json();
       console.log('Activation status in Subscription:', data);
       setActivationStatus(data);
+
+      if (data?.status === 'fully_activated') {
+        await refreshUser();
+        console.log('SellerSubscription: refreshed auth user after full activation');
+      }
     } catch (error) {
       console.error('Error fetching status:', error);
     }
@@ -190,8 +195,6 @@ const SellerSubscription = () => {
     <div>
       <PaymentModal />
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Subscription Plans</h1>
-        <p className="text-gray-500 mt-1">Choose the perfect plan for your real estate needs</p>
         {activationStatus?.status === 'documents_approved' && (
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
             <CheckCircle className="w-4 h-4" /> Documents Approved! Choose a plan to activate

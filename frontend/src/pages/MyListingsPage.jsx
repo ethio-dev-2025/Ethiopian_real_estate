@@ -137,15 +137,17 @@ const MyListingsPage = () => {
               <p className="text-sm text-gray-500 mt-0.5">Manage your property listings</p>
             </div>
             <div className="flex gap-3">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All ({totalCount})</option>
-                <option value="published">Published ({publishedCount})</option>
-                <option value="drafts">Drafts ({draftsCount})</option>
-              </select>
+              <div className="w-48">
+                <CustomSelect
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={[
+                    { value: 'all', label: `All (${totalCount})` },
+                    { value: 'published', label: `Published (${publishedCount})` },
+                    { value: 'drafts', label: `Drafts (${draftsCount})` }
+                  ]}
+                />
+              </div>
               <button 
                 onClick={() => navigate('/create-listing')}
                 className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center gap-2 text-sm"

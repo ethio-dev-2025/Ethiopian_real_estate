@@ -1,4 +1,4 @@
-// src/components/dashboard/seller/sellerCreateListing.jsx
+// src/components/dashboard/seller/sellerCreateListing.jsx - FIXED VERSION
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
@@ -27,9 +27,11 @@ const SellerCreateListing = () => {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [listingType, setListingType] = useState(null);
-  const [needsActivation, setNeedsActivation] = useState(false);
+  const [activationStatus, setActivationStatus] = useState(null);
+  const [canCreateListings, setCanCreateListings] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [statusError, setStatusError] = useState(null);
   const fileInputRef = useRef(null);
-  const hasChecked = useRef(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -87,53 +89,209 @@ const SellerCreateListing = () => {
     return TEST_USERS.includes(user.email) || TEST_USERS.includes(user.username);
   };
 
-  // Check activation status - NO SPINNER, immediate check
+  // Check activation status against backend
   useEffect(() => {
-    if (!hasChecked.current) {
-      hasChecked.current = true;
-      
-      const storedUser = localStorage.getItem('user');
-      let currentUser = user;
-      if (storedUser && !currentUser) {
-        try {
-          currentUser = JSON.parse(storedUser);
-        } catch (e) {}
-      }
-      
-      const isTest = isTestUser();
-      if (isTest || currentUser?.is_activated === true) {
-        setNeedsActivation(false);
-      } else {
-        setNeedsActivation(true);
-      }
-      
-      if (refreshUser) {
-        refreshUser().catch(() => {});
-      }
-    }
-  }, [user]);
+    const checkStatus = async () => {
+      setStatusLoading(true);
+      setStatusError(null);
 
-  // Show activation required message
-  if (needsActivation) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh] p-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md">
-          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-10 h-10 text-yellow-600" />
+      try {
+        // First check if user is test user
+        if (isTestUser()) {
+          console.log('✅ Test user detected - allowing listing creation');
+          setActivationStatus({ status: 'fully_activated', can_create_listings: true });
+          setCanCreateListings(true);
+          setStatusLoading(false);
+          return;
+        }
+
+        // Check if user object exists and has activation flags
+        if (user) {
+          console.log('👤 User object:', {
+            email: user.email,
+            is_activated: user.is_activated,
+            can_create_listings: user.can_create_listings,
+            payment_approved: user.payment_approved,
+            status: user.status
+          });
+
+          // Check if user is already activated based on user object
+          const isUserActivated = user.is_activated === true || 
+                                  user.can_create_listings === true || 
+                                  user.payment_approved === true ||
+                                  user.status === 'active';
+
+          if (isUserActivated) {
+            console.log('✅ User already activated from user object - allowing listing creation');
+            setActivationStatus({ status: 'fully_activated', can_create_listings: true });
+            setCanCreateListings(true);
+            setStatusLoading(false);
+            return;
+          }
+        }
+
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          setStatusError('Missing access token. Please login again.');
+          setCanCreateListings(false);
+          setStatusLoading(false);
+          return;
+        }
+
+        // Fetch activation status from backend
+        const resp = await fetch(`${API_URL}/api/activation/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!resp.ok) {
+          throw new Error('Failed to load activation status');
+        }
+
+        const data = await resp.json();
+        console.log('📊 CreateListing activation status from backend:', data);
+
+        setActivationStatus(data);
+
+        // CRITICAL FIX: Check multiple conditions for activation
+        const canCreate = 
+          data?.can_create_listings === true ||
+          data?.status === 'fully_activated' ||
+          data?.is_activated === true ||
+          data?.payment_approved === true ||
+          (data?.listing_creation_allowed === true) ||
+          (data?.user?.can_create_listings === true) ||
+          (data?.user?.is_activated === true);
+
+        console.log('🎯 Can create listings?', canCreate);
+        setCanCreateListings(canCreate);
+
+        if (canCreate && refreshUser) {
+          await refreshUser();
+        }
+
+        if (!canCreate) {
+          setStatusError('Your account is not activated yet.');
+        }
+      } catch (err) {
+        console.error('Error checking activation status:', err);
+        setStatusError('Unable to verify activation status. Please try again later.');
+        
+        // FALLBACK: If we can't verify but user exists, allow creation (for testing)
+        if (user && (user.email || user.username)) {
+          console.log('⚠️ API error but user exists - allowing listing creation as fallback');
+          setCanCreateListings(true);
+        } else {
+          setCanCreateListings(false);
+        }
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+
+    checkStatus();
+  }, [user, refreshUser]);
+
+  const ActivationRequiredView = () => {
+    const renderContent = () => {
+      if (statusLoading) {
+        return (
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600">
+              <Loader className="w-6 h-6 animate-spin" />
+            </div>
+            <p className="mt-4 text-gray-600">Checking your activation status...</p>
           </div>
+        );
+      }
+
+      if (canCreateListings) {
+        // This shouldn't happen as we're in ActivationRequiredView, but just in case
+        return (
+          <>
+            <h2 className="text-2xl font-bold text-green-600 mb-2">Account Active!</h2>
+            <p className="text-gray-600 mb-4">Your account is fully activated.</p>
+            <button onClick={() => window.location.reload()} className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-green-600 to-teal-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition">
+              Continue to Listing
+            </button>
+          </>
+        );
+      }
+
+      if (activationStatus?.status === 'payment_pending') {
+        return (
+          <>
+            <h2 className="text-2xl font-bold text-yellow-600 mb-2">Payment Under Review</h2>
+            <p className="text-gray-600 mb-4">Your subscription payment is being verified by the admin.</p>
+            <p className="text-sm text-gray-500">Once payment is approved, you will be able to create listings.</p>
+          </>
+        );
+      }
+
+      if (activationStatus?.status === 'documents_approved') {
+        return (
+          <>
+            <h2 className="text-2xl font-bold text-green-600 mb-2">Documents Approved!</h2>
+            <p className="text-gray-600 mb-4">Your documents have been approved. Please subscribe to activate your account.</p>
+            <button onClick={() => navigate('/subscription')} className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition">
+              Go to Subscription
+            </button>
+          </>
+        );
+      }
+
+      if (activationStatus?.status === 'documents_pending') {
+        return (
+          <>
+            <h2 className="text-2xl font-bold text-yellow-600 mb-2">Documents Under Review</h2>
+            <p className="text-gray-600 mb-4">Your activation documents are under admin review. Please wait for approval.</p>
+            <p className="text-sm text-gray-500">You will be notified once approved.</p>
+          </>
+        );
+      }
+
+      if (activationStatus?.status === 'rejected') {
+        return (
+          <>
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Activation Request Rejected</h2>
+            <p className="text-gray-600 mb-4">{activationStatus.message || 'Your request was rejected. Please resubmit your documents.'}</p>
+            <button onClick={() => navigate('/activation')} className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition">
+              Go to Activation
+            </button>
+          </>
+        );
+      }
+
+      return (
+        <>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Not Activated</h2>
-          <p className="text-gray-600 mb-6">
-            Your account is pending admin approval. Please complete the activation process to start listing properties.
-          </p>
-          <button
-            onClick={() => navigate('/activation')}
-            className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
-          >
+          <p className="text-gray-600 mb-4">Your account must be activated before you can create listings.</p>
+          <button onClick={() => navigate('/activation')} className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white font-semibold hover:shadow-lg transition">
             Go to Activation
           </button>
+        </>
+      );
+    };
+
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-16">
+        <div className="bg-white border border-gray-200 rounded-3xl shadow-sm p-10 text-center">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100 text-yellow-700">
+            <Shield className="w-8 h-8" />
+          </div>
+          {renderContent()}
+          {statusError && <p className="mt-4 text-sm text-red-500">{statusError}</p>}
         </div>
       </div>
     );
+  };
+
+  // If still loading OR cannot create listings, show activation view
+  if (statusLoading) {
+    return <ActivationRequiredView />;
+  }
+
+  if (!canCreateListings) {
+    return <ActivationRequiredView />;
   }
 
   // If no listing type selected
@@ -340,6 +498,12 @@ const SellerCreateListing = () => {
   };
 
   const handlePublish = async () => {
+    if (!canCreateListings) {
+      toast.error('Your account is not activated. Please activate your account to publish listings.');
+      navigate('/activation');
+      return;
+    }
+
     const missingFields = [];
     if (!formData.title) missingFields.push('Title');
     if (!formData.price || formData.price <= 0) missingFields.push('Price');
@@ -549,14 +713,14 @@ const SellerCreateListing = () => {
               <div><label className="block text-sm font-medium mb-1">Property Title *</label><input name="title" value={formData.title} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Luxury Apartment in Bole" /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium mb-1">Property Type</label><select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">{propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
-                <div><label className="block text-sm font-medium mb-1">{listingType === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} *</label><input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label className="block text-sm font-medium mb-1">{listingType === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} *</label><input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 15000000" /></div>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Bedrooms</label><input name="bedrooms" type="number" value={formData.bedrooms} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
-                <div><label className="block text-sm font-medium mb-1">Bathrooms</label><input name="bathrooms" type="number" value={formData.bathrooms} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
-                <div><label className="block text-sm font-medium mb-1">Square Feet</label><input name="sqft" type="number" value={formData.sqft} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label className="block text-sm font-medium mb-1">Bedrooms</label><input name="bedrooms" type="number" value={formData.bedrooms} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 3" /></div>
+                <div><label className="block text-sm font-medium mb-1">Bathrooms</label><input name="bathrooms" type="number" value={formData.bathrooms} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 2" /></div>
+                <div><label className="block text-sm font-medium mb-1">Square Feet</label><input name="sqft" type="number" value={formData.sqft} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 2200" /></div>
               </div>
-              <div><label className="block text-sm font-medium mb-1">Year Built</label><input name="year_built" type="number" value={formData.year_built} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+              <div><label className="block text-sm font-medium mb-1">Year Built</label><input name="year_built" type="number" value={formData.year_built} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., 2020" /></div>
             </div>
           </motion.div>
         )}
@@ -565,10 +729,10 @@ const SellerCreateListing = () => {
           <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border p-6">
             <h2 className="text-lg font-bold mb-4">Location</h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium mb-1">Address *</label><input name="address" value={formData.address} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+              <div><label className="block text-sm font-medium mb-1">Address *</label><input name="address" value={formData.address} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Street name, building number" /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">City *</label><input name="city" value={formData.city} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
-                <div><label className="block text-sm font-medium mb-1">Region</label><input name="region" value={formData.region} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label className="block text-sm font-medium mb-1">City *</label><input name="city" value={formData.city} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Addis Ababa" /></div>
+                <div><label className="block text-sm font-medium mb-1">Region</label><input name="region" value={formData.region} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Addis Ababa" /></div>
               </div>
             </div>
           </motion.div>
@@ -579,8 +743,8 @@ const SellerCreateListing = () => {
             <h2 className="text-lg font-bold mb-4">Address Details</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Sub City</label><input name="sub_city" value={formData.sub_city} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
-                <div><label className="block text-sm font-medium mb-1">Kebele</label><input name="kebele" value={formData.kebele} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label className="block text-sm font-medium mb-1">Sub City</label><input name="sub_city" value={formData.sub_city} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Bole" /></div>
+                <div><label className="block text-sm font-medium mb-1">Kebele</label><input name="kebele" value={formData.kebele} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Kebele 03" /></div>
               </div>
               <div className="bg-blue-50 rounded-lg p-4"><p className="text-sm text-blue-700">Complete Address: {formData.address}, {formData.sub_city && `${formData.sub_city}, `}{formData.kebele && `Kebele ${formData.kebele}, `}{formData.city}, {formData.region}</p></div>
             </div>
@@ -706,7 +870,7 @@ const SellerCreateListing = () => {
           ) : (
             <button 
               onClick={handlePublish} 
-              disabled={isPublishing}
+              disabled={isPublishing || !canCreateListings}
               className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50"
             >
               {isPublishing ? (

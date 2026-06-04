@@ -216,6 +216,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============ LOGIN ENDPOINT ============
+# app/routers/auth.py - Update the login endpoint
+
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
@@ -273,7 +275,9 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
                 "date_of_birth": user.date_of_birth,
                 "address": user.address,
                 "city": user.city,
-                "bio": user.bio
+                "bio": user.bio,
+                "position": getattr(user, 'position', 'Administrator'),      # ← ADD THIS
+                "department": getattr(user, 'department', 'Management')     # ← ADD THIS
             }
         }
         
@@ -282,8 +286,8 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": "Internal server error"}
+# app/routers/auth.py - Update the /me endpoint
 
-# ============ GET CURRENT USER ============
 @router.get("/me")
 async def get_current_user_endpoint(current_user: User = Depends(get_current_user)):
     return {
@@ -307,7 +311,9 @@ async def get_current_user_endpoint(current_user: User = Depends(get_current_use
         "date_of_birth": current_user.date_of_birth,
         "address": current_user.address,
         "city": current_user.city,
-        "bio": current_user.bio
+        "bio": current_user.bio,
+        "position": getattr(current_user, 'position', 'Administrator'),
+        "department": getattr(current_user, 'department', 'Management')
     }
 
 # ============ GOOGLE OAUTH ENDPOINT - FIXED ============

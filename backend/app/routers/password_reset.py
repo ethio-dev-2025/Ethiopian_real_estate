@@ -44,6 +44,20 @@ async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(
                 content={"success": True, "message": "If your email is registered, you will receive a reset code"}
             )
         
+        # Check if user has email alerts enabled (for admin users)
+        email_alerts_enabled = getattr(user, 'email_alerts', True)
+        
+        # If this is an admin user and email alerts are OFF, don't send email
+        if user.role_type == 'admin' and not email_alerts_enabled:
+            print(f"⚠️ Admin {user.email} has email alerts disabled. Not sending reset code.")
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True, 
+                    "message": "Email alerts are disabled for this account. Please contact support."
+                }
+            )
+        
         reset_code = str(secrets.randbelow(900000) + 100000)
         
         # Store reset code
@@ -62,44 +76,49 @@ async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(
         print(f"⏰ Expires in 10 minutes")
         print(f"{'='*60}\n")
         
-        # Try to send email
+        # Try to send email only if email alerts are enabled
         email_sent = False
         email_error = None
         
-        try:
-            username = user.full_name or user.username or "User"
-            html_content = get_password_reset_email_html(username, reset_code)
-            
-            email_result = await email_service.send_email(
-                to_email=request.email,
-                subject="Reset Your Password - EstateHub",
-                html_content=html_content,
-                text_content=f"Your password reset code is: {reset_code}\n\nThis code expires in 10 minutes."
-            )
-            
-            if email_result["success"]:
-                email_sent = True
-                print(f"✅ Password reset email sent to {request.email}")
-            else:
-                email_error = email_result.get("message", "Unknown error")
-                print(f"⚠️ Failed to send email: {email_error}")
-        except Exception as e:
-            email_error = str(e)
-            print(f"⚠️ Email exception: {e}")
+        if email_alerts_enabled:
+            try:
+                username = user.full_name or user.username or "User"
+                html_content = get_password_reset_email_html(username, reset_code)
+                
+                email_result = await email_service.send_email(
+                    to_email=request.email,
+                    subject="Reset Your Password - EstateHub",
+                    html_content=html_content,
+                    text_content=f"Your password reset code is: {reset_code}\n\nThis code expires in 10 minutes."
+                )
+                
+                if email_result["success"]:
+                    email_sent = True
+                    print(f"✅ Password reset email sent to {request.email}")
+                else:
+                    email_error = email_result.get("message", "Unknown error")
+                    print(f"⚠️ Failed to send email: {email_error}")
+            except Exception as e:
+                email_error = str(e)
+                print(f"⚠️ Email exception: {e}")
+        else:
+            print(f"⚠️ Email alerts disabled for {request.email}, not sending email")
         
         # Return response
         if email_sent:
             message = "Reset code sent to your email"
-        else:
+        elif email_alerts_enabled:
             message = f"Reset code: {reset_code} (Email delivery failed. Please use this code to reset your password.)"
             print(f"⚠️ Using fallback: Code shown in console")
+        else:
+            message = "Email alerts are disabled. Please enable them in settings to receive reset codes."
         
         return JSONResponse(
             status_code=200,
             content={
                 "success": True, 
                 "message": message,
-                "code": reset_code if not email_sent else None
+                "code": reset_code if (not email_sent and email_alerts_enabled) else None
             }
         )
         

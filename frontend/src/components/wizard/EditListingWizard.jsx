@@ -483,13 +483,6 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Listing Type</label>
-                  <select name="listing_type" value={formData.listing_type} onChange={handleChange} className="w-full p-3 border rounded-lg">
-                    <option value="sale">For Sale</option>
-                    <option value="rent">For Rent</option>
-                  </select>
-                </div>
-                <div>
                   <label className="block text-sm font-medium mb-1">Property Type</label>
                   <select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-3 border rounded-lg">
                     {propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}

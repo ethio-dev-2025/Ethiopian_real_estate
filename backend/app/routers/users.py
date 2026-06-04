@@ -86,7 +86,9 @@ async def remove_profile_picture(
         print(f"Error: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+# app/routers/users.py - Update the update_profile_settings function
 
+# app/routers/users.py - Update the update_profile_settings function
 
 @router.put("/update-profile-settings")
 async def update_profile_settings(
@@ -104,10 +106,17 @@ async def update_profile_settings(
         city = body.get('city')
         address = body.get('address')
         bio = body.get('bio')
+        position = body.get('position')
+        department = body.get('department')
         
-        print(f"Updating profile for user: {current_user.email}")
-        print(f"New date_of_birth: {date_of_birth}")
+        print(f"=== UPDATING PROFILE ===")
+        print(f"User ID: {current_user.id}")
+        print(f"Email: {current_user.email}")
+        print(f"Full Name: {full_name}")
+        print(f"Position received: {position}")
+        print(f"Department received: {department}")
         
+        # Update fields
         if full_name is not None:
             current_user.full_name = full_name
         if phone is not None:
@@ -120,12 +129,21 @@ async def update_profile_settings(
             current_user.address = address
         if bio is not None:
             current_user.bio = bio
+        if position is not None:
+            current_user.position = position
+            print(f"Setting position to: {position}")
+        if department is not None:
+            current_user.department = department
+            print(f"Setting department to: {department}")
         
+        # Commit to database
         db.commit()
         db.refresh(current_user)
         
-        print(f"Updated date_of_birth in DB: {current_user.date_of_birth}")
+        print(f"After commit - Position: {current_user.position}")
+        print(f"After commit - Department: {current_user.department}")
         
+        # Return updated user data
         return {
             "success": True,
             "message": "Profile updated successfully",
@@ -137,6 +155,8 @@ async def update_profile_settings(
                 "city": current_user.city,
                 "address": current_user.address,
                 "bio": current_user.bio,
+                "position": current_user.position,
+                "department": current_user.department,
                 "avatar_url": current_user.avatar_url,
                 "email": current_user.email,
                 "username": current_user.username
@@ -144,57 +164,11 @@ async def update_profile_settings(
         }
         
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error updating profile: {e}")
+        import traceback
+        traceback.print_exc()
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/change-password")
-async def change_password(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Change user password"""
-    try:
-        body = await request.json()
-        current_password = body.get('current_password')
-        new_password = body.get('new_password')
-        
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        
-        is_valid = pwd_context.verify(current_password, current_user.hashed_password)
-        
-        if not is_valid:
-            return {
-                "success": False,
-                "message": "Current password is incorrect"
-            }
-        
-        if len(new_password) < 6:
-            return {
-                "success": False,
-                "message": "New password must be at least 6 characters"
-            }
-        
-        current_user.hashed_password = pwd_context.hash(new_password)
-        db.commit()
-        
-        return {
-            "success": True,
-            "message": "Password changed successfully"
-        }
-        
-    except Exception as e:
-        print(f"Error changing password: {e}")
-        db.rollback()
-        return {
-            "success": False,
-            "message": str(e)
-        }
-
-
+        return {"success": False, "message": str(e)}
 @router.get("/profile")
 async def get_user_profile(
     current_user: User = Depends(get_current_user),
@@ -227,3 +201,86 @@ async def get_user_profile(
 
 
 print("✅ Users router loaded successfully!")
+
+@router.post("/reset-admin-password")
+async def reset_admin_password(db: Session = Depends(get_db)):
+    """Temporary endpoint to reset admin password"""
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    
+    admin = db.query(User).filter(User.id == 2).first()
+    if admin:
+        new_password = "admin123"
+        admin.hashed_password = pwd_context.hash(new_password)
+        db.commit()
+        return {"success": True, "message": f"Password reset to {new_password} for {admin.email}"}
+    return {"success": False, "message": "Admin not found"}
+
+# Add this function to app/routers/users.py
+
+@router.get("/by-email")
+async def get_user_by_email(
+    email: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user by email (for sellers to find buyers/renters)"""
+    try:
+        # Only admins and sellers can search for users
+        if current_user.role_type not in ['admin', 'seller', 'dual']:
+            raise HTTPException(status_code=403, detail="Permission denied")
+        
+        user = db.query(User).filter(User.email == email).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "success": True,
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "full_name": user.full_name,
+            "phone": user.phone,
+            "role_type": user.role_type
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error finding user by email: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# backend/app/routers/users.py - Add this endpoint
+
+@router.get("/by-username")
+async def get_user_by_username(
+    username: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user by username (for sellers to find buyers/renters)"""
+    try:
+        # Only admins and sellers can search for users
+        if current_user.role_type not in ['admin', 'seller', 'dual']:
+            raise HTTPException(status_code=403, detail="Permission denied")
+        
+        user = db.query(User).filter(User.username == username).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "success": True,
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "phone": user.phone,
+            "role_type": user.role_type
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error finding user by username: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

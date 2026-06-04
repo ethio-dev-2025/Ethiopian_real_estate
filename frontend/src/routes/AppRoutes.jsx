@@ -6,7 +6,7 @@ import SellerLayout from '../components/layout/SellerLayout';
 import BuyerLayout from '../components/layout/BuyerLayout';
 import AdminLayout from '../components/layout/AdminLayout';
 
-// IMPORTANT: Import ALL buyer components directly (NOT lazy) for instant loading
+// Buyer components
 import BuyerDashboard from '../components/dashboard/buyer/BuyerDashboard';
 import BuyerMessages from '../components/dashboard/buyer/BuyerMessages';
 import BuyerProperties from '../components/dashboard/buyer/BuyerProperties';
@@ -15,7 +15,7 @@ import BuyerSaved from '../components/dashboard/buyer/BuyerSaved';
 // Common Settings Component
 import Settings from '../components/dashboard/common/Settings';
 
-// Admin Components - Import directly (not lazy) for instant loading
+// Admin Components
 import AdminDashboard from '../components/dashboard/admin/AdminDashboard';
 import DashboardOverview from '../components/dashboard/admin/DashboardOverview';
 import UserManagement from '../components/dashboard/admin/UserManagement';
@@ -24,15 +24,23 @@ import PaymentApprovals from '../components/dashboard/admin/PaymentApprovals';
 import ReportsAnalytics from '../components/dashboard/admin/ReportsAnalytics';
 import AdminMessages from '../components/dashboard/admin/AdminMessages';
 import AdminSettings from '../components/dashboard/admin/AdminSettings';
+import CompanySettings from '../components/dashboard/admin/CompanySettings';
 
 // Payment Success Page
 import PaymentSuccessPage from '../pages/PaymentSuccessPage';
 
-// Map Test Pages - Import directly (not lazy) for public access
+// Map Test Pages
 import SimpleMapTest from '../pages/SimpleMapTest';
 import MapTestPage from '../pages/MapTestPage';
 
-// Seller Components
+// Public Pages - Using the correct file name: PropertiesListPage (plural)
+import PropertiesListPage from '../pages/public/PropertiesListPage';
+import PropertyDetailPage from '../pages/public/PropertyDetailPage';
+import HomePage from '../pages/public/HomePage';
+import AboutPage from '../pages/public/AboutPage';
+import ContactPage from '../pages/public/ContactPage';
+
+// Seller Components (lazy loaded)
 const SellerDashboard = lazy(() => import('../components/dashboard/seller/sellerDashboard'));
 const SellerListings = lazy(() => import('../components/dashboard/seller/SellerListings'));
 const SellerMessages = lazy(() => import('../components/dashboard/seller/SellerMessages'));
@@ -43,11 +51,11 @@ const SellerCreateListing = lazy(() => import('../components/dashboard/seller/se
 const SellerDashboardOverview = lazy(() => import('../components/dashboard/seller/sellerDashboardOverview'));
 const SellerDocumentVerification = lazy(() => import('../components/dashboard/seller/sellerDocumentVerification'));
 
-// Common Components
+// Common Components (lazy loaded)
 const Notifications = lazy(() => import('../components/common/Notifications'));
 const RoleSelectionModal = lazy(() => import('../components/common/RoleSelectionModal'));
 
-// Auth pages
+// Auth pages (lazy loaded)
 const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage'));
@@ -55,20 +63,11 @@ const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'));
 const SetNewPasswordPage = lazy(() => import('../pages/auth/SetNewPasswordPage'));
 const VerifyEmailPage = lazy(() => import('../pages/auth/VerifyEmailPage'));
 
-// Buyer Auth pages
+// Buyer Auth pages (lazy loaded)
 const BuyerLoginPage = lazy(() => import('../pages/buyer/BuyerLoginPage'));
 const BuyerRegisterPage = lazy(() => import('../pages/buyer/BuyerRegisterPage'));
 
-// Public pages
-const HomePage = lazy(() => import('../pages/public/HomePage'));
-const AboutPage = lazy(() => import('../pages/public/AboutPage'));
-const ContactPage = lazy(() => import('../pages/public/ContactPage'));
-const FAQPage = lazy(() => import('../pages/public/FAQPage'));
-const PricingPage = lazy(() => import('../pages/public/PricingPage'));
-const PropertiesPage = lazy(() => import('../pages/public/PropertiesPage'));
-const PropertyDetailPage = lazy(() => import('../pages/public/PropertyDetailPage'));
-
-// Edit Listing Page
+// Edit Listing Page (lazy loaded)
 const EditListingPage = lazy(() => import('../pages/EditListingPage'));
 
 const AppRoutes = () => {
@@ -79,7 +78,6 @@ const AppRoutes = () => {
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
   const navigate = useNavigate();
 
-  // Force refresh user data on mount
   useEffect(() => {
     const checkUser = async () => {
       if (isAuthenticated && !user) {
@@ -89,7 +87,6 @@ const AppRoutes = () => {
     checkUser();
   }, [isAuthenticated, user, refreshUser]);
 
-  // Update role when user changes
   useEffect(() => {
     if (isAuthenticated && user) {
       let userRole = user.role_type || user.role;
@@ -112,13 +109,11 @@ const AppRoutes = () => {
     setResolved(true);
   }, [user, isAuthenticated]);
 
-  // ONLY redirect ONCE after login - not on every route change
   useEffect(() => {
     if (!loading && resolved && isAuthenticated && hasSelectedRole && role && !initialRedirectDone) {
       const normalizedRole = String(role).toLowerCase();
       const currentPath = window.location.pathname;
       
-      // Only redirect if user is on root path or login page
       const shouldRedirect = currentPath === '/' || currentPath === '/login' || currentPath === '';
       
       if (shouldRedirect) {
@@ -128,9 +123,9 @@ const AppRoutes = () => {
         if (normalizedRole === 'seller' || normalizedRole === 'landlord' || normalizedRole === 'dual') {
           navigate('/dashboard');
         } else if (normalizedRole === 'buyer') {
-          navigate('/dashboard/buyer');
+          navigate('/dashboard/buyer/messages');
         } else if (normalizedRole === 'admin') {
-          navigate('/admin/dashboard');
+          navigate('/admin');
         }
       }
     }
@@ -153,20 +148,13 @@ const AppRoutes = () => {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
         <Routes>
-          {/* Public pages */}
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
-          <Route path="/faq" element={<FAQPage />} />
-          <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/properties" element={<PropertiesPage />} />
+          <Route path="/properties" element={<PropertiesListPage />} />
           <Route path="/properties/:id" element={<PropertyDetailPage />} />
-          
-          {/* Map test routes - PUBLIC ACCESS */}
           <Route path="/simple-map" element={<SimpleMapTest />} />
           <Route path="/map-test" element={<MapTestPage />} />
-          
-          {/* Auth routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -175,8 +163,6 @@ const AppRoutes = () => {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/buyer/login" element={<BuyerLoginPage />} />
           <Route path="/buyer/register" element={<BuyerRegisterPage />} />
-          
-          {/* Catch all - redirect to home */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Suspense>
@@ -195,7 +181,7 @@ const AppRoutes = () => {
   const normalizedRole = String(role).toLowerCase();
   console.log('Normalized role for routing:', normalizedRole);
 
-  // ============ ADMIN ROUTES - FULLY CONFIGURED ============
+  // ============ ADMIN ROUTES ============
   if (normalizedRole === 'admin') {
     return (
       <AdminLayout>
@@ -209,6 +195,14 @@ const AppRoutes = () => {
           <Route path="/admin/reports" element={<ReportsAnalytics />} />
           <Route path="/admin/messages" element={<AdminMessages />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/company-settings" element={<CompanySettings />} />
+          
+          {/* Public pages for admin */}
+          <Route path="/properties" element={<PropertiesListPage />} />
+          <Route path="/properties/:id" element={<PropertyDetailPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          
           <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
@@ -236,9 +230,13 @@ const AppRoutes = () => {
             <Route path="/activation" element={<SellerActivation />} />
             <Route path="/verification" element={<SellerDocumentVerification />} />
             <Route path="/notifications" element={<Notifications />} />
+            
+            {/* Public pages for sellers */}
+            <Route path="/browse-properties" element={<PropertiesListPage />} />
             <Route path="/properties/:id" element={<PropertyDetailPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
         </Suspense>
@@ -259,10 +257,13 @@ const AppRoutes = () => {
           <Route path="/dashboard/buyer/saved" element={<BuyerSaved />} />
           <Route path="/dashboard/buyer/settings" element={<Settings />} />
           <Route path="/dashboard/buyer/notifications" element={<Notifications />} />
-          <Route path="/properties" element={<PropertiesPage />} />
+          
+          {/* Public pages for buyers */}
+          <Route path="/properties" element={<PropertiesListPage />} />
           <Route path="/properties/:id" element={<PropertyDetailPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          
           <Route path="/payment/success" element={<PaymentSuccessPage />} />
           <Route path="/payment/return" element={<PaymentSuccessPage />} />
           <Route path="*" element={<Navigate to="/dashboard/buyer" />} />

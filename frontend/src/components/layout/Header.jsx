@@ -1,3 +1,4 @@
+// src/components/layout/Header.jsx (Updated with translations)
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -7,7 +8,7 @@ import { Building2, Menu, X, User, LogOut, Settings, LayoutDashboard, ChevronDow
 
 const Header = () => {
   const { user, logout } = useAuth()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
@@ -28,10 +29,10 @@ const Header = () => {
   }
 
   const navLinks = [
-    { to: '/', label: 'Home' },
-    { to: '/properties', label: 'Properties' },
-    { to: '/about', label: 'About' },
-    { to: '/contact', label: 'Contact' },
+    { to: '/', label: t('home') },
+    { to: '/properties', label: t('properties') },
+    { to: '/about', label: t('about') },
+    { to: '/contact', label: t('contact') },
   ]
 
   return (
@@ -59,15 +60,30 @@ const Header = () => {
                 {link.label}
               </Link>
             ))}
-          </div>
+            
+            {/* Sign In and Sign Up as normal links */}
+            {!user && (
+              <>
+                <Link
+                  to="/login"
+                  className={`transition hover:text-blue-600 font-medium ${scrolled ? 'text-gray-700' : 'text-white'}`}
+                >
+                  {t('signin')}
+                </Link>
+                <Link
+                  to="/register"
+                  className={`transition hover:text-blue-600 font-medium ${scrolled ? 'text-gray-700' : 'text-white'}`}
+                >
+                  {t('signup')}
+                </Link>
+              </>
+            )}
+            
+            {/* Language Switcher */}
+            <LanguageSwitcher />
 
-          {/* Right Side Buttons */}
-          <div className="flex items-center gap-3">
-            <div className="hidden md:block">
-              <LanguageSwitcher />
-            </div>
-
-            {user ? (
+            {/* User Dropdown (when logged in) */}
+            {user && (
               <div className="relative">
                 <button
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
@@ -90,7 +106,7 @@ const Header = () => {
                       onClick={() => setUserDropdownOpen(false)}
                     >
                       <LayoutDashboard className="w-4 h-4" />
-                      Dashboard
+                      {t('dashboard')}
                     </Link>
                     <Link
                       to="/settings"
@@ -98,7 +114,7 @@ const Header = () => {
                       onClick={() => setUserDropdownOpen(false)}
                     >
                       <Settings className="w-4 h-4" />
-                      Settings
+                      {t('settings')}
                     </Link>
                     <div className="border-t my-1"></div>
                     <button
@@ -106,43 +122,21 @@ const Header = () => {
                       className="w-full flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 transition"
                     >
                       <LogOut className="w-4 h-4" />
-                      Logout
+                      {t('logout')}
                     </button>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex gap-2">
-                <Link
-                  to="/login"
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    scrolled 
-                      ? 'border border-blue-600 text-blue-600 hover:bg-blue-50' 
-                      : 'border border-white text-white hover:bg-white/10'
-                  }`}
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    scrolled 
-                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                      : 'bg-white text-blue-600 hover:bg-gray-100'
-                  }`}
-                >
-                  Sign Up
-                </Link>
-              </div>
             )}
-
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`md:hidden p-2 rounded-lg ${scrolled ? 'text-gray-900' : 'text-white'}`}
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className={`md:hidden p-2 rounded-lg ${scrolled ? 'text-gray-900' : 'text-white'}`}
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
 
         {/* Mobile Menu */}
@@ -159,22 +153,36 @@ const Header = () => {
               </Link>
             ))}
             
-            {user ? (
+            {!user && (
+              <>
+                <Link
+                  to="/login"
+                  className="block py-3 text-gray-700 hover:text-blue-600 transition font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {t('signin')}
+                </Link>
+                <Link
+                  to="/register"
+                  className="block py-3 text-gray-700 hover:text-blue-600 transition font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {t('signup')}
+                </Link>
+              </>
+            )}
+            
+            {user && (
               <div className="pt-3 mt-2 border-t border-gray-200">
-                <Link to="/dashboard" className="block py-2 text-gray-700" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
-                <Link to="/settings" className="block py-2 text-gray-700" onClick={() => setMobileMenuOpen(false)}>Settings</Link>
-                <button onClick={handleLogout} className="block w-full text-left py-2 text-red-600">Logout</button>
-              </div>
-            ) : (
-              <div className="pt-3 mt-2 border-t border-gray-200">
-                <Link to="/login" className="block py-2 text-blue-600 font-semibold" onClick={() => setMobileMenuOpen(false)}>Sign In</Link>
-                <Link to="/register" className="block py-2 text-green-600 font-semibold" onClick={() => setMobileMenuOpen(false)}>Sign Up</Link>
+                <Link to="/dashboard" className="block py-2 text-gray-700" onClick={() => setMobileMenuOpen(false)}>{t('dashboard')}</Link>
+                <Link to="/settings" className="block py-2 text-gray-700" onClick={() => setMobileMenuOpen(false)}>{t('settings')}</Link>
+                <button onClick={handleLogout} className="block w-full text-left py-2 text-red-600">{t('logout')}</button>
               </div>
             )}
             
             <div className="pt-3 mt-2 border-t border-gray-200">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Language</span>
+                <span className="text-sm text-gray-500">{t('language')}</span>
                 <LanguageSwitcher />
               </div>
             </div>

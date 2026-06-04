@@ -1,4 +1,4 @@
-# backend/app/routers/listings.py
+# backend/app/routers/listings.py - COMPLETE WITH GEOCODING
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, text, or_
@@ -11,6 +11,7 @@ from datetime import datetime
 from ..database import get_db, engine
 from ..models import User, Listing
 from .auth import get_current_user
+from ..services.geocoding_service import geocoding_service
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -41,7 +42,6 @@ class ListingCreate(BaseModel):
     email: Optional[str] = None
     status: str = "draft"
     is_draft: bool = True
-    # Map fields
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -67,20 +67,16 @@ class ListingUpdate(BaseModel):
     email: Optional[str] = None
     status: Optional[str] = None
     is_draft: Optional[bool] = None
-    # Map fields
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
 
-# ============ MAP DATA ENDPOINT - GET ALL PROPERTIES WITH COORDINATES ============
+# ============ MAP DATA ENDPOINT ============
 @router.get("/map-data")
 async def get_map_data(
     db: Session = Depends(get_db),
     listing_type: Optional[str] = Query(None, description="Filter by 'sale' or 'rent'")
 ):
-    """
-    Get all properties with coordinates for map display
-    """
     try:
         print(f"🗺️ Map data request: type={listing_type}")
         
@@ -92,7 +88,6 @@ async def get_map_data(
         if listing_type and listing_type in ['sale', 'rent']:
             query = query.filter(Listing.listing_type == listing_type)
         
-        # Only get properties that have coordinates
         listings = query.filter(
             Listing.latitude.isnot(None),
             Listing.longitude.isnot(None)
@@ -100,7 +95,6 @@ async def get_map_data(
         
         result = []
         for listing in listings:
-            # Parse images
             images = []
             if listing.images:
                 try:
@@ -146,20 +140,17 @@ async def get_map_data(
         }
 
 
-# ============ FAST PUBLIC ENDPOINT WITH RAW SQL (NO ORM DELAY) ============
+# ============ FAST PUBLIC ENDPOINT WITH RAW SQL ============
 @router.get("/public-fast")
 async def get_public_listings_fast(
     limit: int = Query(12, description="Number of listings to return"),
     offset: int = Query(0, description="Pagination offset"),
     listing_type: Optional[str] = Query(None, description="Filter by 'sale' or 'rent'")
 ):
-    """
-    Super fast public endpoint using raw SQL
-    """
     try:
         print(f"📡 Fast public listings request: type={listing_type}, limit={limit}, offset={offset}")
         
-        # Build SQL query
+        # Build SQL query with listing_status
         sql = """
             SELECT 
                 l.id, l.title, l.description, l.price, l.listing_type, 
@@ -167,6 +158,7 @@ async def get_public_listings_fast(
                 l.address, l.city, l.region, l.sub_city, l.kebele,
                 l.images, l.cover_image, l.amenities, l.phone_number, l.email,
                 l.views_count, l.featured, l.created_at, l.latitude, l.longitude,
+                l.listing_status,
                 u.id as owner_id, u.full_name as owner_name, u.phone as owner_phone
             FROM listings l
             LEFT JOIN users u ON l.user_id = u.id
@@ -178,7 +170,6 @@ async def get_public_listings_fast(
         
         sql += " ORDER BY l.created_at DESC LIMIT :limit OFFSET :offset"
         
-        # Get total count
         count_sql = """
             SELECT COUNT(*) FROM listings 
             WHERE is_draft = false AND status = 'active'
@@ -187,17 +178,14 @@ async def get_public_listings_fast(
             count_sql += f" AND listing_type = '{listing_type}'"
         
         with engine.connect() as conn:
-            # Get total count
             total_result = conn.execute(text(count_sql))
             total = total_result.scalar()
             
-            # Get listings
             result = conn.execute(text(sql), {"limit": limit, "offset": offset})
             rows = result.fetchall()
             
             listings = []
             for row in rows:
-                # Parse images JSON
                 images = []
                 if row[15]:
                     try:
@@ -205,7 +193,6 @@ async def get_public_listings_fast(
                     except:
                         images = []
                 
-                # Parse amenities JSON
                 amenities = []
                 if row[17]:
                     try:
@@ -239,11 +226,12 @@ async def get_public_listings_fast(
                     "created_at": row[22].isoformat() if row[22] else None,
                     "latitude": float(row[23]) if row[23] else None,
                     "longitude": float(row[24]) if row[24] else None,
+                    "listing_status": row[25] if len(row) > 25 else 'available',
                     "owner": {
-                        "id": row[25],
-                        "name": row[26],
-                        "phone": row[27]
-                    } if row[25] else None
+                        "id": row[26],
+                        "name": row[27],
+                        "phone": row[28]
+                    } if len(row) > 26 and row[26] else None
                 })
             
             print(f"✅ Returning {len(listings)} fast public listings")
@@ -275,9 +263,6 @@ async def get_public_listings(
     offset: int = Query(0, description="Pagination offset"),
     listing_type: Optional[str] = Query(None, description="Filter by 'sale' or 'rent'")
 ):
-    """
-    Public endpoint for home page - returns active, published listings
-    """
     try:
         print(f"📡 Public listings request: type={listing_type}, limit={limit}, offset={offset}")
         
@@ -324,6 +309,7 @@ async def get_public_listings(
                 "description": listing.description,
                 "price": listing.price,
                 "listing_type": listing.listing_type,
+                "listing_status": listing.listing_status,
                 "property_type": listing.property_type,
                 "bedrooms": listing.bedrooms,
                 "bathrooms": listing.bathrooms,
@@ -419,6 +405,7 @@ async def get_public_listing(
             "description": listing.description,
             "price": listing.price,
             "listing_type": listing.listing_type,
+            "listing_status": listing.listing_status,
             "property_type": listing.property_type,
             "bedrooms": listing.bedrooms,
             "bathrooms": listing.bathrooms,
@@ -504,6 +491,7 @@ async def search_listings(
                 "title": listing.title,
                 "price": listing.price,
                 "listing_type": listing.listing_type,
+                "listing_status": listing.listing_status,
                 "property_type": listing.property_type,
                 "bedrooms": listing.bedrooms,
                 "bathrooms": listing.bathrooms,
@@ -568,7 +556,7 @@ async def upload_listing_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ CREATE LISTING ============
+# ============ CREATE LISTING WITH AUTO-GEOCODING ============
 @router.post("/create", status_code=status.HTTP_201_CREATED)
 async def create_listing(
     listing_data: ListingCreate,
@@ -591,6 +579,26 @@ async def create_listing(
                 amenities_value = json.dumps(listing_data.amenities)
         
         status_value = "draft" if listing_data.is_draft else "active"
+        
+        # Auto-geocode if coordinates not provided
+        latitude = listing_data.latitude
+        longitude = listing_data.longitude
+        
+        if (latitude is None or longitude is None) and listing_data.address:
+            try:
+                lat, lng = await geocoding_service.geocode_address(
+                    address=listing_data.address,
+                    city=listing_data.city,
+                    region=listing_data.region
+                )
+                if lat and lng:
+                    latitude = lat
+                    longitude = lng
+                    print(f"📍 Auto-geocoded: {lat}, {lng}")
+                else:
+                    print(f"⚠️ Could not geocode address: {listing_data.address}")
+            except Exception as geo_error:
+                print(f"❌ Geocoding error: {geo_error}")
         
         new_listing = Listing(
             title=listing_data.title,
@@ -615,8 +623,8 @@ async def create_listing(
             amenities=amenities_value,
             phone_number=listing_data.phone_number,
             email=listing_data.email,
-            latitude=listing_data.latitude,
-            longitude=listing_data.longitude,
+            latitude=latitude,
+            longitude=longitude,
             videos=None,
             documents=None,
             views_count=0,
@@ -635,11 +643,67 @@ async def create_listing(
             "message": "Listing saved as draft" if listing_data.is_draft else "Listing published successfully",
             "listing_id": new_listing.id,
             "is_draft": new_listing.is_draft,
-            "status": new_listing.status
+            "status": new_listing.status,
+            "latitude": latitude,
+            "longitude": longitude
         }
         
     except Exception as e:
         print(f"Error creating listing: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ UPDATE LISTING WITH AUTO-GEOCODING ============
+@router.put("/{listing_id}")
+async def update_listing(
+    listing_id: int,
+    listing_data: ListingUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        listing = db.query(Listing).filter(Listing.id == listing_id).first()
+        
+        if not listing:
+            raise HTTPException(status_code=404, detail="Listing not found")
+        
+        if listing.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Permission denied")
+        
+        # Update fields
+        for field, value in listing_data.dict(exclude_unset=True).items():
+            setattr(listing, field, value)
+        
+        # Auto-geocode if address changed and coordinates not provided
+        address_changed = listing_data.address is not None or listing_data.city is not None or listing_data.region is not None
+        has_coordinates = listing_data.latitude is not None or listing_data.longitude is not None
+        
+        if address_changed and not has_coordinates:
+            try:
+                lat, lng = await geocoding_service.geocode_address(
+                    address=listing_data.address or listing.address,
+                    city=listing_data.city or listing.city,
+                    region=listing_data.region or listing.region
+                )
+                if lat and lng:
+                    listing.latitude = lat
+                    listing.longitude = lng
+                    print(f"📍 Updated coordinates: {lat}, {lng}")
+            except Exception as geo_error:
+                print(f"❌ Geocoding error during update: {geo_error}")
+        
+        listing.updated_at = datetime.utcnow()
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Listing updated successfully",
+            "listing_id": listing.id
+        }
+        
+    except Exception as e:
+        print(f"Error updating listing: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -676,6 +740,7 @@ async def get_my_listings(
                 "id": l.id,
                 "title": l.title,
                 "listing_type": l.listing_type,
+                "listing_status": l.listing_status if hasattr(l, 'listing_status') else 'available',
                 "status": l.status,
                 "price": l.price,
                 "description": l.description[:200] if l.description else "",
@@ -730,6 +795,7 @@ async def get_listing(
             "description": listing.description,
             "price": listing.price,
             "listing_type": listing.listing_type,
+            "listing_status": listing.listing_status if hasattr(listing, 'listing_status') else 'available',
             "property_type": listing.property_type,
             "bedrooms": listing.bedrooms,
             "bathrooms": listing.bathrooms,
@@ -756,41 +822,6 @@ async def get_listing(
         raise
     except Exception as e:
         print(f"Error getting listing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============ UPDATE LISTING ============
-@router.put("/{listing_id}")
-async def update_listing(
-    listing_id: int,
-    listing_data: ListingUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        listing = db.query(Listing).filter(Listing.id == listing_id).first()
-        
-        if not listing:
-            raise HTTPException(status_code=404, detail="Listing not found")
-        
-        if listing.user_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Permission denied")
-        
-        for field, value in listing_data.dict(exclude_unset=True).items():
-            setattr(listing, field, value)
-        
-        listing.updated_at = datetime.utcnow()
-        db.commit()
-        
-        return {
-            "success": True,
-            "message": "Listing updated successfully",
-            "listing_id": listing.id
-        }
-        
-    except Exception as e:
-        print(f"Error updating listing: {e}")
-        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -823,6 +854,7 @@ async def delete_listing(
 
 # ============ PUBLISH DRAFT ============
 @router.post("/publish/{listing_id}")
+@router.post("/{listing_id}/publish")
 async def publish_listing(
     listing_id: int,
     current_user: User = Depends(get_current_user),
@@ -854,3 +886,61 @@ async def publish_listing(
         print(f"Error publishing listing: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ GET SOLD/RENTED LISTINGS FOR HOMEPAGE ============
+@router.get("/sold-rented")
+async def get_sold_rented_listings(
+    db: Session = Depends(get_db),
+    limit: int = Query(12, description="Number of listings to return")
+):
+    """
+    Get listings that have been sold or rented (for homepage display)
+    """
+    try:
+        print(f"📡 Fetching sold/rented listings")
+        
+        listings = db.query(Listing).filter(
+            Listing.listing_status.in_(["sold", "rented"]),
+            Listing.is_draft == False
+        ).order_by(desc(Listing.sold_date)).limit(limit).all()
+        
+        result = []
+        for listing in listings:
+            images = []
+            if listing.images:
+                try:
+                    images = json.loads(listing.images) if isinstance(listing.images, str) else listing.images
+                except:
+                    images = []
+            
+            result.append({
+                "id": listing.id,
+                "title": listing.title,
+                "price": listing.price,
+                "listing_type": listing.listing_type,
+                "listing_status": listing.listing_status,
+                "property_type": listing.property_type,
+                "city": listing.city,
+                "images": images[:1] if images else [],
+                "cover_image": listing.cover_image,
+                "sold_date": listing.sold_date.isoformat() if listing.sold_date else None,
+            })
+        
+        print(f"✅ Found {len(result)} sold/rented listings")
+        
+        return {
+            "success": True,
+            "listings": result,
+            "total": len(result)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching sold/rented listings: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "listings": [],
+            "total": 0
+        }

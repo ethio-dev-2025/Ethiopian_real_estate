@@ -1,3 +1,4 @@
+// src/services/api/listingsApi.js
 import axios from 'axios'
 
 const API_URL = 'http://localhost:8000/api'
@@ -6,7 +7,7 @@ const API_URL = 'http://localhost:8000/api'
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000, // 15 second timeout to prevent hanging
+  timeout: 15000,
 })
 
 // Request interceptor - Add token and log requests
@@ -15,7 +16,6 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
-  // Only log in development
   if (process.env.NODE_ENV === 'development') {
     console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
   }
@@ -31,7 +31,6 @@ api.interceptors.response.use(
       return Promise.reject(new Error('Request timeout - please try again'))
     }
     if (error.response?.status === 401) {
-      // Token expired or invalid
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')
       if (window.location.pathname !== '/login') {
@@ -46,7 +45,6 @@ api.interceptors.response.use(
 let pendingRequests = new Map()
 
 const getAbortController = (url) => {
-  // Cancel existing request for same URL
   if (pendingRequests.has(url)) {
     pendingRequests.get(url).abort()
     pendingRequests.delete(url)
@@ -112,7 +110,7 @@ export const listingsAPI = {
     }
   },
 
-  // Get ONLY SALE listings for the current user (My Listings) - OPTIMIZED
+  // Get ONLY SALE listings for the current user (My Listings)
   getMyListings: async (includeDrafts = true, signal = null) => {
     try {
       const url = `/listings/my-listings?include_drafts=${includeDrafts}`
@@ -120,16 +118,11 @@ export const listingsAPI = {
       
       const response = await api.get(url, {
         signal: signal || controller.signal,
-        // Cache for 30 seconds
-        headers: {
-          'Cache-Control': 'max-age=30'
-        }
+        headers: { 'Cache-Control': 'max-age=30' }
       })
       
-      // Remove from pending after completion
       pendingRequests.delete(url)
       
-      // Handle both array and object responses
       let listings = []
       if (Array.isArray(response.data)) {
         listings = response.data
@@ -144,7 +137,6 @@ export const listingsAPI = {
       
     } catch (error) {
       if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        // Request was cancelled, ignore
         return []
       }
       console.error('Error fetching my listings:', error.message)
@@ -152,7 +144,7 @@ export const listingsAPI = {
     }
   },
 
-  // Get ONLY RENTAL properties for the current user (My Properties)
+  // Get ONLY RENTAL properties for the current user
   getMyProperties: async () => {
     try {
       const response = await api.get('/listings/my-properties')
@@ -173,9 +165,6 @@ export const listingsAPI = {
         console.log('📝 Creating listing with type:', listingData.listing_type)
       }
       const response = await api.post('/listings/create', listingData)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('✅ Create response:', response.data)
-      }
       return response.data
     } catch (error) {
       console.error('Error creating listing:', error)
@@ -223,7 +212,7 @@ export const listingsAPI = {
       formData.append('file', file)
       const response = await api.post('/listings/upload-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 30000 // Longer timeout for image uploads
+        timeout: 30000
       })
       return response.data
     } catch (error) {
@@ -232,7 +221,51 @@ export const listingsAPI = {
     }
   },
 
-  // Cancel all pending requests (call on component unmount)
+  // Mark listing as sold
+  markAsSold: async (listingId, data) => {
+    try {
+      const response = await api.post(`/transactions/mark-sold/${listingId}`, data)
+      return response.data
+    } catch (error) {
+      console.error('Error marking as sold:', error)
+      throw error
+    }
+  },
+
+  // Mark listing as rented
+  markAsRented: async (listingId, data) => {
+    try {
+      const response = await api.post(`/transactions/mark-rented/${listingId}`, data)
+      return response.data
+    } catch (error) {
+      console.error('Error marking as rented:', error)
+      throw error
+    }
+  },
+
+  // Get sold/rented listings for homepage
+  getSoldRentedListings: async (params = {}) => {
+    try {
+      const response = await api.get('/listings/sold-rented', { params })
+      return response.data
+    } catch (error) {
+      console.error('Error fetching sold/rented listings:', error)
+      return { success: false, listings: [] }
+    }
+  },
+
+  // Get my transactions
+  getMyTransactions: async () => {
+    try {
+      const response = await api.get('/transactions/my-transactions')
+      return response.data
+    } catch (error) {
+      console.error('Error fetching transactions:', error)
+      return { success: false, transactions: [] }
+    }
+  },
+
+  // Cancel all pending requests
   cancelAllRequests: () => {
     pendingRequests.forEach((controller, url) => {
       controller.abort()

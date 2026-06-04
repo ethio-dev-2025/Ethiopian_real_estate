@@ -7,6 +7,7 @@ import {
   User, Lock, Shield, Monitor, ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../../context/LanguageContext'
 
 const API_URL = 'http://localhost:8000';
 
@@ -23,13 +24,15 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const settingsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  const { t } = useLanguage()
+
   // Settings dropdown menu items
   const settingsMenuItems = [
-    { id: 'profile', label: 'Profile Information', icon: User, tab: 'profile' },
-    { id: 'security', label: 'Security', icon: Lock, tab: 'security' },
-    { id: 'notifications', label: 'Notifications', icon: Bell, tab: 'notifications' },
-    { id: 'privacy', label: 'Privacy', icon: Shield, tab: 'privacy' },
-    { id: 'appearance', label: 'Appearance', icon: Monitor, tab: 'appearance' }
+    { id: 'profile', labelKey: 'profile_information', icon: User, tab: 'profile' },
+    { id: 'security', labelKey: 'security', icon: Lock, tab: 'security' },
+    { id: 'notifications', labelKey: 'notification_preferences', icon: Bell, tab: 'notifications' },
+    { id: 'privacy', labelKey: 'privacy', icon: Shield, tab: 'privacy' },
+    { id: 'appearance', labelKey: 'appearance', icon: Monitor, tab: 'appearance' }
   ];
 
   // Close dropdown when clicking outside
@@ -51,6 +54,7 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     setIsSettingsDropdownOpen(false);
   }, [location.pathname]);
 
+  // Initial fetch for unread count
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -67,6 +71,8 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
           const conversations = await response.json();
           const total = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
           setUnreadCount(total);
+          // Save to localStorage for persistence
+          localStorage.setItem('buyer_unread_count', total.toString());
         }
       } catch (error) {
         console.error('Error fetching unread count:', error);
@@ -79,6 +85,29 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     return () => {
       window.removeEventListener('resize', checkMobile);
       clearInterval(interval);
+    };
+  }, []);
+
+  // ========== LISTEN FOR REAL-TIME UNREAD UPDATES ==========
+  useEffect(() => {
+    const handleUnreadUpdate = (event) => {
+      if (event.detail?.count !== undefined) {
+        console.log('📬 Buyer sidebar received unread update:', event.detail.count);
+        setUnreadCount(event.detail.count);
+      }
+    };
+    
+    // Listen for custom event from BuyerMessages
+    window.addEventListener('buyer_unread_update', handleUnreadUpdate);
+    
+    // Also check localStorage for initial count
+    const savedCount = localStorage.getItem('buyer_unread_count');
+    if (savedCount) {
+      setUnreadCount(parseInt(savedCount));
+    }
+    
+    return () => {
+      window.removeEventListener('buyer_unread_update', handleUnreadUpdate);
     };
   }, []);
 
@@ -216,7 +245,7 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 {sidebarOpen && (
                   <div>
                     <span className="text-xl font-bold tracking-tight">EstateHub</span>
-                    <p className="text-xs text-slate-400">Buyer Portal</p>
+                    <p className="text-xs text-slate-400">{t('buyer_dashboard')}</p>
                   </div>
                 )}
               </div>
@@ -247,7 +276,7 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                     <>
                       <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
                       {item.badge > 0 && (
-                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-5 text-center">
+                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-5 text-center animate-pulse">
                           {item.badge > 99 ? '99+' : item.badge}
                         </span>
                       )}
@@ -255,7 +284,7 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                     </>
                   )}
                   {!sidebarOpen && item.badge > 0 && (
-                    <span className="absolute right-2 top-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                    <span className="absolute right-2 top-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                   )}
                 </button>
               );

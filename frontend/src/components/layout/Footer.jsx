@@ -1,29 +1,11 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useLanguage } from '../../context/LanguageContext'
 import { Building2, Facebook, Twitter, Instagram, Linkedin, Mail, Phone, MapPin } from 'lucide-react'
 
-const Footer = ({ language }) => {
+const Footer = () => {
+  const { t } = useLanguage()
   const currentYear = new Date().getFullYear()
-
-  const t = (key) => {
-    if (language === 'en') return key
-    
-    const translations = {
-      'About Us': 'ስለእኛ',
-      'About RealEstate Pro': 'ስለ ሪል እስቴት ፕሮ',
-      'Our mission is to help Ethiopians find their dream properties with ease and security.': 'ተልዕኮአችን ኢትዮጵያውያን በቀላሉ እና በደህንነት ህልማቸውን ንብረቶች እንዲያገኙ መርዳት ነው።',
-      'Quick Links': 'ፈጣን አገናኞች',
-      'Properties': 'ንብረቶች',
-      'Sell Property': 'ንብረት ሽጥ',
-      'Rent Property': 'ንብረት ኪራይ',
-      'Contact Us': 'አግኙን',
-      'Follow Us': 'ተከተሉን',
-      'All rights reserved.': 'ሁሉም መብቶች የተጠበቁ ናቸው።',
-      'Privacy Policy': 'የግላዊነት ፖሊሲ',
-      'Terms of Service': 'የአገልግሎት ውሎች'
-    }
-    return translations[key] || key
-  }
 
   return (
     <footer className="bg-gray-900 text-white pt-12 pb-6">

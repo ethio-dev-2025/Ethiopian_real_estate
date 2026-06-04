@@ -76,6 +76,14 @@ const SellerActivation = () => {
     fetchActivationStatus();
   }, []);
 
+  useEffect(() => {
+    if (activationStatus?.status === 'fully_activated' && refreshUser) {
+      refreshUser().catch(() => {
+        console.warn('SellerActivation: refreshUser failed after full activation');
+      });
+    }
+  }, [activationStatus, refreshUser]);
+
   const uploadFileToServer = async (file, documentType) => {
     if (!file) return null;
     

@@ -1,3 +1,4 @@
+# backend/app/routers/buyer.py - COMPLETE FIXED VERSION
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, desc
@@ -85,6 +86,9 @@ async def get_all_properties(
                 "images": images[:3],
                 "cover_image": listing.cover_image,
                 "featured": listing.featured,
+                "latitude": listing.latitude,     # ADDED
+                "longitude": listing.longitude,   # ADDED
+                "listing_status": listing.listing_status,  # ADDED
                 "created_at": listing.created_at.isoformat() if listing.created_at else None
             })
         
@@ -98,7 +102,8 @@ async def get_all_properties(
         print(f"Error: {e}")
         return {"total": 0, "properties": [], "has_more": False}
 
-# ============ GET SINGLE PROPERTY ============
+
+# ============ GET SINGLE PROPERTY - FIXED WITH LAT/LNG ============
 @router.get("/properties/{property_id}")
 async def get_property_detail(
     property_id: int,
@@ -157,6 +162,9 @@ async def get_property_detail(
             "owner_name": owner.full_name or owner.username if owner else "Unknown",
             "views_count": listing.views_count,
             "featured": listing.featured,
+            "listing_status": listing.listing_status,  # ADDED
+            "latitude": listing.latitude,              # ADDED - IMPORTANT FOR MAP
+            "longitude": listing.longitude,            # ADDED - IMPORTANT FOR MAP
             "created_at": listing.created_at.isoformat() if listing.created_at else None
         }
         
@@ -165,6 +173,7 @@ async def get_property_detail(
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ============ GET PROPERTY OWNER FOR CHAT ============
 @router.get("/property-owner/{property_id}")
@@ -219,7 +228,9 @@ async def get_property_owner(
                 buyer_id=current_user.id,
                 seller_id=owner.id,
                 property_id=property_id,
-                last_message_time=datetime.utcnow()
+                last_message_time=datetime.utcnow(),
+                buyer_unread=0,
+                seller_unread=0
             )
             db.add(conversation)
             db.commit()
@@ -240,6 +251,7 @@ async def get_property_owner(
         logger.error(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # ============ GET CONVERSATIONS ============
 @router.get("/conversations")
 async def get_conversations(
@@ -252,31 +264,84 @@ async def get_conversations(
                 Conversation.buyer_id == current_user.id,
                 Conversation.seller_id == current_user.id
             )
-        ).order_by(desc(Conversation.last_message_time)).all()
+        ).order_by(desc(Conversation.updated_at)).all()
         
         result = []
         for conv in conversations:
             other_user_id = conv.seller_id if conv.buyer_id == current_user.id else conv.buyer_id
             other_user = db.query(User).filter(User.id == other_user_id).first()
             property_obj = db.query(Listing).filter(Listing.id == conv.property_id).first()
-            unread_count = conv.buyer_unread or 0 if conv.buyer_id == current_user.id else conv.seller_unread or 0
+            
+            unread_count = conv.buyer_unread if conv.buyer_id == current_user.id else conv.seller_unread
             
             result.append({
                 "id": conv.id,
                 "property_id": conv.property_id,
                 "property_title": property_obj.title if property_obj else "Property",
-                "other_user_id": other_user_id,
-                "other_user_name": other_user.full_name or other_user.username if other_user else "User",
+                "user_id": other_user_id,
+                "user_name": other_user.full_name or other_user.username if other_user else "User",
+                "user_role": other_user.role_type if other_user else "user",
                 "last_message": conv.last_message or "No messages yet",
-                "last_message_time": conv.last_message_time.isoformat() if conv.last_message_time else None,
-                "unread_count": unread_count
+                "last_message_at": conv.last_message_time.isoformat() if conv.last_message_time else None,
+                "unread_count": unread_count or 0
             })
         
         return result
         
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error getting conversations: {e}")
         return []
+
+
+# ============ GET MESSAGE RECIPIENTS ============
+@router.get("/users")
+async def get_buyer_message_recipients(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        owner_ids = db.query(Listing.user_id).filter(
+            Listing.is_draft == False, 
+            Listing.status == 'active'
+        ).distinct()
+
+        recipients = db.query(User).filter(
+            User.id != current_user.id,
+            User.status == "active",
+            or_(
+                User.role_type == 'admin',
+                User.id.in_(owner_ids)
+            )
+        ).order_by(User.full_name.asc()).all()
+
+        result = []
+        for user in recipients:
+            existing_conv = db.query(Conversation).filter(
+                or_(
+                    and_(Conversation.buyer_id == current_user.id, Conversation.seller_id == user.id),
+                    and_(Conversation.buyer_id == user.id, Conversation.seller_id == current_user.id)
+                )
+            ).first()
+            
+            result.append({
+                "id": user.id,
+                "user_id": user.id,
+                "user_name": user.full_name or user.username,
+                "user_role": user.role_type,
+                "user_avatar": user.avatar_url,
+                "email": user.email,
+                "last_message": existing_conv.last_message if existing_conv else None,
+                "last_message_at": existing_conv.last_message_time.isoformat() if existing_conv and existing_conv.last_message_time else None,
+                "unread_count": 0,
+                "is_online": False,
+                "conversation_id": existing_conv.id if existing_conv else None
+            })
+
+        return result
+    except Exception as e:
+        logger.error(f"Error getting message recipients: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # ============ GET MESSAGES ============
 @router.get("/conversations/{conversation_id}/messages")
@@ -293,7 +358,6 @@ async def get_conversation_messages(
         if conv.buyer_id != current_user.id and conv.seller_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized")
         
-        # Mark as read
         if conv.buyer_id == current_user.id:
             conv.buyer_unread = 0
         else:
@@ -324,8 +388,9 @@ async def get_conversation_messages(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error getting messages: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ============ SEND MESSAGE ============
 @router.post("/send-message")
@@ -366,6 +431,7 @@ async def send_message(
         
         conv.last_message = message_content[:100]
         conv.last_message_time = datetime.utcnow()
+        conv.updated_at = datetime.utcnow()
         
         if conv.buyer_id == receiver_id:
             conv.buyer_unread = (conv.buyer_unread or 0) + 1
@@ -376,9 +442,10 @@ async def send_message(
         return {"success": True, "message": "Message sent successfully"}
         
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error sending message: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ============ SAVED PROPERTIES ============
 @router.get("/saved-properties")
@@ -414,14 +481,17 @@ async def get_saved_properties(
                     "city": listing.city,
                     "images": images[:3],
                     "cover_image": listing.cover_image,
+                    "latitude": listing.latitude,
+                    "longitude": listing.longitude,
                     "saved_at": item.saved_at.isoformat() if item.saved_at else None
                 })
         
         return properties
         
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error getting saved properties: {e}")
         return []
+
 
 @router.post("/save-property/{property_id}")
 async def save_property(
@@ -449,9 +519,10 @@ async def save_property(
         return {"success": True, "saved": True, "message": "Property saved"}
         
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error saving property: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.delete("/unsave-property/{property_id}")
 async def unsave_property(
@@ -472,9 +543,10 @@ async def unsave_property(
         return {"success": True, "saved": False, "message": "Property removed"}
         
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error unsaving property: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/is-saved/{property_id}")
 async def is_property_saved(

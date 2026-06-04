@@ -6,10 +6,13 @@ import os
 from .routers import (
     auth, admin, listings, users, messages, notifications, 
     payments, settings as settings_router, password_reset, activation, buyer, 
-    buyer_auth, admin_messages, websocket
+    buyer_auth, admin_messages, websocket, transactions  # ADD transactions here
 )
 from .database import init_db
 from .config import settings
+
+# In backend/app/main.py
+from app.routers import admin_notifications
 
 # Create uploads directories
 os.makedirs("uploads/listings", exist_ok=True)
@@ -58,6 +61,11 @@ app.include_router(buyer.router, prefix="/api/buyer", tags=["buyer"])
 app.include_router(buyer_auth.router, prefix="/api/buyer/auth", tags=["buyer-auth"])
 app.include_router(admin_messages.router, prefix="/api/admin/messages", tags=["admin-messages"])
 app.include_router(websocket.router, prefix="/api", tags=["websocket"])
+app.include_router(admin_notifications.router, prefix="/api/admin", tags=["admin"])
+app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])  # ADD THIS LINE
+# Add this line with your other routers
+app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])
+
 
 # ============ HEALTH ENDPOINTS ============
 @app.get("/")
@@ -75,3 +83,13 @@ async def global_exception_handler(request, exc):
     return {"status": "error", "message": str(exc)}
 
 print("✅ Server started with CORS properly configured!")
+
+# backend/app/main.py - Add transactions to imports and routers
+from .routers import (
+    auth, admin, listings, users, messages, notifications, 
+    payments, settings as settings_router, password_reset, activation, buyer, 
+    buyer_auth, admin_messages, websocket, transactions  # ADD transactions
+)
+
+# ... rest of your code ...
+

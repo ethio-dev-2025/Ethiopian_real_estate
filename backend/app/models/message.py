@@ -1,13 +1,16 @@
+# backend/app/models/message.py
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from ..database import Base
 import enum
 
+
 class MessageStatus(str, enum.Enum):
     SENT = "sent"
     DELIVERED = "delivered"
     READ = "read"
+
 
 class Message(Base):
     __tablename__ = "messages"
@@ -15,6 +18,7 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)  # ✅ ADDED
     content = Column(Text, nullable=False)
     attachment_url = Column(String(500), nullable=True)
     attachment_type = Column(String(50), nullable=True)
@@ -27,6 +31,7 @@ class Message(Base):
     # Relationships
     sender = relationship("User", foreign_keys=[sender_id], backref="sent_messages")
     receiver = relationship("User", foreign_keys=[receiver_id], backref="received_messages")
+    conversation = relationship("Conversation", back_populates="messages")  # ✅ ADDED
 
 
 class Conversation(Base):
@@ -48,3 +53,4 @@ class Conversation(Base):
     buyer = relationship("User", foreign_keys=[buyer_id], backref="buyer_conversations")
     seller = relationship("User", foreign_keys=[seller_id], backref="seller_conversations")
     property = relationship("Listing", foreign_keys=[property_id], backref="conversations")
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")  # ✅ ADDED

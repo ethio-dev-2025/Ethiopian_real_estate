@@ -1,3 +1,4 @@
+// src/context/AuthContext.jsx - WebSocket DISABLED
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 
@@ -27,6 +28,7 @@ export const AuthProvider = ({ children }) => {
   const messageHandlersRef = useRef(new Map());
   const pingIntervalRef = useRef(null);
   const isRefreshingRef = useRef(false);
+  const [webSocketEnabled, setWebSocketEnabled] = useState(false); // DISABLED
 
   const clearAuthData = useCallback(() => {
     localStorage.removeItem('access_token');
@@ -67,35 +69,51 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // FIX 1: DISABLE WEBSOCKET COMPLETELY - COMMENTED OUT
+  // WebSocket COMPLETELY DISABLED
   const connectWebSocket = useCallback((authToken) => {
-    // WEBSOCKET DISABLED - Performance improvement
-    console.log('🔌 WebSocket is disabled for performance');
+    console.log('🔌 WebSocket is disabled');
     return null;
   }, []);
+
+  const fetchWithTimeout = async (input, init = {}, timeout = 5000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(input, { ...init, signal: controller.signal });
+      return response;
+    } finally {
+      clearTimeout(id);
+    }
+  };
 
   const fetchFreshUserData = useCallback(async (accessToken) => {
     if (!accessToken) return null;
     if (isRefreshingRef.current) return null;
-    
+
     isRefreshingRef.current = true;
-    
+
     try {
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await fetchWithTimeout(`${API_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
-      
-      if (response.ok) {
+      }, 5000);
+
+      if (response?.ok) {
         const freshUser = await response.json();
         console.log('📦 Fresh user data from API:', freshUser);
         return freshUser;
-      } else if (response.status === 401) {
+      } else if (response?.status === 401) {
         console.log('Token expired, clearing auth data');
         clearAuthData();
         return null;
+      } else {
+        console.warn('Auth refresh did not succeed:', response?.status);
       }
     } catch (error) {
-      console.error('Error fetching fresh user data:', error);
+      if (error.name === 'AbortError') {
+        console.warn('Auth refresh request timed out');
+      } else {
+        console.error('Error fetching fresh user data:', error);
+      }
     } finally {
       setTimeout(() => {
         isRefreshingRef.current = false;
@@ -104,7 +122,7 @@ export const AuthProvider = ({ children }) => {
     return null;
   }, [clearAuthData]);
 
-  // Initialize auth from localStorage - ONLY ONCE
+  // Initialize auth from localStorage
   useEffect(() => {
     if (isInitialized) return;
     
@@ -120,14 +138,26 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
           setToken(storedToken);
           setAuthReady(true);
-          
+
           if (parsedUser.role_type) {
             localStorage.setItem('user_role', parsedUser.role_type);
             localStorage.setItem('role_selected', 'true');
           }
-          
+
+          // Do not block initial render on auth refresh
+          fetchFreshUserData(storedToken).then((freshUser) => {
+            if (freshUser) {
+              setUser(freshUser);
+              localStorage.setItem('user', JSON.stringify(freshUser));
+              let freshRole = freshUser.role_type || freshUser.role || 'buyer';
+              if (freshRole === 'user') freshRole = 'buyer';
+              localStorage.setItem('user_role', freshRole);
+            }
+          }).catch((refreshError) => {
+            console.warn('Auth refresh failed in background:', refreshError);
+          });
+
           // WebSocket disabled - no connection attempt
-          // setTimeout(() => connectWebSocket(storedToken), 1000);
         } catch (error) {
           console.error('AuthContext: Failed to parse user', error);
           clearAuthData();
@@ -140,7 +170,7 @@ export const AuthProvider = ({ children }) => {
     };
     
     initAuth();
-  }, [connectWebSocket, clearAuthData, isInitialized]);
+  }, [connectWebSocket, clearAuthData, isInitialized, fetchFreshUserData]);
 
   const setAuthData = useCallback((accessToken, userData) => {
     localStorage.setItem('access_token', accessToken);
@@ -154,7 +184,6 @@ export const AuthProvider = ({ children }) => {
     setAuthReady(true);
     
     // WebSocket disabled - no connection attempt
-    // setTimeout(() => connectWebSocket(accessToken), 1000);
   }, []);
 
   const login = async (email, password) => {
@@ -266,6 +295,29 @@ export const AuthProvider = ({ children }) => {
     return updatedUser;
   }, []);
 
+  useEffect(() => {
+    const handleUserUpdated = async (event) => {
+      const updatedUser = event?.detail;
+      if (updatedUser && typeof updatedUser === 'object') {
+        setUser(updatedUser);
+        setIsAuthenticated(true);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        let userRole = updatedUser.role_type || updatedUser.role || 'buyer';
+        if (userRole === 'user') userRole = 'buyer';
+        localStorage.setItem('user_role', userRole);
+        localStorage.setItem('role_selected', 'true');
+        console.log('AuthContext: user updated from event', updatedUser);
+        return;
+      }
+
+      console.log('AuthContext: user:update event received, refreshing user');
+      await refreshUser();
+    };
+
+    window.addEventListener('user:updated', handleUserUpdated);
+    return () => window.removeEventListener('user:updated', handleUserUpdated);
+  }, [refreshUser]);
+
   const value = {
     user,
     loading,
@@ -276,7 +328,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     register,
     token,
-    socket: socketRef.current,
+    socket: null, // WebSocket disabled
     addMessageHandler,
     refreshUser,
     updateUser,

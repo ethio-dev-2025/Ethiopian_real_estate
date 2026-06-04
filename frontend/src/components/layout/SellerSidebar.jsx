@@ -8,19 +8,20 @@ import {
   User, Lock, Bell, Monitor, ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../../context/LanguageContext'
 
 const API_URL = 'http://localhost:8000';
 
-const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
+const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const { user, logout, refreshUser, updateUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isMobile, setIsMobile] = useState(false);
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
+  const [liveStatus, setLiveStatus] = useState(null);
   const settingsButtonRef = useRef(null);
   const settingsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -28,14 +29,17 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const isMountedRef = useRef(true);
   const hasFetchedRef = useRef(false);
 
+  const { t } = useLanguage()
+
   const settingsMenuItems = [
-    { id: 'profile', label: 'Profile Information', icon: User, tab: 'profile' },
-    { id: 'security', label: 'Security', icon: Lock, tab: 'security' },
-    { id: 'notifications', label: 'Notifications', icon: Bell, tab: 'notifications' },
-    { id: 'privacy', label: 'Privacy', icon: Shield, tab: 'privacy' },
-    { id: 'appearance', label: 'Appearance', icon: Monitor, tab: 'appearance' }
+    { id: 'profile', labelKey: 'profile_information', label: 'Profile Information', icon: User, tab: 'profile' },
+    { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' },
+    { id: 'notifications', labelKey: 'notification_preferences', label: 'Notification Preferences', icon: Bell, tab: 'notifications' },
+    { id: 'privacy', labelKey: 'privacy', label: 'Privacy', icon: Shield, tab: 'privacy' },
+    { id: 'appearance', labelKey: 'appearance', label: 'Appearance', icon: Monitor, tab: 'appearance' }
   ];
 
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (settingsDropdownRef.current && 
@@ -49,22 +53,37 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Close dropdown on route change
   useEffect(() => {
     setIsSettingsDropdownOpen(false);
   }, [location.pathname]);
 
+  // ========== LISTEN FOR UNREAD COUNT UPDATES ==========
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    const handleUnreadUpdate = (event) => {
+      if (event.detail?.count !== undefined) {
+        console.log('📬 Sidebar received unread update:', event.detail.count);
+        setTotalUnreadCount(event.detail.count);
+      }
+    };
+    
+    // Listen for custom event from SellerMessages
+    window.addEventListener('seller_unread_update', handleUnreadUpdate);
+    
+    // Also check localStorage for initial count
+    const savedCount = localStorage.getItem('seller_unread_count');
+    if (savedCount) {
+      setTotalUnreadCount(parseInt(savedCount));
+    }
+    
+    return () => {
+      window.removeEventListener('seller_unread_update', handleUnreadUpdate);
+    };
   }, []);
 
   // Fetch unread count - ONLY ONCE
   const fetchUnreadCount = async () => {
-    // Prevent multiple calls
     if (hasFetchedRef.current) {
-      console.log('✅ Already fetched unread count, skipping...');
       return;
     }
     
@@ -80,24 +99,49 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       if (response.ok && isMountedRef.current) {
         const data = await response.json();
         setTotalUnreadCount(data.unread_count || data.count || 0);
-        console.log('📬 Unread count fetched once:', data.unread_count || data.count || 0);
+        // Save to localStorage
+        localStorage.setItem('seller_unread_count', data.unread_count || data.count || 0);
       }
     } catch (error) {
       console.error('Error fetching unread count:', error);
     }
   };
 
-  // SINGLE EFFECT - runs ONLY ONCE
+  // Fetch live activation status from backend
+  const fetchLiveActivationStatus = async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/api/activation/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const statusData = await response.json();
+        setLiveStatus(statusData);
+        
+        if (statusData.can_create_listings === true && user?.can_create_listings !== true) {
+          await refreshUser();
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching activation status:', error);
+    }
+  };
+
+  // SINGLE EFFECT - runs ONCE
   useEffect(() => {
     isMountedRef.current = true;
     
-    // Fetch once after component mounts
     const timer = setTimeout(() => {
       fetchUnreadCount();
+      fetchLiveActivationStatus();
     }, 1000);
     
-    // NO INTERVAL - removed to stop repeated calls
-    // Only fetch once, then let the user refresh manually if needed
+    intervalRef.current = setInterval(() => {
+      fetchLiveActivationStatus();
+    }, 10000);
     
     return () => {
       clearTimeout(timer);
@@ -106,7 +150,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       }
       isMountedRef.current = false;
     };
-  }, []); // Empty dependency array - runs ONCE
+  }, []);
 
   useEffect(() => {
     if (user?.avatar_url) {
@@ -122,12 +166,12 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
   }, [user?.avatar_url]);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { id: 'create-listing', label: 'Create Listing', icon: PlusCircle, path: '/create-listing' },
-    { id: 'my-listings', label: 'My Listings', icon: List, path: '/listings' },
-    { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/messages', badge: totalUnreadCount },
-    { id: 'activation', label: 'Activation', icon: Shield, path: '/activation' },
-    { id: 'subscription', label: 'Subscription', icon: CreditCard, path: '/subscription' }
+    { id: 'dashboard', label: 'Dashboard', labelKey: 'dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { id: 'create-listing', label: 'Create Listing', labelKey: 'create_listing', icon: PlusCircle, path: '/create-listing' },
+    { id: 'my-listings', label: 'My Listings', labelKey: 'my_listings', icon: List, path: '/listings' },
+    { id: 'messages', label: 'Messages', labelKey: 'messages', icon: MessageSquare, path: '/messages', badge: totalUnreadCount },
+    { id: 'activation', label: 'Activation', labelKey: 'activation', icon: Shield, path: '/activation' },
+    { id: 'subscription', label: 'Subscription', labelKey: 'subscription', icon: CreditCard, path: '/subscription' }
   ];
 
   const handleNavigation = (path) => {
@@ -225,22 +269,45 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
   };
 
   const getUserStatus = () => {
+    if (liveStatus) {
+      if (liveStatus.can_create_listings === true || liveStatus.is_activated === true) {
+        return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+      }
+      if (liveStatus.status === 'payment_pending') {
+        return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+      }
+      if (liveStatus.status === 'documents_pending') {
+        return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
+      }
+      if (liveStatus.status === 'documents_approved') {
+        return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
+      }
+    }
+    
     if (user?.role_type === 'admin') {
       return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
     }
-    
-    if (user?.is_activated === true && user?.payment_approved === true && user?.can_create_listings === true) {
+
+    if (user?.status === 'active') {
       return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
     }
-    
+
+    if (user?.can_create_listings === true || user?.has_active_subscription === true) {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+    }
+
+    if (user?.is_activated === true && user?.payment_approved === true) {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+    }
+
     if (user?.is_activated === true && user?.payment_approved === false) {
       return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
     }
-    
-    if (user?.is_activated === false) {
+
+    if (user?.is_activated === false || user?.can_create_listings === false) {
       return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
     }
-    
+
     return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
   };
 
@@ -253,74 +320,92 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
   return (
     <>
+      {/* Mobile overlay */}
       {isMobile && sidebarOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-20" onClick={() => setSidebarOpen(false)} />
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
       
-      <aside className={`fixed top-0 left-0 z-40 h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'} ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}`}>
+      <aside className={`fixed top-0 left-0 z-40 h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white transition-all duration-300 shadow-xl
+        ${sidebarOpen ? 'w-64' : 'w-20'} 
+        ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}
+      `}>
         <div className="flex flex-col h-full">
+          {/* Logo Section */}
           <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigation('/dashboard')}>
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
                   <Building2 className="w-5 h-5 text-white" />
                 </div>
                 {sidebarOpen && (
-                  <div>
-                    <span className="text-xl font-bold tracking-tight">EstateHub</span>
+                  <div className="overflow-hidden">
+                    <span className="text-xl font-bold tracking-tight block">EstateHub</span>
                     <p className="text-xs text-slate-400">Seller Portal</p>
                   </div>
                 )}
               </div>
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-white/10 transition-all hidden md:block">
-                {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
+              {!isMobile && (
+                <button 
+                  onClick={() => setSidebarOpen(!sidebarOpen)} 
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all hidden md:block"
+                >
+                  {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
+              )}
             </div>
           </div>
 
+          {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1 mt-4">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
+              const hasBadge = item.badge && item.badge > 0;
               
               return (
                 <button
                   key={item.id}
                   onClick={() => handleNavigation(item.path)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 ${
-                    isActive 
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 relative group
+                    ${isActive 
                       ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                       : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   {sidebarOpen && (
                     <>
-                      <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
-                      {item.badge > 0 && (
-                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-5 text-center">
+                      <span className="flex-1 text-left text-sm font-medium">
+                        {t(item.labelKey) || item.label}
+                      </span>
+                      {hasBadge && (
+                        <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 min-w-5 text-center shadow-md animate-pulse">
                           {item.badge > 99 ? '99+' : item.badge}
                         </span>
                       )}
                       {isActive && <ChevronRight className="w-4 h-4 opacity-70" />}
                     </>
                   )}
-                  {!sidebarOpen && item.badge > 0 && (
-                    <span className="absolute right-2 top-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                  {!sidebarOpen && hasBadge && (
+                    <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                   )}
                 </button>
               );
             })}
 
+            {/* Settings Dropdown */}
             <div className="relative">
               <button
                 ref={settingsButtonRef}
                 onClick={toggleDropdown}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150 ${
-                  location.pathname === '/settings'
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150
+                  ${location.pathname === '/settings'
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <Settings className="w-5 h-5 flex-shrink-0" />
@@ -334,23 +419,24 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
               {sidebarOpen && isSettingsDropdownOpen && (
                 <div 
                   ref={settingsDropdownRef}
-                  className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50"
+                  className="absolute left-3 right-3 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50"
                 >
                   {settingsMenuItems.map((item) => {
                     const Icon = item.icon;
-                    const isActive = location.pathname === '/settings' && new URLSearchParams(location.search).get('tab') === item.tab;
+                    const currentTab = new URLSearchParams(location.search).get('tab') || 'profile';
+                    const isActive = location.pathname === '/settings' && currentTab === item.tab;
                     return (
                       <button
                         key={item.id}
                         onClick={() => handleSettingsNavigation(item.tab)}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 transition ${
-                          isActive 
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 transition text-left
+                          ${isActive 
                             ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
                             : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
+                          }`}
                       >
-                        <Icon className="w-4 h-4" />
-                        <span className="text-sm">{item.label}</span>
+                        <Icon className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-sm">{t(item.labelKey) || item.label}</span>
                         {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
                       </button>
                     );
@@ -360,11 +446,12 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
             </div>
           </nav>
 
-          <div className="p-4 pt-0 pb-5">
-            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-gray-800/50">
+          {/* User Profile Section */}
+          <div className="p-4 pt-0 pb-5 mt-auto">
+            <div className={`flex items-center ${sidebarOpen ? 'gap-3' : 'flex-col gap-2'}`}>
               <div className="relative group">
                 <div 
-                  className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0 cursor-pointer"
+                  className={`${sidebarOpen ? 'w-10 h-10' : 'w-10 h-10'} rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0 cursor-pointer`}
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {profileImage && !imageError ? (
@@ -385,7 +472,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
                 )}
                 <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                      onClick={() => fileInputRef.current?.click()}>
-                  <Camera className="w-4 h-4 text-white" />
+                  <Camera className="w-3 h-3 text-white" />
                 </div>
                 <input
                   ref={fileInputRef}
@@ -399,7 +486,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
               {sidebarOpen && (
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm truncate">{getUserName()}</p>
-                  <p className="text-xs text-gray-400 truncate">{getRoleDisplay()}</p>
+                  <p className="text-xs text-slate-400 truncate">{getRoleDisplay()}</p>
                   <div className="flex items-center gap-1 mt-1">
                     <div className={`w-2 h-2 ${status.dotColor} rounded-full animate-pulse`}></div>
                     <span className={`text-xs ${status.color === 'green' ? 'text-green-400' : status.color === 'yellow' ? 'text-yellow-400' : 'text-red-400'}`}>
@@ -411,8 +498,12 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen }) => {
             </div>
           </div>
           
+          {/* Logout Button */}
           <div className="p-4 border-t border-white/10">
-            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-red-600 hover:text-white transition-all duration-150">
+            <button 
+              onClick={handleLogout} 
+              className="w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-red-600 hover:text-white transition-all duration-150"
+            >
               <LogOut className="w-5 h-5 flex-shrink-0" />
               {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
             </button>

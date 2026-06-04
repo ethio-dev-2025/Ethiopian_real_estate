@@ -121,42 +121,41 @@ const VerificationQueue = () => {
     }
   }
 
-  const handleReject = async (requestId) => {
-    if (!rejectionReason.trim()) {
-      toast.error('Please provide a reason for rejection')
-      return
-    }
-    
-    setProcessingId(requestId)
-    try {
-      const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/api/activation/admin/reject/${requestId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ rejection_reason: rejectionReason })
-      })
-      
-      const data = await response.json()
-      
-      if (response.ok && data.success) {
-        toast.success('❌ Request rejected')
-        setShowRejectModal(false)
-        setRejectionReason('')
-        setSelectedRequest(null)
-        await fetchAllRequests()
-      } else {
-        toast.error(data.detail || 'Failed to reject')
-      }
-    } catch (error) {
-      console.error('Error rejecting:', error)
-      toast.error('Failed to reject request')
-    } finally {
-      setProcessingId(null)
-    }
+  const handleReject = async (requestId, reason) => {
+  if (!reason || !reason.trim()) {
+    toast.error('Please provide a reason for rejection')
+    return
   }
+  
+  setProcessingId(requestId)
+  try {
+    const token = localStorage.getItem('access_token')
+    const response = await fetch(`${API_URL}/api/activation/admin/reject/${requestId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ rejection_reason: reason })
+    })
+    
+    const data = await response.json()
+    
+    if (response.ok && data.success) {
+      toast.success('❌ Request rejected successfully')
+      fetchAllRequests()
+      setShowRejectModal(false)
+      setSelectedRequest(null)
+    } else {
+      toast.error(data.detail || 'Failed to reject request')
+    }
+  } catch (error) {
+    console.error('Error rejecting:', error)
+    toast.error('Failed to reject request')
+  } finally {
+    setProcessingId(null)
+  }
+}
 
   const getFullImageUrl = (path) => {
     if (!path) return null
@@ -541,61 +540,57 @@ const VerificationQueue = () => {
     )
   }
 
-  const RejectModal = () => {
-    const [localReason, setLocalReason] = useState('')
-    
-    const handleConfirmReject = async () => {
-      if (!localReason.trim()) {
-        toast.error('Please provide a reason for rejection')
-        return
-      }
-      setRejectionReason(localReason)
-      await handleReject(selectedRequest?.id)
+ // Fixed Reject Modal for VerificationQueue.jsx
+const RejectModal = () => {
+  const [localReason, setLocalReason] = useState('')
+  
+  const handleConfirmReject = () => {
+    if (!localReason.trim()) {
+      toast.error('Please provide a reason for rejection')
+      return
     }
-    
-    return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-gray-200 shadow-xl">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Request</h3>
-          <p className="text-gray-600 mb-4">Please provide a reason for rejection:</p>
-          <div style={{ direction: "ltr", unicodeBidi: "normal" }}>
-            <input 
-              type="text"
-              value={localReason}
-              onChange={(e) => setLocalReason(e.target.value)}
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-              style={{
-                direction: "ltr",
-                unicodeBidi: "normal",
-                textAlign: "left",
-                fontFamily: "inherit"
-              }}
-              placeholder="Type your rejection reason here..."
-              autoFocus
-            />
-          </div>
-          <div className="flex gap-3 mt-4">
-            <button 
-              onClick={() => {
-                setShowRejectModal(false)
-                setLocalReason('')
-              }} 
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleConfirmReject} 
-              disabled={processingId === selectedRequest?.id}
-              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
-            >
-              {processingId === selectedRequest?.id ? 'Processing...' : 'Confirm Reject'}
-            </button>
-          </div>
+    // Pass the reason directly to handleReject
+    if (selectedRequest?.id) {
+      handleReject(selectedRequest.id, localReason)
+    }
+    setShowRejectModal(false)
+  }
+  
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-gray-200 shadow-xl">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Request</h3>
+        <p className="text-gray-600 mb-4">Please provide a reason for rejection:</p>
+        <textarea 
+          value={localReason}
+          onChange={(e) => setLocalReason(e.target.value)}
+          rows="4"
+          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+          placeholder="Type your rejection reason here..."
+          autoFocus
+        />
+        <div className="flex gap-3 mt-4">
+          <button 
+            onClick={() => {
+              setShowRejectModal(false)
+              setLocalReason('')
+            }} 
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleConfirmReject} 
+            disabled={processingId === selectedRequest?.id}
+            className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+          >
+            {processingId === selectedRequest?.id ? 'Processing...' : 'Confirm Reject'}
+          </button>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
+}
 
   // Loading skeleton
   if (loading && pendingRequests.length === 0 && approvedRequests.length === 0 && rejectedRequests.length === 0) {

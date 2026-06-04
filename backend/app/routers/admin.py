@@ -754,3 +754,105 @@ async def get_recent_activities(
 
 
 print("✅ Admin router loaded successfully with real-payments endpoint!")
+
+@router.get("/profile")
+async def get_admin_profile(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get admin profile information"""
+    try:
+        return {
+            "id": current_user.id,
+            "full_name": current_user.full_name,
+            "email": current_user.email,
+            "username": current_user.username,
+            "phone": current_user.phone,
+            "bio": current_user.bio,
+            "avatar_url": current_user.avatar_url,
+            "date_of_birth": current_user.date_of_birth,
+            "city": current_user.city,
+            "address": current_user.address
+        }
+    except Exception as e:
+        print(f"Error getting admin profile: {e}")
+        return {}
+
+
+@router.put("/profile")
+async def update_admin_profile(
+    profile_data: dict,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update admin profile information"""
+    try:
+        if "full_name" in profile_data:
+            current_user.full_name = profile_data["full_name"]
+        if "phone" in profile_data:
+            current_user.phone = profile_data["phone"]
+        if "date_of_birth" in profile_data:
+            current_user.date_of_birth = profile_data["date_of_birth"]
+        if "city" in profile_data:
+            current_user.city = profile_data["city"]
+        if "address" in profile_data:
+            current_user.address = profile_data["address"]
+        if "bio" in profile_data:
+            current_user.bio = profile_data["bio"]
+        
+        db.commit()
+        db.refresh(current_user)
+        
+        return {
+            "success": True,
+            "message": "Profile updated successfully",
+            "user": {
+                "id": current_user.id,
+                "full_name": current_user.full_name,
+                "email": current_user.email,
+                "username": current_user.username,
+                "phone": current_user.phone,
+                "bio": current_user.bio,
+                "avatar_url": current_user.avatar_url,
+                "date_of_birth": current_user.date_of_birth,
+                "city": current_user.city,
+                "address": current_user.address
+            }
+        }
+    except Exception as e:
+        print(f"Error updating admin profile: {e}")
+        db.rollback()
+        return {"success": False, "message": str(e)}
+
+# Add this to your admin.py file
+
+@router.get("/pending-users")
+async def get_pending_users(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get users pending admin approval (sellers, landlords, dual)"""
+    try:
+        pending_users = db.query(User).filter(
+            User.is_activated == False,
+            User.role_type.in_(['seller', 'landlord', 'dual']),
+            User.status != 'active'
+        ).all()
+        
+        return [
+            {
+                "id": u.id,
+                "email": u.email,
+                "username": u.username,
+                "full_name": u.full_name,
+                "phone": u.phone,
+                "role_type": u.role_type,
+                "status": u.status,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "avatar_url": u.avatar_url
+            }
+            for u in pending_users
+        ]
+    except Exception as e:
+        print(f"Error getting pending users: {e}")
+        return []

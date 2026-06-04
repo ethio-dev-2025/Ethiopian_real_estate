@@ -9,6 +9,7 @@ from .activation import ActivationRequest, ActivationStatus
 from .admin_models import Company, Subscription, VerificationDocument, AdminActivity
 from .role_document import RoleDocument, RoleSubscription, DocumentType, DocumentStatus
 from .payment import PaymentTransaction
+from .transaction import Transaction
 
 __all__ = [
     'User',
@@ -30,4 +31,5 @@ __all__ = [
     'DocumentType',
     'DocumentStatus',
     'PaymentTransaction',
+    'Transaction',
 ]

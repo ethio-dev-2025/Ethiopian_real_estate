@@ -48,10 +48,43 @@ class RejectRequest(BaseModel):
     rejection_reason: str
 
 
+# ============ SIMPLE EMAIL FUNCTION ============
+async def send_email_simple(to_email, subject, html_content):
+    """Simple email sending function"""
+    try:
+        from ..services.email_service import email_service
+        
+        result = await email_service.send_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            text_content=subject
+        )
+        print(f"📧 Email to {to_email}: {result}")
+        return result.get("success", False)
+    except Exception as e:
+        print(f"❌ Email error: {e}")
+        return False
+
+
 # ============ TEST ENDPOINT ============
 @router.get("/test")
 async def test_endpoint():
     return {"status": "ok", "message": "Activation router is working"}
+
+
+@router.get("/test-email")
+async def test_email():
+    """Test email endpoint"""
+    from ..services.email_service import email_service
+    
+    result = await email_service.send_email(
+        to_email="melkamuenyew90@gmail.com",
+        subject="Test Email from EstateHub",
+        html_content="<h1>Test</h1><p>If you receive this, email is working!</p>",
+        text_content="Test email from EstateHub"
+    )
+    return {"success": result, "message": "Test email sent"}
 
 
 # ============ HEALTH CHECK ============
@@ -260,7 +293,6 @@ async def get_pending_document_requests(
     db: Session = Depends(get_db)
 ):
     try:
-        # Use string comparison - now works since status is String type
         requests = db.query(ActivationRequest).filter(
             ActivationRequest.status == "documents_pending"
         ).order_by(ActivationRequest.created_at.desc()).all()
@@ -402,55 +434,6 @@ async def get_pending_payment_requests(
         return []
 
 
-# ============ ADMIN: GET ALL PAYMENTS ============
-@router.get("/admin/payments")
-async def get_all_payments(
-    status: str = "all",
-    current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        query = db.query(ActivationRequest)
-        
-        if status == "pending":
-            query = query.filter(ActivationRequest.status == ActivationStatus.PAYMENT_PENDING)
-        elif status == "approved":
-            query = query.filter(ActivationRequest.status == ActivationStatus.FULLY_ACTIVATED)
-        elif status == "rejected":
-            query = query.filter(ActivationRequest.status == ActivationStatus.REJECTED)
-        
-        requests = query.order_by(ActivationRequest.created_at.desc()).all()
-        
-        result = []
-        for req in requests:
-            user = db.query(User).filter(User.id == req.user_id).first()
-            
-            status_value = req.status.value if hasattr(req.status, 'value') else str(req.status)
-            
-            result.append({
-                "id": req.id,
-                "user_id": req.user_id,
-                "full_name": req.full_name,
-                "email": req.email,
-                "phone_number": req.phone_number,
-                "plan_type": req.plan_type,
-                "payment_amount": req.payment_amount,
-                "payment_receipt": req.payment_receipt,
-                "payment_transaction_id": req.payment_transaction_id,
-                "status": status_value,
-                "rejection_reason": req.rejection_reason,
-                "created_at": req.created_at.isoformat() if req.created_at else None,
-                "user_name": user.full_name if user else req.full_name,
-                "user_email": user.email if user else req.email
-            })
-        
-        return result
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return []
-
-
 # ============ ADMIN: APPROVE DOCUMENTS ============
 @router.post("/admin/approve-documents/{request_id}")
 async def approve_documents(
@@ -514,6 +497,49 @@ async def submit_payment(
         activation_request.payment_transaction_id = payment_data.transaction_id
         
         db.commit()
+        
+        # SEND EMAIL TO ADMIN ABOUT NEW PAYMENT
+        try:
+            from ..services.email_service import email_service
+            
+            # Get all admin users
+            admins = db.query(User).filter(User.role_type == 'admin').all()
+            
+            for admin in admins:
+                if getattr(admin, 'email_alerts', True):
+                    # Create simple HTML email
+                    html_content = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>New Payment Received</title></head>
+                    <body style="font-family: Arial, sans-serif; padding: 20px;">
+                        <h2 style="color: #f59e0b;">💰 New Payment Received</h2>
+                        <p>Hello <strong>{admin.full_name or admin.username}</strong>,</p>
+                        <p>A new payment has been submitted and is waiting for approval!</p>
+                        <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                            <p><strong>User:</strong> {current_user.full_name or current_user.username}</p>
+                            <p><strong>Email:</strong> {current_user.email}</p>
+                            <p><strong>Amount:</strong> {payment_data.amount} ETB</p>
+                            <p><strong>Plan:</strong> {payment_data.plan_type}</p>
+                            <p><strong>Transaction ID:</strong> {payment_data.transaction_id or 'N/A'}</p>
+                        </div>
+                        <p>Please review this payment in the admin panel.</p>
+                        <a href="http://localhost:5173/admin/payment-approvals" style="background: #f59e0b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Review Payment</a>
+                        <hr>
+                        <p style="color: #666; font-size: 12px;">EstateHub Real Estate</p>
+                    </body>
+                    </html>
+                    """
+                    
+                    await email_service.send_email(
+                        to_email=admin.email,
+                        subject=f"💰 New Payment Received - {payment_data.plan_type} Plan",
+                        html_content=html_content,
+                        text_content=f"A new payment of {payment_data.amount} ETB has been received from {current_user.full_name}"
+                    )
+                    print(f"📧 New payment email sent to admin: {admin.email}")
+        except Exception as email_error:
+            print(f"⚠️ Failed to send email: {email_error}")
         
         return {"success": True, "message": "Payment submitted for admin verification"}
         
@@ -579,7 +605,76 @@ async def approve_payment(
         
         db.commit()
         
-        return {"success": True, "message": "Payment approved! Account fully activated"}
+        print(f"✅ Payment {request_id} approved for user {user.email}")
+        
+        # SEND EMAIL TO USER ABOUT APPROVAL
+        try:
+            from ..services.email_service import email_service
+            
+            # Email to user
+            user_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>Payment Approved - Account Activated</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2 style="color: #10b981;">✅ Payment Approved!</h2>
+                <p>Hello <strong>{user.full_name or user.username}</strong>,</p>
+                <p>Your payment has been approved! Your account is now fully activated.</p>
+                <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <p><strong>Amount:</strong> {activation_request.payment_amount} ETB</p>
+                    <p><strong>Plan:</strong> {activation_request.plan_type}</p>
+                    <p><strong>Transaction ID:</strong> {activation_request.payment_transaction_id or f'TXN-{activation_request.id}'}</p>
+                </div>
+                <p>You can now start creating listings on EstateHub.</p>
+                <a href="http://localhost:5173/dashboard" style="background: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Dashboard</a>
+                <hr>
+                <p style="color: #666; font-size: 12px;">EstateHub Real Estate</p>
+            </body>
+            </html>
+            """
+            
+            await email_service.send_email(
+                to_email=user.email,
+                subject=f"✅ Payment Approved - Your {activation_request.plan_type} Plan is Active!",
+                html_content=user_html,
+                text_content=f"Your payment of {activation_request.payment_amount} ETB has been approved."
+            )
+            print(f"📧 Approval email sent to user: {user.email}")
+            
+            # Email to admin (current user)
+            admin_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>Payment Approved</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2 style="color: #10b981;">✅ Payment Approved</h2>
+                <p>Hello <strong>{current_user.full_name or current_user.username}</strong>,</p>
+                <p>You have approved a payment!</p>
+                <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <p><strong>User:</strong> {user.full_name or user.username}</p>
+                    <p><strong>Email:</strong> {user.email}</p>
+                    <p><strong>Amount:</strong> {activation_request.payment_amount} ETB</p>
+                    <p><strong>Plan:</strong> {activation_request.plan_type}</p>
+                </div>
+                <p>The user's account has been activated.</p>
+                <hr>
+                <p style="color: #666; font-size: 12px;">EstateHub Real Estate</p>
+            </body>
+            </html>
+            """
+            
+            await email_service.send_email(
+                to_email=current_user.email,
+                subject=f"✅ Payment Approved - {activation_request.plan_type} Plan",
+                html_content=admin_html,
+                text_content=f"Payment of {activation_request.payment_amount} ETB from {user.full_name} has been approved"
+            )
+            print(f"📧 Approval email sent to admin: {current_user.email}")
+            
+        except Exception as email_error:
+            print(f"⚠️ Failed to send email: {email_error}")
+        
+        return {"success": True, "message": "Payment approved! Account fully activated. Email notifications sent."}
         
     except HTTPException:
         raise
@@ -613,14 +708,54 @@ async def reject_payment(
         activation_request.reviewed_by = current_user.id
         activation_request.reviewed_at = datetime.utcnow()
         
+        user = db.query(User).filter(User.id == activation_request.user_id).first()
+        
         db.commit()
+        
+        # SEND EMAIL TO USER ABOUT REJECTION
+        if user:
+            try:
+                from ..services.email_service import email_service
+                
+                user_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head><title>Payment Rejected</title></head>
+                <body style="font-family: Arial, sans-serif; padding: 20px;">
+                    <h2 style="color: #ef4444;">❌ Payment Rejected</h2>
+                    <p>Hello <strong>{user.full_name or user.username}</strong>,</p>
+                    <p>Unfortunately, your payment has been rejected.</p>
+                    <div style="background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <p><strong>Amount:</strong> {activation_request.payment_amount} ETB</p>
+                        <p><strong>Plan:</strong> {activation_request.plan_type}</p>
+                    </div>
+                    <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <p><strong>Reason:</strong><br>{rejection_data.rejection_reason}</p>
+                    </div>
+                    <p>Please contact support for more information or try again.</p>
+                    <a href="http://localhost:5173/subscription" style="background: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Try Again</a>
+                    <hr>
+                    <p style="color: #666; font-size: 12px;">EstateHub Real Estate</p>
+                </body>
+                </html>
+                """
+                
+                await email_service.send_email(
+                    to_email=user.email,
+                    subject=f"❌ Payment Rejected - {activation_request.plan_type} Plan",
+                    html_content=user_html,
+                    text_content=f"Your payment of {activation_request.payment_amount} ETB has been rejected."
+                )
+                print(f"📧 Rejection email sent to user: {user.email}")
+            except Exception as email_error:
+                print(f"⚠️ Failed to send email: {email_error}")
         
         return {"success": True, "message": "Request rejected"}
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error rejecting request: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -708,7 +843,6 @@ async def get_admin_pending_count(
     db: Session = Depends(get_db)
 ):
     try:
-        # Use string comparison to avoid enum issues
         count = db.query(ActivationRequest).filter(
             func.lower(ActivationRequest.status) == 'documents_pending'
         ).count()

@@ -7,19 +7,16 @@ import {
   Wifi, Wind, Thermometer, Coffee, Dumbbell, Tv, 
   Microwave, Refrigerator, Car, Activity, Lock, 
   TreePine, Heart, Zap, Sofa, Loader, Droplet, Save,
-  Star, Building2, Calendar
+  Star, Building2, Calendar, AlertCircle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
 const API_URL = 'http://localhost:8000'
 
-// Test users that bypass activation check
-const TEST_USERS = ['reduss@gmail.com', 'dani@gmail.com', 'test@example.com', 'reduss']
-
 const CreateListingWizard = ({ onSuccess }) => {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [step, setStep] = useState(1)
   const [listingType, setListingType] = useState(null)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
@@ -30,55 +27,110 @@ const CreateListingWizard = ({ onSuccess }) => {
   
   const [checkingActivation, setCheckingActivation] = useState(true)
   const [isActivated, setIsActivated] = useState(false)
+  const [activationMessage, setActivationMessage] = useState('')
   const checkCompletedRef = useRef(false)
 
-  // Check if user is test user
-  const isTestUser = useCallback(() => {
-    if (!user) return false
-    return TEST_USERS.includes(user.email) || TEST_USERS.includes(user.username)
-  }, [user])
-
+  // Check activation status from backend immediately
   useEffect(() => {
-    if (isTestUser()) {
-      setIsActivated(true)
-      setCheckingActivation(false)
-      return
+    const checkActivationStatus = async () => {
+      try {
+        const token = localStorage.getItem('access_token')
+        if (!token) {
+          navigate('/login')
+          return
+        }
+        
+        console.log('🔍 Checking activation status...')
+        const response = await fetch(`${API_URL}/api/activation/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to check activation')
+        }
+        
+        const data = await response.json()
+        console.log('📊 Activation status:', data)
+        
+        // Check if user can create listings
+        const canCreate = data.can_create_listings === true
+        
+        if (canCreate) {
+          setIsActivated(true)
+          // Refresh user data to update sidebar
+          await refreshUser()
+        } else {
+          setIsActivated(false)
+          // Set appropriate message based on status
+          if (data.status === 'documents_pending') {
+            setActivationMessage('Your documents are under review by admin. Please wait for approval.')
+          } else if (data.status === 'documents_approved') {
+            setActivationMessage('Your documents are approved! Please subscribe to activate your account.')
+          } else if (data.status === 'payment_pending') {
+            setActivationMessage('Your payment is being verified by admin. This usually takes 24-48 hours.')
+          } else if (data.status === 'rejected') {
+            setActivationMessage('Your activation request was rejected. Please contact support.')
+          } else {
+            setActivationMessage('Your account must be activated before you can create listings.')
+          }
+        }
+      } catch (error) {
+        console.error('Error checking activation:', error)
+        setIsActivated(false)
+        setActivationMessage('Unable to verify account status. Please try again.')
+      } finally {
+        setCheckingActivation(false)
+      }
     }
     
     if (!checkCompletedRef.current) {
       checkCompletedRef.current = true
       checkActivationStatus()
     }
-  }, [isTestUser])
+  }, [navigate, refreshUser])
 
-  const checkActivationStatus = async () => {
-    try {
-      const token = localStorage.getItem('access_token')
-      if (!token) {
-        navigate('/login')
-        return
-      }
-      
-      const response = await fetch(`${API_URL}/api/activation/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      const data = await response.json()
-      
-      if (!data.is_activated) {
-        toast.error('Your account is not activated. Please activate your account first.')
-        navigate('/activation')
-        return
-      }
-      setIsActivated(true)
-    } catch (error) {
-      console.error('Error checking activation:', error)
-      setIsActivated(true)
-    } finally {
-      setCheckingActivation(false)
-    }
+  // Show loading while checking
+  if (checkingActivation) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p className="ml-3 text-gray-500">Checking account status...</p>
+      </div>
+    )
   }
 
+  // Show activation required screen for pending users
+  if (!isActivated) {
+    return (
+      <div className="max-w-2xl mx-auto mt-12">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="p-8 text-center">
+            <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+              <AlertCircle className="w-12 h-12 text-amber-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Not Activated</h2>
+            <p className="text-gray-600 mb-6">{activationMessage}</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => navigate('/activation')}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
+              >
+                Go to Activation
+              </button>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="px-6 py-3 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ========== ACTIVE USER - SHOW CREATE LISTING FORM ==========
   const [formData, setFormData] = useState({
     title: '',
     property_type: 'house',
@@ -128,14 +180,6 @@ const CreateListingWizard = ({ onSuccess }) => {
     { icon: Sofa, name: 'Furnished' },
     { icon: Zap, name: 'Backup Power' }
   ]
-
-  if (checkingActivation) {
-    return null
-  }
-
-  if (!isActivated) {
-    return null
-  }
 
   if (!listingType) {
     return (
@@ -247,42 +291,30 @@ const CreateListingWizard = ({ onSuccess }) => {
         formDataImg.append('file', img.file)
         
         try {
-          console.log(`Uploading image: ${img.file.name}`)
           const uploadResponse = await fetch(`${API_URL}/api/listings/upload-image`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formDataImg
           })
           
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text()
-            console.error(`Upload failed: ${uploadResponse.status} - ${errorText}`)
-            toast.error(`Failed to upload ${img.file.name}`)
-            continue
-          }
-          
-          const uploadData = await uploadResponse.json()
-          if (uploadData.success) {
-            uploadedImageUrls.push(uploadData.url)
-            console.log(`Uploaded: ${uploadData.url}`)
-          } else {
-            console.error('Upload failed:', uploadData)
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json()
+            if (uploadData.success) {
+              uploadedImageUrls.push(uploadData.url)
+            }
           }
         } catch (err) {
           console.error('Upload error:', err)
-          toast.error(`Error uploading ${img.file.name}`)
         }
       } else if (img.url) {
         uploadedImageUrls.push(img.url)
       }
     }
     
-    console.log(`Successfully uploaded ${uploadedImageUrls.length} images`)
     return uploadedImageUrls
   }
 
   const handleSaveAsDraft = async () => {
-    // Validate required fields for draft
     if (!formData.title) {
       toast.error('Please enter a title')
       return
@@ -299,15 +331,9 @@ const CreateListingWizard = ({ onSuccess }) => {
         return
       }
       
-      // Upload images first
       let uploadedImageUrls = []
       if (uploadedImages.length > 0) {
         uploadedImageUrls = await uploadImagesToServer()
-        if (uploadedImageUrls.length === 0 && uploadedImages.length > 0) {
-          toast.error('Failed to upload images. Please try again.', { id: loadingToast })
-          setIsSavingDraft(false)
-          return
-        }
       }
       
       const listingData = {
@@ -334,8 +360,6 @@ const CreateListingWizard = ({ onSuccess }) => {
         status: 'draft'
       }
       
-      console.log('📝 Saving draft:', listingData)
-      
       const response = await fetch(`${API_URL}/api/listings/create`, {
         method: 'POST',
         headers: {
@@ -346,7 +370,6 @@ const CreateListingWizard = ({ onSuccess }) => {
       })
       
       const data = await response.json()
-      console.log('Response:', data)
       
       if (response.ok && data.success) {
         toast.success('Listing saved as draft!', { id: loadingToast })
@@ -356,7 +379,6 @@ const CreateListingWizard = ({ onSuccess }) => {
           setTimeout(() => navigate('/my-listings'), 1500)
         }
       } else {
-        console.error('Server error:', data)
         toast.error(data.detail || data.message || 'Failed to save draft', { id: loadingToast })
       }
     } catch (error) {
@@ -368,7 +390,6 @@ const CreateListingWizard = ({ onSuccess }) => {
   }
 
   const handlePublish = async () => {
-    // Validate required fields for publish
     if (!formData.title) {
       toast.error('Please enter a title')
       return
@@ -405,15 +426,9 @@ const CreateListingWizard = ({ onSuccess }) => {
         return
       }
       
-      // Upload images first
       let uploadedImageUrls = []
       if (uploadedImages.length > 0) {
         uploadedImageUrls = await uploadImagesToServer()
-        if (uploadedImageUrls.length === 0 && uploadedImages.length > 0) {
-          toast.error('Failed to upload images. Please try again.', { id: loadingToast })
-          setIsPublishing(false)
-          return
-        }
       }
       
       const listingData = {
@@ -440,8 +455,6 @@ const CreateListingWizard = ({ onSuccess }) => {
         status: 'active'
       }
       
-      console.log('📝 Publishing listing:', listingData)
-      
       const response = await fetch(`${API_URL}/api/listings/create`, {
         method: 'POST',
         headers: {
@@ -452,7 +465,6 @@ const CreateListingWizard = ({ onSuccess }) => {
       })
       
       const data = await response.json()
-      console.log('Response:', data)
       
       if (response.ok && data.success) {
         toast.success('Listing published successfully!', { id: loadingToast })
@@ -462,7 +474,6 @@ const CreateListingWizard = ({ onSuccess }) => {
           setTimeout(() => navigate('/my-listings'), 1500)
         }
       } else {
-        console.error('Server error:', data)
         toast.error(data.detail || data.message || 'Failed to publish listing', { id: loadingToast })
       }
     } catch (error) {
@@ -541,6 +552,7 @@ const CreateListingWizard = ({ onSuccess }) => {
             <h1 className="text-3xl font-bold text-gray-900">
               {listingType === 'sale' ? 'List Property for Sale' : 'List Property for Rent'}
             </h1>
+            <p className="text-green-600 text-sm mt-1">✓ Account fully activated - You can create listings</p>
           </div>
           <div className="text-right">
             <p className="text-sm font-semibold text-blue-600">{Math.round(progress)}% Complete</p>
@@ -671,7 +683,6 @@ const CreateListingWizard = ({ onSuccess }) => {
         )}
       </AnimatePresence>
 
-      {/* Navigation Buttons */}
       <div className="flex justify-between mt-8">
         {step > 1 && <button onClick={prevStep} className="px-6 py-3 border-2 rounded-xl font-semibold flex items-center gap-2 hover:bg-gray-50 transition"><ChevronLeft className="w-4 h-4" />Back</button>}
         <div className="flex gap-3 ml-auto">

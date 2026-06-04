@@ -7,7 +7,7 @@ from ..database import Base
 class Listing(Base):
     __tablename__ = "listings"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     price = Column(Float, nullable=False)
@@ -19,9 +19,9 @@ class Listing(Base):
     year_built = Column(Integer, nullable=True)
     status = Column(String(50), default="draft")
     
-    # ============ MAP COORDINATES - ADD THESE ============
-    latitude = Column(Float, nullable=True)   # For map markers
-    longitude = Column(Float, nullable=True)  # For map markers
+    # Map coordinates
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     
     address = Column(String(255), nullable=True)
     city = Column(String(100), nullable=True)
@@ -44,15 +44,26 @@ class Listing(Base):
     featured = Column(Boolean, default=False)
     is_draft = Column(Boolean, default=True)
     
-    # Foreign key - Use user_id
+    # Foreign keys
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
+    # Sold/Rented tracking fields
+    listing_status = Column(String(50), default="available")
+    sold_date = Column(DateTime(timezone=True), nullable=True)
+    sold_to_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=True)
+    
+    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     published_at = Column(DateTime(timezone=True), nullable=True)
     
-    # Relationship - Use 'user'
-    user = relationship("User", back_populates="listings")
+    # ============ RELATIONSHIPS - FIXED ============
+    user = relationship("User", foreign_keys=[user_id], back_populates="listings")
+    sold_to_user = relationship("User", foreign_keys=[sold_to_user_id], back_populates="purchased_listings")
+    
+    # One-to-one relationship with Transaction - NO back_populates to avoid conflict
+    transaction = relationship("Transaction", foreign_keys=[transaction_id], uselist=False)
     
     def to_dict(self):
         import json
@@ -68,6 +79,7 @@ class Listing(Base):
             "sqft": self.sqft,
             "year_built": self.year_built,
             "status": self.status,
+            "listing_status": self.listing_status,
             "latitude": self.latitude,
             "longitude": self.longitude,
             "address": self.address,
@@ -84,6 +96,9 @@ class Listing(Base):
             "featured": self.featured,
             "is_draft": self.is_draft,
             "user_id": self.user_id,
+            "sold_date": self.sold_date.isoformat() if self.sold_date else None,
+            "sold_to_user_id": self.sold_to_user_id,
+            "transaction_id": self.transaction_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "published_at": self.published_at.isoformat() if self.published_at else None,

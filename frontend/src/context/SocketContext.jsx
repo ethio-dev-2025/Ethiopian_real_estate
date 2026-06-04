@@ -1,6 +1,5 @@
 // src/context/SocketContext.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
-import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 
 const SocketContext = createContext()
@@ -13,8 +12,16 @@ export const SocketProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const socketRef = useRef(null)
+  const eventHandlersRef = useRef(new Map())
+  const [webSocketEnabled, setWebSocketEnabled] = useState(false) // Set to false to disable WebSocket
 
   useEffect(() => {
+    // WebSocket DISABLED - prevents connection errors
+    if (!webSocketEnabled) {
+      console.log('🔌 WebSocket is disabled')
+      return
+    }
+
     const token = localStorage.getItem('access_token')
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     
@@ -23,149 +30,162 @@ export const SocketProvider = ({ children }) => {
       return
     }
 
-    // Connect to WebSocket server
-    const newSocket = io('http://localhost:8000', {
-      transports: ['websocket'],
-      auth: { token },
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    })
+    const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/ws'
+    const websocketUrl = `${wsBaseUrl}/${encodeURIComponent(token)}`
+    const newSocket = new WebSocket(websocketUrl)
 
-    newSocket.on('connect', () => {
-      console.log('✅ Socket.IO connected successfully')
+    eventHandlersRef.current = new Map()
+
+    newSocket.onopen = () => {
+      console.log('✅ WebSocket connected successfully')
       setIsConnected(true)
-      
-      // Join user's room
-      newSocket.emit('join', { user_id: user.id })
-      
       toast.success('Real-time connected', { icon: '🔌', duration: 2000 })
-    })
+    }
 
-    newSocket.on('disconnect', () => {
-      console.log('🔌 Socket.IO disconnected')
+    newSocket.onclose = (closeEvent) => {
+      console.log('🔌 WebSocket disconnected', closeEvent)
       setIsConnected(false)
-    })
+    }
 
-    newSocket.on('connect_error', (error) => {
+    newSocket.onerror = (error) => {
       console.error('Socket connection error:', error)
       setIsConnected(false)
-    })
+    }
 
-    // Listen for new payment notifications (for admin)
-    newSocket.on('new_payment', (data) => {
-      console.log('💰 New payment notification:', data)
-      
-      // Add to notifications
-      setNotifications(prev => [{
-        id: Date.now(),
-        type: 'payment',
-        title: 'New Payment Received',
-        message: `${data.user_name} just paid for ${data.plan_type} plan`,
-        amount: data.amount,
-        user_name: data.user_name,
-        plan_type: data.plan_type,
-        payment_id: data.payment_id,
-        timestamp: new Date().toISOString(),
-        read: false
-      }, ...prev])
-      
-      setUnreadCount(prev => prev + 1)
-      
-      // Show toast notification
-      toast.success(
-        <div>
-          <p className="font-semibold">💰 New Payment!</p>
-          <p className="text-sm">{data.user_name} paid {data.plan_type} plan</p>
-          <p className="text-xs text-green-600">ETB {data.amount?.toLocaleString()}</p>
-        </div>,
-        { duration: 10000 }
-      )
-    })
+    newSocket.onmessage = async (messageEvent) => {
+      try {
+        const data = JSON.parse(messageEvent.data)
+        const { type, ...payload } = data
+        console.log('WebSocket message received:', data)
 
-    // Listen for account activation notifications
-    newSocket.on('account_activated', (data) => {
-      console.log('✅ Account activated notification:', data)
-      
-      setNotifications(prev => [{
-        id: Date.now(),
-        type: 'activation',
-        title: 'Account Activated!',
-        message: data.message || 'Your account has been activated',
-        read: false,
-        timestamp: new Date().toISOString()
-      }, ...prev])
-      
-      setUnreadCount(prev => prev + 1)
-      
-      toast.success(
-        <div>
-          <p className="font-semibold">✅ Account Activated!</p>
-          <p className="text-sm">You can now create listings</p>
-        </div>,
-        { duration: 5000 }
-      )
-    })
+        const handlers = eventHandlersRef.current.get(type) || []
+        handlers.forEach((handler) => handler(payload))
 
-    // Listen for payment approval notifications
-    newSocket.on('payment_approved', (data) => {
-      console.log('✅ Payment approved notification:', data)
-      
-      setNotifications(prev => [{
-        id: Date.now(),
-        type: 'approval',
-        title: 'Payment Approved',
-        message: `Your ${data.plan_type} plan payment has been approved`,
-        read: false,
-        timestamp: new Date().toISOString()
-      }, ...prev])
-      
-      setUnreadCount(prev => prev + 1)
-      
-      toast.success(
-        <div>
-          <p className="font-semibold">✅ Payment Approved!</p>
-          <p className="text-sm">Your account is now active</p>
-        </div>,
-        { duration: 5000 }
-      )
-    })
-
-    // Listen for payment rejection notifications
-    newSocket.on('payment_rejected', (data) => {
-      console.log('❌ Payment rejected notification:', data)
-      
-      setNotifications(prev => [{
-        id: Date.now(),
-        type: 'rejection',
-        title: 'Payment Rejected',
-        message: data.message || `Your payment was rejected: ${data.reason}`,
-        reason: data.reason,
-        read: false,
-        timestamp: new Date().toISOString()
-      }, ...prev])
-      
-      setUnreadCount(prev => prev + 1)
-      
-      toast.error(
-        <div>
-          <p className="font-semibold">❌ Payment Rejected</p>
-          <p className="text-sm">{data.reason || 'Please contact support'}</p>
-        </div>,
-        { duration: 8000 }
-      )
-    })
+        switch (type) {
+          case 'connection_established':
+            return
+          case 'new_payment':
+            setNotifications((prev) => [{
+              id: Date.now(),
+              type: 'payment',
+              title: 'New Payment Received',
+              message: `${payload.user_name} just paid for ${payload.plan_type} plan`,
+              amount: payload.amount,
+              user_name: payload.user_name,
+              plan_type: payload.plan_type,
+              payment_id: payload.payment_id,
+              timestamp: new Date().toISOString(),
+              read: false,
+            }, ...prev])
+            setUnreadCount((prev) => prev + 1)
+            toast.success(
+              <div>
+                <p className="font-semibold">💰 New Payment!</p>
+                <p className="text-sm">{payload.user_name} paid {payload.plan_type} plan</p>
+                <p className="text-xs text-green-600">ETB {payload.amount?.toLocaleString()}</p>
+              </div>,
+              { duration: 10000 }
+            )
+            return
+          case 'account_activated':
+            setNotifications((prev) => [{
+              id: Date.now(),
+              type: 'activation',
+              title: 'Account Activated!',
+              message: payload.message || 'Your account has been activated',
+              read: false,
+              timestamp: new Date().toISOString(),
+            }, ...prev])
+            setUnreadCount((prev) => prev + 1)
+            try {
+              const token = localStorage.getItem('access_token')
+              if (token) {
+                const resp = await fetch('http://localhost:8000/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+                if (resp.ok) {
+                  const freshUser = await resp.json()
+                  localStorage.setItem('user', JSON.stringify(freshUser))
+                  window.dispatchEvent(new CustomEvent('user:updated', { detail: freshUser }))
+                }
+              }
+            } catch (err) {
+              console.error('Failed to refresh user after activation:', err)
+            }
+            toast.success(
+              <div>
+                <p className="font-semibold">✅ Account Activated!</p>
+                <p className="text-sm">You can now create listings</p>
+              </div>,
+              { duration: 5000 }
+            )
+            return
+          case 'payment_approved':
+            setNotifications((prev) => [{
+              id: Date.now(),
+              type: 'approval',
+              title: 'Payment Approved',
+              message: `Your ${payload.plan_type} plan payment has been approved`,
+              read: false,
+              timestamp: new Date().toISOString(),
+            }, ...prev])
+            setUnreadCount((prev) => prev + 1)
+            try {
+              const token = localStorage.getItem('access_token')
+              if (token) {
+                const resp = await fetch('http://localhost:8000/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+                if (resp.ok) {
+                  const freshUser = await resp.json()
+                  localStorage.setItem('user', JSON.stringify(freshUser))
+                  window.dispatchEvent(new CustomEvent('user:updated', { detail: freshUser }))
+                }
+              }
+            } catch (err) {
+              console.error('Failed to refresh user after payment approval:', err)
+            }
+            toast.success(
+              <div>
+                <p className="font-semibold">✅ Payment Approved!</p>
+                <p className="text-sm">Your account is now active</p>
+              </div>,
+              { duration: 5000 }
+            )
+            return
+          case 'payment_rejected':
+            setNotifications((prev) => [{
+              id: Date.now(),
+              type: 'rejection',
+              title: 'Payment Rejected',
+              message: payload.message || `Your payment was rejected: ${payload.reason}`,
+              reason: payload.reason,
+              read: false,
+              timestamp: new Date().toISOString(),
+            }, ...prev])
+            setUnreadCount((prev) => prev + 1)
+            toast.error(
+              <div>
+                <p className="font-semibold">❌ Payment Rejected</p>
+                <p className="text-sm">{payload.reason || 'Please contact support'}</p>
+              </div>,
+              { duration: 8000 }
+            )
+            return
+          default:
+            return
+        }
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err)
+      }
+    }
 
     socketRef.current = newSocket
     setSocket(newSocket)
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.disconnect()
+        socketRef.current.close()
         socketRef.current = null
       }
     }
-  }, [])
+  }, [webSocketEnabled])
 
   const markAsRead = useCallback((notificationId) => {
     setNotifications(prev => 
@@ -188,22 +208,23 @@ export const SocketProvider = ({ children }) => {
     setUnreadCount(0)
   }, [])
 
-  const emit = useCallback((event, data) => {
+  const emit = useCallback((event, data = {}) => {
     if (socketRef.current && isConnected) {
-      socketRef.current.emit(event, data)
+      const payload = JSON.stringify({ type: event, ...data })
+      socketRef.current.send(payload)
+    } else {
+      console.log(`WebSocket not connected, cannot emit: ${event}`)
     }
   }, [isConnected])
 
   const on = useCallback((event, callback) => {
-    if (socketRef.current) {
-      socketRef.current.on(event, callback)
-    }
+    const handlers = eventHandlersRef.current.get(event) || []
+    eventHandlersRef.current.set(event, [...handlers, callback])
   }, [])
 
   const off = useCallback((event, callback) => {
-    if (socketRef.current) {
-      socketRef.current.off(event, callback)
-    }
+    const handlers = eventHandlersRef.current.get(event) || []
+    eventHandlersRef.current.set(event, handlers.filter((handler) => handler !== callback))
   }, [])
 
   const value = {

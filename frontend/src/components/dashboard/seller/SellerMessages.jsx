@@ -5,11 +5,36 @@ import { useAuth } from '../../../context/AuthContext';
 import {
   Search, Send, Paperclip, Image, File, X, CheckCheck,
   Check, Clock, MessageCircle, AlertCircle, Loader,
-  Download
+  Download, ArrowLeft, User, Users, MessageSquare, RefreshCw,
+  Maximize2, Minimize2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000';
+
+// Telegram-style CSS
+const telegramStyles = `
+  @keyframes pulse-badge {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.1); }
+  }
+  .animate-pulse-badge {
+    animation: pulse-badge 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .message-bubble-in, .message-bubble-out {
+    animation: fadeInUp 0.3s ease-out;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`;
+
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = telegramStyles;
+  document.head.appendChild(style);
+}
 
 const SellerMessages = () => {
   const { user, socket, addMessageHandler } = useAuth();
@@ -17,7 +42,9 @@ const SellerMessages = () => {
   const navigate = useNavigate();
   const { conversationId: urlConversationId } = useParams();
 
+  const [activeView, setActiveView] = useState('conversations');
   const [conversations, setConversations] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -29,6 +56,9 @@ const SellerMessages = () => {
   const [showAttachmentModal, setShowAttachmentModal] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState(null);
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -43,26 +73,37 @@ const SellerMessages = () => {
     }, 100);
   };
 
+  // Update global sidebar badge
+  const updateGlobalUnreadBadge = useCallback((count) => {
+    window.dispatchEvent(new CustomEvent('seller_unread_update', { detail: { count } }));
+    localStorage.setItem('seller_unread_count', count.toString());
+  }, []);
+
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now - date;
-    
     if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diff < 604800000) return date.toLocaleDateString([], { weekday: 'short' });
     return date.toLocaleDateString();
   };
 
-  const getStatusIcon = (status, isOwn) => {
-    if (!isOwn) return null;
+  const formatMessageTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const getStatusIcon = (status) => {
     switch (status) {
-      case 'read': return <CheckCheck className="w-3 h-3 text-blue-500" title="Read" />;
-      case 'delivered': return <CheckCheck className="w-3 h-3 text-gray-400" title="Delivered" />;
-      case 'sent': return <Check className="w-3 h-3 text-gray-400" title="Sent" />;
-      case 'sending': return <Loader className="w-3 h-3 animate-spin text-gray-400" title="Sending" />;
-      default: return <Clock className="w-3 h-3 text-gray-400" title="Pending" />;
+      case 'read': return <CheckCheck className="w-4 h-4 text-blue-400" title="Seen" />;
+      case 'delivered': return <CheckCheck className="w-4 h-4 text-gray-400" title="Delivered" />;
+      case 'sent': return <Check className="w-4 h-4 text-gray-400" title="Sent" />;
+      case 'sending': return <Loader className="w-3 h-3 animate-spin text-gray-300" />;
+      default: return <Clock className="w-3 h-3 text-gray-300" />;
     }
   };
 
@@ -71,6 +112,16 @@ const SellerMessages = () => {
     if (url.startsWith('http')) return url;
     if (url.startsWith('/uploads')) return `${API_URL}${url}`;
     return url;
+  };
+
+  const getRoleBadge = (role) => {
+    switch(role?.toLowerCase()) {
+      case 'admin': return <span className="text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded">Admin</span>;
+      case 'buyer': return <span className="text-xs text-orange-600 bg-orange-100 px-2 py-0.5 rounded">Buyer</span>;
+      case 'landlord': return <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Landlord</span>;
+      case 'dual': return <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded">Dual</span>;
+      default: return null;
+    }
   };
 
   const fetchMessages = useCallback(async (userId) => {
@@ -89,7 +140,7 @@ const SellerMessages = () => {
         scrollToBottom();
       }
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching messages:', err);
     }
   }, []);
 
@@ -109,15 +160,50 @@ const SellerMessages = () => {
         
         const totalUnread = sorted.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
         setTotalUnreadCount(totalUnread);
-        
-        console.log('📋 Fetched conversations:', sorted.length, 'Unread total:', totalUnread);
+        updateGlobalUnreadBadge(totalUnread);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching conversations:', err);
     }
-  }, []);
+  }, [updateGlobalUnreadBadge]);
 
-  const markAllMessagesRead = async (userId) => {
+  const fetchAllUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_URL}/api/admin/users?limit=1000`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const usersList = data.users || (Array.isArray(data) ? data : []);
+        const filteredUsers = usersList.filter(u => u.id !== user?.id && u.role_type !== 'seller');
+        
+        const formattedUsers = filteredUsers.map(u => ({
+          id: u.id,
+          user_id: u.id,
+          user_name: u.full_name || u.username,
+          user_role: u.role_type,
+          user_avatar: u.avatar_url,
+          last_message: null,
+          last_message_at: null,
+          unread_count: 0,
+          is_online: false
+        }));
+        
+        setAllUsers(formattedUsers);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  const markConversationRead = async (userId) => {
     try {
       const token = getToken();
       await fetch(`${API_URL}/api/messages/mark-all-read/${userId}`, {
@@ -129,13 +215,38 @@ const SellerMessages = () => {
         c.user_id === userId ? { ...c, unread_count: 0 } : c
       ));
       
-      setTotalUnreadCount(prev => {
-        const conv = conversations.find(c => c.user_id === userId);
-        const newCount = prev - (conv?.unread_count || 0);
-        return newCount > 0 ? newCount : 0;
-      });
+      // Recalculate total unread
+      const newTotal = conversations.filter(c => c.user_id !== userId).reduce((sum, c) => sum + (c.unread_count || 0), 0);
+      setTotalUnreadCount(newTotal);
+      updateGlobalUnreadBadge(newTotal);
     } catch (err) {
       console.error('Error marking messages as read:', err);
+    }
+  };
+
+  const startNewConversation = async (selectedUser) => {
+    const existingConv = conversations.find(c => c.user_id === selectedUser.user_id);
+
+    if (existingConv) {
+      setSelectedConversation(existingConv);
+      fetchMessages(existingConv.user_id);
+      markConversationRead(existingConv.user_id);
+      setActiveView('conversations');
+      navigate(`/messages/${existingConv.id}`);
+    } else {
+      const newConv = {
+        id: null,
+        user_id: selectedUser.user_id,
+        user_name: selectedUser.user_name,
+        user_role: selectedUser.user_role,
+        last_message: null,
+        last_message_at: null,
+        unread_count: 0
+      };
+      setSelectedConversation(newConv);
+      setMessages([]);
+      setActiveView('conversations');
+      setConversations(prev => [newConv, ...prev]);
     }
   };
 
@@ -162,61 +273,49 @@ const SellerMessages = () => {
     }
   };
 
+  // Initial data load
   useEffect(() => {
     fetchConversations();
-  }, [fetchConversations]);
+    fetchAllUsers();
+    
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    const savedCount = localStorage.getItem('seller_unread_count');
+    if (savedCount && parseInt(savedCount) > 0) {
+      setTotalUnreadCount(parseInt(savedCount));
+      updateGlobalUnreadBadge(parseInt(savedCount));
+    }
+    
+    const interval = setInterval(() => {
+      fetchConversations();
+    }, 30000);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      clearInterval(interval);
+    };
+  }, [fetchConversations, fetchAllUsers, updateGlobalUnreadBadge]);
 
-  // Auto open conversation from URL
+  useEffect(() => {
+    if (conversations.length === 0 && allUsers.length > 0) {
+      setActiveView('all_users');
+    }
+  }, [conversations.length, allUsers.length]);
+
+  // Handle URL conversation
   useEffect(() => {
     if (!urlConversationId || conversations.length === 0) return;
     const conv = conversations.find(c => c.id === parseInt(urlConversationId));
     if (conv && !selectedConversation) {
       setSelectedConversation(conv);
       fetchMessages(conv.user_id);
-      markAllMessagesRead(conv.user_id);
+      markConversationRead(conv.user_id);
     }
   }, [urlConversationId, conversations, selectedConversation, fetchMessages]);
 
-  // Auto open chat from property contact
-  useEffect(() => {
-    const openChatWith = location.state?.openChatWith;
-    const ownerName = location.state?.ownerName;
-    const autoOpenChat = location.state?.autoOpenChat;
-    const conversationIdFromState = location.state?.conversationId;
-
-    if (conversationIdFromState && !selectedConversation) {
-      const conversation = conversations.find(c => c.id === conversationIdFromState);
-      if (conversation) {
-        setSelectedConversation(conversation);
-        fetchMessages(conversation.user_id);
-        markAllMessagesRead(conversation.user_id);
-        if (autoOpenChat) {
-          toast.success(`Now chatting with ${ownerName || 'owner'}`);
-        }
-        window.history.replaceState({}, document.title);
-      }
-    } else if (openChatWith && conversations.length > 0 && !selectedConversation) {
-      const conversation = conversations.find(c => c.user_id === openChatWith);
-      if (conversation) {
-        setSelectedConversation(conversation);
-        fetchMessages(conversation.user_id);
-        markAllMessagesRead(conversation.user_id);
-        if (autoOpenChat) {
-          toast.success(`Now chatting with ${ownerName || 'owner'}`);
-        }
-        window.history.replaceState({}, document.title);
-      }
-    }
-  }, [conversations, location.state, selectedConversation, fetchMessages]);
-
-  // Update sidebar unread count
-  useEffect(() => {
-    if (window.updateUnreadCount) {
-      window.updateUnreadCount(totalUnreadCount);
-    }
-  }, [totalUnreadCount]);
-
-  // WebSocket handler
+  // WebSocket handler for real-time messages
   useEffect(() => {
     if (!socket) {
       console.log('⚠️ No WebSocket connection available');
@@ -232,35 +331,52 @@ const SellerMessages = () => {
         const isCurrentConversation = selectedConversation?.user_id === msg.sender_id;
         
         if (!isFromCurrentUser) {
+          // Update conversations list with new message and increment unread count
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.user_id === msg.sender_id);
             
             if (existingIndex !== -1) {
               const updated = [...prev];
+              const wasUnread = updated[existingIndex].unread_count || 0;
               updated[existingIndex] = {
                 ...updated[existingIndex],
                 last_message: msg.content,
                 last_message_at: msg.created_at,
-                unread_count: (updated[existingIndex].unread_count || 0) + 1
+                unread_count: isCurrentConversation ? 0 : wasUnread + 1
               };
               const [moved] = updated.splice(existingIndex, 1);
               updated.unshift(moved);
-              setTotalUnreadCount(prevTotal => prevTotal + 1);
+              
+              if (!isCurrentConversation) {
+                setTotalUnreadCount(prevTotal => {
+                  const newTotal = prevTotal + 1;
+                  updateGlobalUnreadBadge(newTotal);
+                  return newTotal;
+                });
+              }
               return updated;
             } else {
               const newConv = {
                 id: Date.now(),
                 user_id: msg.sender_id,
                 user_name: msg.sender_name || 'Unknown',
+                user_role: msg.sender_role || 'user',
                 last_message: msg.content,
                 last_message_at: msg.created_at,
-                unread_count: 1
+                unread_count: isCurrentConversation ? 0 : 1
               };
-              setTotalUnreadCount(prev => prev + 1);
+              if (!isCurrentConversation) {
+                setTotalUnreadCount(prevTotal => {
+                  const newTotal = prevTotal + 1;
+                  updateGlobalUnreadBadge(newTotal);
+                  return newTotal;
+                });
+              }
               return [newConv, ...prev];
             }
           });
           
+          // Show toast notification
           if (!isCurrentConversation) {
             toast.info(`📩 New message from ${msg.sender_name || 'someone'}`, {
               duration: 5000,
@@ -270,14 +386,15 @@ const SellerMessages = () => {
           }
         }
 
-        if (isCurrentConversation) {
+        // Add message to current conversation
+        if (isCurrentConversation && !isFromCurrentUser) {
           setMessages(prev => {
             if (prev.some(m => m.id === msg.id)) return prev;
             return [...prev, msg];
           });
           scrollToBottom();
           
-          if (socket.readyState === WebSocket.OPEN && !isFromCurrentUser) {
+          if (socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({
               type: 'read_receipt',
               sender_id: msg.sender_id
@@ -290,31 +407,7 @@ const SellerMessages = () => {
         const msg = data.message;
         const isCurrentConversation = selectedConversation?.user_id === msg.receiver_id;
 
-        setConversations(prev => {
-          const existingIndex = prev.findIndex(c => c.user_id === msg.receiver_id);
-          if (existingIndex !== -1) {
-            const updated = [...prev];
-            updated[existingIndex] = {
-              ...updated[existingIndex],
-              last_message: msg.content,
-              last_message_at: msg.created_at,
-              unread_count: 0
-            };
-            const [moved] = updated.splice(existingIndex, 1);
-            updated.unshift(moved);
-            return updated;
-          } else {
-            const newConv = {
-              id: Date.now(),
-              user_id: msg.receiver_id,
-              user_name: msg.receiver_name || 'User',
-              last_message: msg.content,
-              last_message_at: msg.created_at,
-              unread_count: 0
-            };
-            return [newConv, ...prev];
-          }
-        });
+        fetchConversations();
 
         if (isCurrentConversation) {
           setMessages(prev => prev.map(m =>
@@ -325,16 +418,20 @@ const SellerMessages = () => {
 
       if (data.type === 'messages_read') {
         setConversations(prev => prev.map(c =>
-          c.user_id === data.sender_id ? { ...c, unread_count: 0 } : c
+          c.user_id === data.reader_id ? { ...c, unread_count: 0 } : c
         ));
-        
-        const readCount = data.read_count || 0;
-        setTotalUnreadCount(prev => prev - readCount > 0 ? prev - readCount : 0);
         
         setMessages(prev => prev.map(m => ({
           ...m,
-          status: m.sender_id === user?.id && m.receiver_id === data.sender_id ? 'read' : m.status
+          status: m.sender_id === user?.id && m.receiver_id === data.reader_id ? 'read' : m.status
         })));
+        
+        // Recalculate total unread
+        setTotalUnreadCount(prevTotal => {
+          const newTotal = conversations.filter(c => c.user_id !== data.reader_id).reduce((sum, c) => sum + (c.unread_count || 0), 0);
+          updateGlobalUnreadBadge(newTotal);
+          return newTotal;
+        });
       }
 
       if (data.type === 'typing') {
@@ -353,7 +450,16 @@ const SellerMessages = () => {
     return () => {
       if (removeHandler) removeHandler();
     };
-  }, [socket, selectedConversation, addMessageHandler, user, conversations]);
+  }, [socket, selectedConversation, addMessageHandler, user, fetchConversations, conversations, updateGlobalUnreadBadge]);
+
+  useEffect(() => {
+    if (isFullscreen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+    return undefined;
+  }, [isFullscreen]);
 
   const sendTyping = (isTyping) => {
     if (socket?.readyState === WebSocket.OPEN && selectedConversation) {
@@ -510,31 +616,52 @@ const SellerMessages = () => {
     }
   };
 
+  const getFilteredList = () => {
+    const list = activeView === 'conversations' ? conversations : allUsers;
+    return list.filter(item =>
+      item.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.user_role?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  };
+
+  const filteredList = getFilteredList();
+  const isUserOnline = (userId) => onlineUsers[userId] === true;
+
   const MessageBubble = ({ message, isOwn }) => (
-    <div className={`flex mb-3 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[70%] px-4 py-2 rounded-2xl ${isOwn ? 'bg-blue-600 text-white' : 'bg-white shadow-sm'}`}>
-        {message.attachment_url && message.attachment_type === 'image' && (
+    <div className={`flex mb-4 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[70%] ${isOwn ? 'bg-blue-600 text-white' : 'bg-white text-gray-900'} px-4 py-2 rounded-2xl shadow-sm`}>
+        {message.attachment_url && (
           <div className="mb-2">
-            <img
-              src={getFullUrl(message.attachment_url)}
-              alt={message.attachment_name || 'Image'}
-              className="max-w-full rounded-lg cursor-pointer max-h-48 object-cover"
-              onClick={() => {
-                setSelectedAttachment({
-                  url: getFullUrl(message.attachment_url),
-                  name: message.attachment_name || 'Image',
-                  type: 'image'
-                });
-                setShowAttachmentModal(true);
-              }}
-              onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=Image'; }}
-            />
+            {message.attachment_type === 'image' ? (
+              <img
+                src={getFullUrl(message.attachment_url)}
+                alt={message.attachment_name || 'Image'}
+                className="max-w-full rounded-lg cursor-pointer max-h-48 object-cover"
+                onClick={() => {
+                  setSelectedAttachment({
+                    url: getFullUrl(message.attachment_url),
+                    name: message.attachment_name || 'Image',
+                    type: 'image'
+                  });
+                  setShowAttachmentModal(true);
+                }}
+              />
+            ) : (
+              <a
+                href={getFullUrl(message.attachment_url)}
+                download={message.attachment_name}
+                className={`flex items-center gap-2 p-2 rounded-lg ${isOwn ? 'bg-blue-700' : 'bg-gray-100'}`}
+              >
+                <File className="w-5 h-5" />
+                <span className="text-sm font-medium truncate">{message.attachment_name || 'File'}</span>
+              </a>
+            )}
           </div>
         )}
-        <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-        <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${isOwn ? 'text-blue-200' : 'text-gray-400'}`}>
-          <span>{formatTime(message.created_at)}</span>
-          {getStatusIcon(message.status, isOwn)}
+        {message.content && <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>}
+        <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${isOwn ? 'text-blue-100' : 'text-gray-400'}`}>
+          <span>{formatMessageTime(message.created_at)}</span>
+          {isOwn && getStatusIcon(message.status)}
         </div>
       </div>
     </div>
@@ -574,107 +701,215 @@ const SellerMessages = () => {
     );
   };
 
-  const filteredConversations = conversations.filter(c =>
-    c.user_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const containerClass = isFullscreen
+    ? 'fixed inset-0 z-50 h-screen'
+    : 'h-[calc(100vh-80px)]';
 
-  const isUserOnline = (userId) => onlineUsers[userId] === true;
+  if (loading && conversations.length === 0 && allUsers.length === 0) {
+    return (
+      <div className="flex h-[calc(100vh-80px)] bg-gray-100 items-center justify-center">
+        <div className="text-center">
+          <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
+          <p className="text-gray-500">Loading messages...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full bg-gray-100" style={{ height: 'calc(100vh - 80px)' }}>
+    <div className={`flex bg-gray-100 ${containerClass}`}>
       {showAttachmentModal && <AttachmentModal />}
 
-      <div className="w-80 bg-white border-r flex flex-col">
+      {/* Conversations Sidebar */}
+      <div className={`${(isFullscreen || (isMobile && selectedConversation)) ? 'hidden' : 'w-80'} bg-white border-r flex flex-col`}>
         <div className="p-4 border-b">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold">Messages</h2>
-            {totalUnreadCount > 0 && (
-              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                {totalUnreadCount} new
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {totalUnreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 animate-pulse">
+                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount} new
+                </span>
+              )}
+              <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 hover:bg-gray-100 rounded-lg transition">
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
+          
+          {/* View Toggle Buttons */}
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => setActiveView('conversations')}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                activeView === 'conversations'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              Conversations
+              {conversations.length > 0 && (
+                <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                  activeView === 'conversations' ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+                }`}>
+                  {conversations.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveView('all_users')}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                activeView === 'all_users'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              All Users
+              <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                activeView === 'all_users' ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+              }`}>
+                {allUsers.length}
+              </span>
+            </button>
+          </div>
+          
+          {/* Search */}
           <div className="relative mt-3">
             <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search conversations..."
+              placeholder={activeView === 'conversations' ? "Search conversations..." : "Search users..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg"
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
         </div>
 
+        {/* Conversation List with RED BADGES */}
         <div className="flex-1 overflow-y-auto">
-          {filteredConversations.length === 0 ? (
+          {filteredList.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p>No conversations yet</p>
+              <p className="text-sm">
+                {activeView === 'conversations' 
+                  ? 'No conversations yet. Switch to "All Users" to start a new chat.'
+                  : 'No users available to message'}
+              </p>
             </div>
           ) : (
-            filteredConversations.map(conv => (
+            filteredList.map(item => (
               <div
-                key={conv.id}
+                key={item.user_id}
                 onClick={() => {
-                  setSelectedConversation(conv);
-                  fetchMessages(conv.user_id);
-                  markAllMessagesRead(conv.user_id);
-                  // FIXED: Use correct path that matches your route
-                  navigate(`/messages/${conv.id}`);
+                  if (activeView === 'all_users') {
+                    startNewConversation(item);
+                  } else {
+                    setSelectedConversation(item);
+                    fetchMessages(item.user_id);
+                    markConversationRead(item.user_id);
+                    if (item.id) {
+                      navigate(`/messages/${item.id}`);
+                    }
+                  }
                 }}
-                className={`p-3 flex gap-3 cursor-pointer hover:bg-gray-50 transition ${
-                  selectedConversation?.user_id === conv.user_id ? 'bg-blue-50' : ''
+                className={`p-3 flex gap-3 cursor-pointer transition-all border-l-4 ${
+                  selectedConversation?.user_id === item.user_id 
+                    ? 'bg-blue-50 border-l-blue-600' 
+                    : 'border-l-transparent hover:bg-gray-50'
                 }`}
               >
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
-                    {conv.user_name?.charAt(0)?.toUpperCase() || 'U'}
+                    {item.user_name?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
-                  {isUserOnline(conv.user_id) && (
+                  {isUserOnline(item.user_id) && (
                     <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                  )}
+                  {/* RED BADGE - Shows unread count */}
+                  {item.unread_count > 0 && (
+                    <div className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1.5 shadow-lg animate-pulse-badge border border-white z-10">
+                      {item.unread_count > 99 ? '99+' : item.unread_count}
+                    </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-semibold truncate">{conv.user_name}</h3>
-                    <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{formatTime(conv.last_message_at)}</span>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1">
+                      <h3 className={`font-semibold truncate ${item.unread_count > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+                        {item.user_name}
+                      </h3>
+                    </div>
+                    {item.last_message_at && (
+                      <span className={`text-xs flex-shrink-0 ${item.unread_count > 0 ? 'text-gray-600 font-medium' : 'text-gray-400'}`}>
+                        {formatTime(item.last_message_at)}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-500 truncate">{conv.last_message || 'No messages yet'}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {getRoleBadge(item.user_role)}
+                  </div>
+                  <p className={`text-sm truncate mt-1 ${item.unread_count > 0 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
+                    {item.last_message || (activeView === 'all_users' ? 'Click to start conversation' : 'No messages yet')}
+                  </p>
                 </div>
-                {conv.unread_count > 0 && (
-                  <div className="min-w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center px-1.5 font-bold">
-                    {conv.unread_count > 99 ? '99+' : conv.unread_count}
-                  </div>
-                )}
               </div>
             ))
           )}
         </div>
+
+        {/* Refresh Button */}
+        <div className="p-4 border-t bg-white">
+          <button 
+            onClick={() => {
+              fetchConversations();
+              fetchAllUsers();
+            }} 
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 transition"
+          >
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 flex flex-col">
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {selectedConversation ? (
           <>
-            <div className="bg-white border-b p-4 flex items-center gap-3">
+            {/* Chat Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white border-b p-4 flex items-center gap-3 flex-shrink-0 shadow-md">
+              <button 
+                onClick={() => {
+                  setSelectedConversation(null);
+                  navigate('/messages');
+                }}
+                className="p-2 hover:bg-blue-500 rounded-lg transition text-white"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                <div className="w-10 h-10 rounded-full bg-white text-blue-600 flex items-center justify-center font-bold shadow-md">
                   {selectedConversation.user_name?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
                 {isUserOnline(selectedConversation.user_id) && (
-                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></div>
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white"></div>
                 )}
               </div>
-              <div>
-                <h3 className="font-semibold">{selectedConversation.user_name}</h3>
-                <p className="text-xs text-gray-500">
-                  {isUserOnline(selectedConversation.user_id) ? 'Online' : 'Offline'}
-                  {typingUsers[selectedConversation.user_id] && ' • Typing...'}
-                </p>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-white truncate">{selectedConversation.user_name}</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-blue-100">
+                    {isUserOnline(selectedConversation.user_id) ? '● Online' : '● Offline'}
+                    {typingUsers[selectedConversation.user_id] && ' • Typing...'}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 min-h-0">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400">
                   <MessageCircle className="w-16 h-16 mb-4" />
@@ -687,23 +922,24 @@ const SellerMessages = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="bg-white border-t p-4">
+            {/* Input Area */}
+            <div className="bg-white border-t p-3 sticky bottom-0 z-10 shadow-lg">
               {attachmentPreview && (
-                <div className="mb-2 p-2 bg-gray-100 rounded-lg relative inline-block">
+                <div className="mb-3 p-3 bg-blue-50 rounded-lg relative inline-block border-2 border-blue-200">
                   <img src={attachmentPreview} alt="Preview" className="h-16 w-16 object-cover rounded" />
-                  <button onClick={removeAttachment} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1">
-                    <X className="w-3 h-3" />
+                  <button onClick={removeAttachment} className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600">
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
 
-              <div className="flex gap-2 items-center">
+              <div className="flex gap-2 items-end">
                 <input type="file" ref={fileInputRef} onChange={(e) => handleFileSelect(e, 'file')} className="hidden" />
                 <input type="file" ref={imageInputRef} onChange={(e) => handleFileSelect(e, 'image')} className="hidden" accept="image/*" />
-                <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title="Attach file">
+                <button onClick={() => fileInputRef.current?.click()} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Attach document">
                   <Paperclip className="w-5 h-5" />
                 </button>
-                <button onClick={() => imageInputRef.current?.click()} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title="Attach image">
+                <button onClick={() => imageInputRef.current?.click()} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Attach image">
                   <Image className="w-5 h-5" />
                 </button>
                 <textarea
@@ -712,22 +948,28 @@ const SellerMessages = () => {
                   onKeyDown={handleKeyPress}
                   placeholder="Type a message..."
                   rows={1}
-                  className="flex-1 border rounded-lg p-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 border border-gray-300 rounded-2xl px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={sending}
                 />
-                <button onClick={() => sendMessage()} disabled={(!inputMessage.trim() && !attachmentPreview) || sending} className="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <button 
+                  onClick={() => sendMessage()} 
+                  disabled={(!inputMessage.trim() && !attachmentPreview) || sending} 
+                  className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 disabled:opacity-50 transition shadow-md"
+                >
                   {sending ? <Loader className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                 </button>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center text-gray-400">
-              <MessageCircle className="w-16 h-16 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold">Select a conversation</h3>
-              <p className="text-sm">Choose a conversation to start messaging</p>
-            </div>
+          <div className="flex-1 flex flex-col items-center justify-center bg-gray-50">
+            <MessageCircle className="w-20 h-20 text-gray-300 mb-4" />
+            <p className="text-gray-500 text-lg">Select a conversation</p>
+            <p className="text-sm text-gray-400">
+              {activeView === 'conversations' 
+                ? 'Choose a conversation from the list to start messaging'
+                : 'Switch to "Conversations" tab to see your chats, or click on a user to start a new conversation'}
+            </p>
           </div>
         )}
       </div>
