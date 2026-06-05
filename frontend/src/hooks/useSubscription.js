@@ -1,4 +1,3 @@
-// frontend/src/hooks/useSubscription.js
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -55,22 +54,22 @@ const useSubscription = () => {
           daysRemaining = calculateDaysRemaining(data.subscription_end_date);
         }
         
-        const hasActive = data.status === 'fully_activated' || daysRemaining > 0 || data.can_create_listings === true;
+        const hasActive = data.can_create_listings === true && daysRemaining > 0;
         
         setSubscription({
           hasActiveSubscription: hasActive,
-          canCreateListings: data.can_create_listings || hasActive,
+          canCreateListings: data.can_create_listings === true && daysRemaining > 0,
           daysRemaining: daysRemaining,
           plan: data.subscription_plan || (hasActive ? 'seller' : null),
           endDate: data.subscription_end_date || null,
           isExpiringSoon: daysRemaining > 0 && daysRemaining <= 30,
-          message: data.message || (hasActive ? `Active - ${daysRemaining} days remaining` : 'No active subscription'),
+          message: hasActive ? `Active - ${daysRemaining} days remaining` : 'No active subscription',
           loading: false
         });
         return;
       }
       
-      // Fallback to user object from AuthContext
+      // Fallback to user object - but only use real data
       if (user) {
         let daysRemaining = 0;
         const endDate = user.subscription_end_date;
@@ -79,15 +78,12 @@ const useSubscription = () => {
           daysRemaining = calculateDaysRemaining(endDate);
         }
         
-        let hasActive = daysRemaining > 0;
-        hasActive = hasActive || 
-                    user.has_active_subscription === true || 
-                    user.can_create_listings === true || 
-                    user.is_activated === true;
+        const hasActive = (user.has_active_subscription === true || 
+                          user.can_create_listings === true) && daysRemaining > 0;
         
         setSubscription({
           hasActiveSubscription: hasActive,
-          canCreateListings: user.can_create_listings === true || hasActive,
+          canCreateListings: hasActive,
           daysRemaining: daysRemaining,
           plan: user.subscription_plan || (hasActive ? 'seller' : null),
           endDate: endDate || null,
@@ -121,7 +117,7 @@ const useSubscription = () => {
   useEffect(() => {
     fetchSubscription();
     
-    // Refresh every 10 seconds for real-time countdown
+    // Refresh every 10 seconds
     const interval = setInterval(() => {
       fetchSubscription();
     }, 10000);

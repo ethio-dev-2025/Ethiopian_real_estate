@@ -437,38 +437,47 @@ const SellerActivation = () => {
     );
   }
 
-  // Case 2: Documents approved OR subscription expired - Show Subscribe button
-  if (activationStatus?.status === 'documents_approved') {
-    const isExpired = activationStatus?.needs_renewal === true;
+  // Case 2: SUBSCRIPTION EXPIRED - Show Renew button (NEW CASE)
+  if (activationStatus?.status === 'subscription_expired') {
     return (
       <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CheckCircle className="w-10 h-10 text-green-600" />
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-10 h-10 text-red-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          {isExpired ? 'Subscription Expired' : 'Documents Approved!'}
-        </h2>
-        <p className="text-gray-600 mb-4">
-          {isExpired 
-            ? 'Your subscription has expired. Please renew to continue.'
-            : 'Your documents have been approved by the admin.'}
-        </p>
-        <p className="text-gray-600 mb-6">
-          {isExpired 
-            ? 'Renew your subscription to reactivate your account and start listing properties.'
-            : 'Please subscribe to activate your account and start listing properties.'}
-        </p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Subscription Expired</h2>
+        <p className="text-gray-600 mb-4">Your subscription has expired. Please renew to continue.</p>
+        <p className="text-gray-500 mb-6">Renew your subscription to reactivate your account and start listing properties.</p>
         <button
           onClick={handleGoToSubscription}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
         >
-          <CreditCard className="w-5 h-5" /> {isExpired ? 'Renew Subscription' : 'Subscribe Now'}
+          <CreditCard className="w-5 h-5" /> Renew Subscription
         </button>
       </div>
     );
   }
 
-  // Case 3: Payment pending
+  // Case 3: Documents approved - Show Subscribe button
+  if (activationStatus?.status === 'documents_approved') {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CheckCircle className="w-10 h-10 text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Documents Approved!</h2>
+        <p className="text-gray-600 mb-4">Your documents have been approved by the admin.</p>
+        <p className="text-gray-600 mb-6">Please subscribe to activate your account and start listing properties.</p>
+        <button
+          onClick={handleGoToSubscription}
+          className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
+        >
+          <CreditCard className="w-5 h-5" /> Subscribe Now
+        </button>
+      </div>
+    );
+  }
+
+  // Case 4: Payment pending
   if (activationStatus?.status === 'payment_pending') {
     return (
       <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
@@ -482,7 +491,7 @@ const SellerActivation = () => {
     );
   }
 
-  // Case 4: Documents pending review
+  // Case 5: Documents pending review
   if (activationStatus?.status === 'documents_pending') {
     return (
       <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
@@ -496,7 +505,337 @@ const SellerActivation = () => {
     );
   }
 
-  // Case 5: Rejected
+  // Case 6: Not submitted - Show the form
+  if (activationStatus?.status === 'not_submitted' || !activationStatus) {
+    // Show the activation form (the rest of your component)
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+            <h1 className="text-2xl font-bold">Account Activation</h1>
+            <p className="text-blue-100 mt-1">Activate your seller and/or landlord account</p>
+          </div>
+
+          {/* Role Selection */}
+          <div className="flex border-b">
+            {roleOptions.map((option) => {
+              const Icon = option.icon;
+              const isActive = activeRole === option.id;
+              const colorClasses = {
+                blue: 'text-blue-600 border-blue-600 bg-blue-50',
+                green: 'text-green-600 border-green-600 bg-green-50',
+                purple: 'text-purple-600 border-purple-600 bg-purple-50'
+              };
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => setActiveRole(option.id)}
+                  className={`flex-1 px-4 py-4 text-center font-semibold transition flex items-center justify-center gap-2 ${
+                    isActive
+                      ? `${colorClasses[option.color]} border-b-2`
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {option.name}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-6 space-y-6">
+            {/* Info Banner */}
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-blue-600" />
+                <span className="text-blue-800 font-medium">Please fill all required fields and upload documents</span>
+              </div>
+            </div>
+
+            {/* Seller Form */}
+            {(activeRole === 'seller' || activeRole === 'both') && (
+              <div className="space-y-5">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Store className="w-5 h-5 text-blue-600" />
+                  Seller Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Business Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="business_name"
+                      value={sellerForm.business_name}
+                      onChange={handleSellerChange}
+                      className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter your business name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tax ID / TIN <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="tax_id"
+                      value={sellerForm.tax_id}
+                      onChange={handleSellerChange}
+                      className="w-full p-3 border rounded-lg"
+                      placeholder="Enter your Tax ID"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Business License <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        name="business_license"
+                        onChange={handleSellerChange}
+                        className="hidden"
+                        ref={sellerFileInputRefs.business_license}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => sellerFileInputRefs.business_license.current?.click()}
+                        className="flex-1 px-4 py-3 border rounded-lg text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" /> Upload License
+                      </button>
+                      {sellerFiles.business_license && (
+                        <span className="text-green-600 text-sm flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" /> {sellerFiles.business_license}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Business Address <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      name="business_address"
+                      value={sellerForm.business_address}
+                      onChange={handleSellerChange}
+                      rows="2"
+                      className="w-full p-3 border rounded-lg"
+                      placeholder="Enter your business address"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Ownership Document <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        name="ownership_document"
+                        onChange={handleSellerChange}
+                        className="hidden"
+                        ref={sellerFileInputRefs.ownership_document}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => sellerFileInputRefs.ownership_document.current?.click()}
+                        className="flex-1 px-4 py-3 border rounded-lg text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" /> Upload Document
+                      </button>
+                      {sellerFiles.ownership_document && (
+                        <span className="text-green-600 text-sm flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" /> {sellerFiles.ownership_document}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Government ID <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        name="government_id"
+                        onChange={handleSellerChange}
+                        className="hidden"
+                        ref={sellerFileInputRefs.government_id}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => sellerFileInputRefs.government_id.current?.click()}
+                        className="flex-1 px-4 py-3 border rounded-lg text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" /> Upload ID
+                      </button>
+                      {sellerFiles.government_id && (
+                        <span className="text-green-600 text-sm flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" /> {sellerFiles.government_id}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Landlord Form */}
+            {(activeRole === 'landlord' || activeRole === 'both') && (
+              <div className="space-y-5">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Home className="w-5 h-5 text-green-600" />
+                  Landlord Information
+                </h3>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Property Address <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="property_address"
+                      value={landlordForm.property_address}
+                      onChange={handleLandlordChange}
+                      className="w-full p-3 border rounded-lg"
+                      placeholder="Enter property address"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Property Type
+                    </label>
+                    <select
+                      name="property_type"
+                      value={landlordForm.property_type}
+                      onChange={handleLandlordChange}
+                      className="w-full p-3 border rounded-lg"
+                    >
+                      {propertyTypes.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Title Deed <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        name="property_title_deed"
+                        onChange={handleLandlordChange}
+                        className="hidden"
+                        ref={landlordFileInputRefs.property_title_deed}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => landlordFileInputRefs.property_title_deed.current?.click()}
+                        className="flex-1 px-4 py-3 border rounded-lg text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" /> Upload Title Deed
+                      </button>
+                      {landlordFiles.property_title_deed && (
+                        <span className="text-green-600 text-sm flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" /> {landlordFiles.property_title_deed}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tax Clearance <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        name="property_tax_clearance"
+                        onChange={handleLandlordChange}
+                        className="hidden"
+                        ref={landlordFileInputRefs.property_tax_clearance}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => landlordFileInputRefs.property_tax_clearance.current?.click()}
+                        className="flex-1 px-4 py-3 border rounded-lg text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" /> Upload Tax Clearance
+                      </button>
+                      {landlordFiles.property_tax_clearance && (
+                        <span className="text-green-600 text-sm flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" /> {landlordFiles.property_tax_clearance}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Government ID <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        name="government_id"
+                        onChange={handleLandlordChange}
+                        className="hidden"
+                        ref={landlordFileInputRefs.government_id}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => landlordFileInputRefs.government_id.current?.click()}
+                        className="flex-1 px-4 py-3 border rounded-lg text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" /> Upload ID
+                      </button>
+                      {landlordFiles.government_id && (
+                        <span className="text-green-600 text-sm flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" /> {landlordFiles.government_id}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <div className="bg-yellow-50 rounded-lg p-4">
+              <p className="text-sm text-yellow-800 flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span>All documents are required. After submission, our admin team will review your documents. Once approved, you can subscribe to activate your account.</span>
+              </p>
+            </div>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader className="w-5 h-5 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5" />
+                  Submit {activeRole === 'both' ? 'Seller & Landlord' : activeRole === 'seller' ? 'Seller' : 'Landlord'} Activation
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Case 7: Rejected
   if (activationStatus?.status === 'rejected') {
     return (
       <div className="bg-white rounded-2xl shadow-sm border p-8 text-center max-w-md mx-auto">
@@ -515,7 +854,7 @@ const SellerActivation = () => {
     );
   }
 
-  // Case 6: Not submitted - Show the form
+  // Default fallback - Show the form
   return (
     <div className="max-w-4xl mx-auto">
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">

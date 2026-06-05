@@ -76,9 +76,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   }, []);
 
   const fetchUnreadCount = async () => {
-    if (hasFetchedRef.current) {
-      return;
-    }
+    if (hasFetchedRef.current) return;
     
     const token = localStorage.getItem('access_token');
     if (!token) return;
@@ -110,11 +108,8 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
       
       if (response.ok) {
         const statusData = await response.json();
+        console.log('📊 Sidebar - Live Status:', statusData);
         setLiveStatus(statusData);
-        
-        if (statusData.can_create_listings === true && user?.can_create_listings !== true) {
-          await refreshUser();
-        }
       }
     } catch (error) {
       console.error('Error fetching activation status:', error);
@@ -155,25 +150,20 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     setImageError(false);
   }, [user?.avatar_url]);
 
-  // ============ FIXED: getUserName with proper validation ============
   const getUserName = () => {
     if (!user) return 'Seller';
-    
     if (user.full_name && user.full_name !== 'vvvvv' && user.full_name !== 'vvvvvvv' && user.full_name.trim() !== '') {
       return user.full_name;
     }
-    
     if (user.username && user.username !== 'vvvvv' && user.username !== 'vvvvvvv' && user.username.trim() !== '') {
       return user.username;
     }
-    
     if (user.email) {
       const emailName = user.email.split('@')[0];
       if (emailName && emailName !== 'vvvvv' && emailName !== 'vvvvvvv' && emailName.trim() !== '') {
         return emailName;
       }
     }
-    
     return 'Seller';
   };
 
@@ -196,97 +186,70 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     return 'Seller';
   };
 
-  // ============ FIXED: Get days remaining - NO HARDCODED VALUES ============
+  // FIXED: NO HARDCODED DAYS - only use real subscription end date
   const getDaysRemaining = () => {
-    // First check subscription_end_date from user object
     if (user?.subscription_end_date) {
       const end = new Date(user.subscription_end_date);
       const now = new Date();
       const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-      if (diff > 0) return diff;
-      return 0;
+      return diff > 0 ? diff : 0;
     }
-    
-    // Check from liveStatus API response
     if (liveStatus?.days_remaining !== undefined) {
-      const days = parseInt(liveStatus.days_remaining);
-      if (days > 0) return days;
+      return liveStatus.days_remaining > 0 ? liveStatus.days_remaining : 0;
     }
-    
-    // Check if user has active subscription but no end date
-    if (user?.has_active_subscription === true || user?.can_create_listings === true) {
-      return 0;
-    }
-    
     return 0;
   };
 
   const daysRemaining = getDaysRemaining();
 
-// ============ FIXED: Get user status based on actual subscription ============
-const getUserStatus = () => {
-  // First check liveStatus from API (most reliable)
-  if (liveStatus) {
-    // Active user with valid subscription - show "Active"
-    if (liveStatus.status === 'fully_activated' && daysRemaining > 0) {
+  // FIXED: Get user status based ONLY on real API data
+  const getUserStatus = () => {
+    // First check liveStatus from API (most reliable)
+    if (liveStatus) {
+      // Only active if can_create_listings is true AND days_remaining > 0
+      if (liveStatus.can_create_listings === true && (liveStatus.days_remaining || 0) > 0) {
+        return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+      }
+      if (liveStatus.status === 'payment_pending') {
+        return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+      }
+      if (liveStatus.status === 'documents_pending') {
+        return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
+      }
+      if (liveStatus.status === 'documents_approved') {
+        return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
+      }
+      if (liveStatus.status === 'subscription_expired') {
+        return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
+      }
+      if (liveStatus.status === 'not_submitted') {
+        return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
+      }
+      return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+    }
+    
+    // Check user object if liveStatus not available
+    if (user?.role_type === 'admin') {
       return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
     }
-    // User needs to subscribe (documents approved or expired)
-    if (liveStatus.status === 'documents_approved') {
-      return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
+
+    // Only active if has_active_subscription AND subscription_end_date is in future
+    if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining > 0) {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
     }
-    if (liveStatus.status === 'payment_pending') {
+
+    if (user?.is_activated === true && user?.payment_approved === true && daysRemaining > 0) {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+    }
+
+    if (user?.is_activated === true && user?.payment_approved === false) {
       return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
     }
-    if (liveStatus.status === 'documents_pending') {
-      return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
-    }
-    if (liveStatus.status === 'rejected') {
-      return { text: 'Rejected', color: 'red', dotColor: 'bg-red-500' };
-    }
-    if (liveStatus.status === 'subscription_expired' && liveStatus.needs_renewal) {
-      return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
-    }
-    if (liveStatus.can_create_listings === true && daysRemaining === 0) {
-      return { text: 'Expired', color: 'orange', dotColor: 'bg-orange-500' };
-    }
-  }
-  
-  // Check user object if liveStatus not available
-  if (user?.role_type === 'admin') {
-    return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-  }
 
-  // Check for active user with valid subscription
-  if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining > 0) {
-    return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-  }
-
-  // Check if subscription expired (was active but now expired)
-  if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining === 0) {
-    return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
-  }
-
-  if (user?.is_activated === true && user?.payment_approved === true && daysRemaining > 0) {
-    return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-  }
-
-  if (user?.is_activated === true && user?.payment_approved === true && daysRemaining === 0) {
-    return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
-  }
-
-  if (user?.is_activated === true && user?.payment_approved === false) {
-    return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
-  }
-
-  if (user?.is_activated === false || user?.can_create_listings === false) {
     return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
-  }
+  };
 
-  return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
-};
-
-const status = getUserStatus();
+  const status = getUserStatus();
 
   const toggleDropdown = (e) => {
     e.stopPropagation();
@@ -546,14 +509,9 @@ const status = getUserStatus();
                       {status.text}
                     </span>
                   </div>
-                  {daysRemaining > 0 && (
+                  {daysRemaining > 0 && status.text === 'Active' && (
                     <div className="text-xs text-green-400 mt-1">
                       {daysRemaining} days left
-                    </div>
-                  )}
-                  {daysRemaining === 0 && status.text !== 'Active' && (
-                    <div className="text-xs text-red-400 mt-1">
-                      Expired
                     </div>
                   )}
                 </div>

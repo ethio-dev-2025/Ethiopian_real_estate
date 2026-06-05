@@ -37,6 +37,7 @@ const SellerLayout = ({ children }) => {
         return;
       }
       
+      // ALWAYS fetch from API first - most reliable source
       const response = await fetch('http://localhost:8000/api/activation/status', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -45,12 +46,7 @@ const SellerLayout = ({ children }) => {
         const data = await response.json();
         console.log('📊 SellerLayout - API Status:', data);
         
-        let days = data.days_remaining || 0;
-        
-        if (days === 0 && data.subscription_end_date) {
-          days = calculateDaysRemaining(data.subscription_end_date);
-        }
-        
+        const days = data.days_remaining || 0;
         const hasActive = data.can_create_listings === true && days > 0;
         
         setDaysRemaining(days);
@@ -60,6 +56,7 @@ const SellerLayout = ({ children }) => {
         return;
       }
       
+      // Fallback to user object - but only use real data
       let currentUser = user;
       if (!currentUser) {
         const storedUser = localStorage.getItem('user');
@@ -69,6 +66,7 @@ const SellerLayout = ({ children }) => {
       }
       
       if (currentUser) {
+        // Only use actual subscription_end_date, NO HARDCODED VALUES
         let days = calculateDaysRemaining(currentUser.subscription_end_date);
         const hasActive = (currentUser.has_active_subscription === true || 
                           currentUser.can_create_listings === true) && days > 0;
@@ -82,21 +80,16 @@ const SellerLayout = ({ children }) => {
         setDaysRemaining(days);
         setHasActiveSubscription(hasActive);
         setIsExpiringSoon(days > 0 && days <= 30);
+      } else {
+        setDaysRemaining(0);
+        setHasActiveSubscription(false);
+        setIsExpiringSoon(false);
       }
     } catch (error) {
       console.error('Error refreshing subscription status:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const forceRefresh = async () => {
-    setLoading(true);
-    try {
-      await forceRefreshUser();
-      await refreshSubscriptionStatus();
-    } catch (error) {
-      console.error('Force refresh error:', error);
+      setDaysRemaining(0);
+      setHasActiveSubscription(false);
+      setIsExpiringSoon(false);
     } finally {
       setLoading(false);
     }
@@ -153,7 +146,7 @@ const SellerLayout = ({ children }) => {
     
     if (!hasActiveSubscription || daysRemaining === 0) {
       return {
-        text: 'Expired',
+        text: 'Inactive',
         color: 'bg-red-500',
         icon: <Zap className="w-3 h-3" />
       };

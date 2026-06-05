@@ -48,51 +48,6 @@ class RejectRequest(BaseModel):
     rejection_reason: str
 
 
-# ============ SIMPLE EMAIL FUNCTION ============
-async def send_email_simple(to_email, subject, html_content):
-    """Simple email sending function"""
-    try:
-        from ..services.email_service import email_service
-        
-        result = await email_service.send_email(
-            to_email=to_email,
-            subject=subject,
-            html_content=html_content,
-            text_content=subject
-        )
-        print(f"📧 Email to {to_email}: {result}")
-        return result.get("success", False)
-    except Exception as e:
-        print(f"❌ Email error: {e}")
-        return False
-
-
-# ============ TEST ENDPOINT ============
-@router.get("/test")
-async def test_endpoint():
-    return {"status": "ok", "message": "Activation router is working"}
-
-
-@router.get("/test-email")
-async def test_email():
-    """Test email endpoint"""
-    from ..services.email_service import email_service
-    
-    result = await email_service.send_email(
-        to_email="melkamuenyew90@gmail.com",
-        subject="Test Email from EstateHub",
-        html_content="<h1>Test</h1><p>If you receive this, email is working!</p>",
-        text_content="Test email from EstateHub"
-    )
-    return {"success": result, "message": "Test email sent"}
-
-
-# ============ HEALTH CHECK ============
-@router.get("/health")
-async def health_check():
-    return {"status": "ok", "message": "Activation router is working"}
-
-
 # ============ UPLOAD DOCUMENT ============
 @router.post("/upload-document")
 async def upload_activation_document(
@@ -187,11 +142,6 @@ async def submit_activation_request(
         
         db.add(activation_request)
         
-        if current_user.role_type in ['seller', 'dual']:
-            current_user.seller_documents_submitted = True
-        if current_user.role_type in ['landlord', 'dual']:
-            current_user.landlord_documents_submitted = True
-        
         db.commit()
         db.refresh(activation_request)
         
@@ -209,25 +159,24 @@ async def submit_activation_request(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# backend/app/routers/activation.py - Update the /status endpoint
-
+# ============ FIXED STATUS ENDPOINT - CRITICAL ============
 @router.get("/status")
 async def get_activation_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """Get user's activation status - CORRECTED VERSION"""
     try:
         print(f"🔍 Getting activation status for user: {current_user.email}")
-        print(f"   - is_activated: {current_user.is_activated}")
-        print(f"   - can_create_listings: {current_user.can_create_listings}")
-        print(f"   - has_active_subscription: {current_user.has_active_subscription}")
-        print(f"   - payment_approved: {current_user.payment_approved}")
-        print(f"   - subscription_end_date: {current_user.subscription_end_date}")
+        print(f"   DB values - is_activated: {current_user.is_activated}")
+        print(f"   DB values - can_create_listings: {current_user.can_create_listings}")
+        print(f"   DB values - has_active_subscription: {current_user.has_active_subscription}")
+        print(f"   DB values - payment_approved: {current_user.payment_approved}")
+        print(f"   DB values - subscription_end_date: {current_user.subscription_end_date}")
         
         # Calculate days remaining from subscription_end_date
         days_remaining = 0
         subscription_end_date = None
-        is_subscription_expired = False
         has_valid_subscription = False
         
         if current_user.subscription_end_date:
@@ -237,43 +186,26 @@ async def get_activation_status(
                 has_valid_subscription = True
             else:
                 days_remaining = 0
-                is_subscription_expired = True
-                # Mark as expired in database
-                if current_user.has_active_subscription:
-                    current_user.has_active_subscription = False
-                    current_user.can_create_listings = False
-                    current_user.is_activated = False
-                    current_user.payment_approved = False
-                    db.commit()
-                    print(f"⚠️ User {current_user.email} subscription expired. Marked as inactive.")
         
-        # Check if user has a valid subscription (from payment or admin activation)
-        is_fully_activated = (
-            has_valid_subscription and 
+        # IMPORTANT: Check if user is FULLY ACTIVATED based on DATABASE values
+        # User is only active if ALL conditions are met:
+        # 1. is_activated is True
+        # 2. can_create_listings is True  
+        # 3. has_active_subscription is True
+        # 4. payment_approved is True
+        # 5. subscription_end_date is in the future (days_remaining > 0)
+        
+        is_fully_active = (
+            current_user.is_activated == True and
+            current_user.can_create_listings == True and
+            current_user.has_active_subscription == True and
+            current_user.payment_approved == True and
             days_remaining > 0
         )
         
-        # Also check if user was admin activated (no subscription needed)
-        if not is_fully_activated and current_user.can_create_listings and days_remaining == 0:
-            # This is a user who was admin activated but has no subscription end date
-            # Treat as active
-            is_fully_activated = True
-        
-        # If user is fully activated with active subscription
-        if is_fully_activated and days_remaining > 0:
-            # Ensure flags are set correctly
-            if not current_user.has_active_subscription:
-                current_user.has_active_subscription = True
-            if not current_user.can_create_listings:
-                current_user.can_create_listings = True
-            if not current_user.is_activated:
-                current_user.is_activated = True
-            if not current_user.payment_approved:
-                current_user.payment_approved = True
-            if current_user.status != 'active':
-                current_user.status = 'active'
-            db.commit()
-            
+        # If user is fully active, return fully_activated
+        if is_fully_active:
+            print(f"✅ User {current_user.email} is FULLY ACTIVATED")
             return {
                 "is_activated": True,
                 "status": "fully_activated",
@@ -282,20 +214,16 @@ async def get_activation_status(
                 "has_active_subscription": True,
                 "days_remaining": days_remaining,
                 "subscription_end_date": subscription_end_date.isoformat() if subscription_end_date else None,
-                "subscription_plan": current_user.subscription_plan or "seller"
+                "subscription_plan": current_user.subscription_plan,
+                "payment_approved": True
             }
         
-        # Check if user has expired subscription (was previously activated)
-        if is_subscription_expired:
-            # Check if there was a previous activation request
-            activation_request = db.query(ActivationRequest).filter(
-                ActivationRequest.user_id == current_user.id
-            ).order_by(ActivationRequest.created_at.desc()).first()
-            
-            # Return documents_approved so user can resubscribe
+        # Check if subscription expired (was active but now expired)
+        if current_user.subscription_end_date and days_remaining <= 0 and current_user.payment_approved:
+            print(f"⚠️ User {current_user.email} subscription EXPIRED")
             return {
                 "is_activated": False,
-                "status": "documents_approved",
+                "status": "subscription_expired",
                 "message": "Your subscription has expired. Please renew to continue.",
                 "can_create_listings": False,
                 "has_active_subscription": False,
@@ -310,61 +238,117 @@ async def get_activation_status(
             ActivationRequest.user_id == current_user.id
         ).order_by(ActivationRequest.created_at.desc()).first()
         
+        # NEW USER - no activation request yet
         if not activation_request:
+            print(f"📝 User {current_user.email} has NO activation request")
             return {
                 "is_activated": False,
                 "status": "not_submitted",
-                "message": "Please submit activation request",
+                "message": "Please submit activation request to start",
                 "can_create_listings": False,
                 "has_active_subscription": False,
-                "days_remaining": 0
+                "days_remaining": 0,
+                "subscription_end_date": None,
+                "subscription_plan": None,
+                "payment_approved": False
             }
         
-        # Map status
-        status_map = {
-            ActivationStatus.DOCUMENTS_PENDING: {
+        # Map status from activation request
+        if activation_request.status == ActivationStatus.DOCUMENTS_PENDING:
+            print(f"📄 User {current_user.email} documents PENDING")
+            return {
+                "is_activated": False,
                 "status": "documents_pending",
                 "message": "Documents submitted, waiting for admin review",
                 "can_create_listings": False,
-                "has_active_subscription": False
-            },
-            ActivationStatus.DOCUMENTS_APPROVED: {
+                "has_active_subscription": False,
+                "days_remaining": 0,
+                "subscription_end_date": None,
+                "subscription_plan": None,
+                "payment_approved": False
+            }
+        
+        elif activation_request.status == ActivationStatus.DOCUMENTS_APPROVED:
+            print(f"✅ User {current_user.email} documents APPROVED - needs payment")
+            return {
+                "is_activated": False,
                 "status": "documents_approved",
                 "message": "Documents approved! Please subscribe to activate",
                 "can_create_listings": False,
-                "has_active_subscription": False
-            },
-            ActivationStatus.PAYMENT_PENDING: {
+                "has_active_subscription": False,
+                "days_remaining": 0,
+                "subscription_end_date": None,
+                "subscription_plan": activation_request.plan_type,
+                "payment_approved": False
+            }
+        
+        elif activation_request.status == ActivationStatus.PAYMENT_PENDING:
+            print(f"💰 User {current_user.email} payment PENDING")
+            return {
+                "is_activated": False,
                 "status": "payment_pending",
                 "message": "Payment submitted, waiting for verification",
                 "can_create_listings": False,
-                "has_active_subscription": False
-            },
-            ActivationStatus.FULLY_ACTIVATED: {
-                "status": "fully_activated",
-                "message": "Account fully activated!",
-                "can_create_listings": True,
-                "has_active_subscription": True
-            },
-            ActivationStatus.REJECTED: {
+                "has_active_subscription": False,
+                "days_remaining": 0,
+                "subscription_end_date": None,
+                "subscription_plan": activation_request.plan_type,
+                "payment_approved": False
+            }
+        
+        elif activation_request.status == ActivationStatus.FULLY_ACTIVATED:
+            # This should have been caught above, but just in case
+            if days_remaining > 0:
+                return {
+                    "is_activated": True,
+                    "status": "fully_activated",
+                    "message": f"Account fully activated! {days_remaining} days remaining",
+                    "can_create_listings": True,
+                    "has_active_subscription": True,
+                    "days_remaining": days_remaining,
+                    "subscription_end_date": subscription_end_date.isoformat() if subscription_end_date else None,
+                    "subscription_plan": current_user.subscription_plan or activation_request.plan_type,
+                    "payment_approved": True
+                }
+            else:
+                return {
+                    "is_activated": False,
+                    "status": "subscription_expired",
+                    "message": "Subscription expired. Please renew.",
+                    "can_create_listings": False,
+                    "has_active_subscription": False,
+                    "days_remaining": 0,
+                    "subscription_end_date": subscription_end_date.isoformat() if subscription_end_date else None,
+                    "subscription_plan": current_user.subscription_plan,
+                    "needs_renewal": True
+                }
+        
+        elif activation_request.status == ActivationStatus.REJECTED:
+            print(f"❌ User {current_user.email} REJECTED")
+            return {
+                "is_activated": False,
                 "status": "rejected",
                 "message": f"Rejected: {activation_request.rejection_reason}",
                 "can_create_listings": False,
-                "has_active_subscription": False
+                "has_active_subscription": False,
+                "days_remaining": 0,
+                "subscription_end_date": None,
+                "subscription_plan": None,
+                "payment_approved": False
             }
-        }
         
-        result = status_map.get(activation_request.status, {
+        # Default fallback
+        return {
+            "is_activated": False,
             "status": "unknown",
             "message": "Unknown status",
             "can_create_listings": False,
-            "has_active_subscription": False
-        })
-        
-        result["is_activated"] = activation_request.status == ActivationStatus.FULLY_ACTIVATED
-        result["days_remaining"] = days_remaining
-        
-        return result
+            "has_active_subscription": False,
+            "days_remaining": 0,
+            "subscription_end_date": None,
+            "subscription_plan": None,
+            "payment_approved": False
+        }
         
     except Exception as e:
         print(f"Error getting status: {e}")
@@ -376,9 +360,14 @@ async def get_activation_status(
             "message": str(e), 
             "can_create_listings": False, 
             "has_active_subscription": False,
-            "days_remaining": 0
+            "days_remaining": 0,
+            "subscription_end_date": None,
+            "subscription_plan": None,
+            "payment_approved": False
         }
-# ============ ADMIN: GET PENDING DOCUMENT REQUESTS ============
+
+
+# ============ ADMIN ENDPOINTS ============
 @router.get("/admin/pending-documents")
 async def get_pending_document_requests(
     current_user: User = Depends(get_current_admin_user),
@@ -386,21 +375,12 @@ async def get_pending_document_requests(
 ):
     try:
         requests = db.query(ActivationRequest).filter(
-            ActivationRequest.status == "documents_pending"
+            ActivationRequest.status == ActivationStatus.DOCUMENTS_PENDING
         ).order_by(ActivationRequest.created_at.desc()).all()
-        
-        print(f"📊 Found {len(requests)} pending document requests")
         
         result = []
         for req in requests:
-            property_photos = req.property_photos
-            if property_photos:
-                try:
-                    if isinstance(property_photos, str):
-                        property_photos = json.loads(property_photos)
-                except:
-                    pass
-            
+            user = db.query(User).filter(User.id == req.user_id).first()
             result.append({
                 "id": req.id,
                 "user_id": req.user_id,
@@ -415,73 +395,8 @@ async def get_pending_document_requests(
                 "title_deed": req.title_deed,
                 "tax_clearance": req.tax_clearance,
                 "government_id": req.government_id,
-                "property_photos": property_photos,
                 "created_at": req.created_at.isoformat() if req.created_at else None,
-                "status": req.status
-            })
-        
-        return result
-        
-    except Exception as e:
-        print(f"❌ Error in pending-documents: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
-
-
-# ============ ADMIN: GET PENDING COUNT ============
-@router.get("/admin/pending-count")
-async def get_admin_pending_count(
-    current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        count = db.query(ActivationRequest).filter(
-            ActivationRequest.status == "documents_pending"
-        ).count()
-        print(f"📊 Pending count for sidebar: {count}")
-        return {"count": count}
-    except Exception as e:
-        print(f"Error getting pending count: {e}")
-        return {"count": 0}
-
-
-# ============ ADMIN: GET ALL PAYMENTS ============
-@router.get("/admin/payments")
-async def get_all_payments(
-    status: str = "all",
-    current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        query = db.query(ActivationRequest)
-        
-        if status == "pending":
-            query = query.filter(ActivationRequest.status == "payment_pending")
-        elif status == "approved":
-            query = query.filter(ActivationRequest.status == "fully_activated")
-        elif status == "rejected":
-            query = query.filter(ActivationRequest.status == "rejected")
-        
-        requests = query.order_by(ActivationRequest.created_at.desc()).all()
-        
-        result = []
-        for req in requests:
-            user = db.query(User).filter(User.id == req.user_id).first()
-            
-            result.append({
-                "id": req.id,
-                "user_id": req.user_id,
-                "full_name": req.full_name,
-                "email": req.email,
-                "phone_number": req.phone_number,
-                "plan_type": req.plan_type,
-                "payment_amount": req.payment_amount,
-                "payment_receipt": req.payment_receipt,
-                "payment_transaction_id": req.payment_transaction_id,
                 "status": req.status,
-                "rejection_reason": req.rejection_reason,
-                "created_at": req.created_at.isoformat() if req.created_at else None,
                 "user_name": user.full_name if user else req.full_name,
                 "user_email": user.email if user else req.email
             })
@@ -493,40 +408,6 @@ async def get_all_payments(
         return []
 
 
-# ============ ADMIN: GET PENDING PAYMENT REQUESTS ============
-@router.get("/admin/pending-payments")
-async def get_pending_payment_requests(
-    current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        requests = db.query(ActivationRequest).filter(
-            ActivationRequest.status == ActivationStatus.PAYMENT_PENDING
-        ).order_by(ActivationRequest.created_at.desc()).all()
-        
-        result = []
-        for req in requests:
-            result.append({
-                "id": req.id,
-                "user_id": req.user_id,
-                "full_name": req.full_name,
-                "email": req.email,
-                "phone_number": req.phone_number,
-                "plan_type": req.plan_type,
-                "payment_amount": req.payment_amount,
-                "payment_receipt": req.payment_receipt,
-                "created_at": req.created_at.isoformat() if req.created_at else None,
-                "status": "payment_pending"
-            })
-        
-        return result
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return []
-
-
-# ============ ADMIN: APPROVE DOCUMENTS ============
 @router.post("/admin/approve-documents/{request_id}")
 async def approve_documents(
     request_id: int,
@@ -548,12 +429,6 @@ async def approve_documents(
         activation_request.reviewed_by = current_user.id
         activation_request.reviewed_at = datetime.utcnow()
         
-        user = db.query(User).filter(User.id == activation_request.user_id).first()
-        if user:
-            user.is_verified = True
-            user.documents_approved = True
-            user.documents_approved_at = datetime.utcnow()
-        
         db.commit()
         
         return {"success": True, "message": "Documents approved! User can now subscribe"}
@@ -566,83 +441,6 @@ async def approve_documents(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ USER: SUBMIT PAYMENT ============
-@router.post("/submit-payment")
-async def submit_payment(
-    payment_data: PaymentSubmitRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        activation_request = db.query(ActivationRequest).filter(
-            ActivationRequest.user_id == current_user.id,
-            ActivationRequest.status == ActivationStatus.DOCUMENTS_APPROVED
-        ).first()
-        
-        if not activation_request:
-            raise HTTPException(status_code=400, detail="No approved document request found")
-        
-        activation_request.status = ActivationStatus.PAYMENT_PENDING
-        activation_request.plan_type = payment_data.plan_type
-        activation_request.payment_amount = payment_data.amount
-        activation_request.payment_receipt = payment_data.receipt_url
-        activation_request.payment_transaction_id = payment_data.transaction_id
-        
-        db.commit()
-        
-        # SEND EMAIL TO ADMIN ABOUT NEW PAYMENT
-        try:
-            from ..services.email_service import email_service
-            
-            # Get all admin users
-            admins = db.query(User).filter(User.role_type == 'admin').all()
-            
-            for admin in admins:
-                if getattr(admin, 'email_alerts', True):
-                    html_content = f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head><title>New Payment Received</title></head>
-                    <body style="font-family: Arial, sans-serif; padding: 20px;">
-                        <h2 style="color: #f59e0b;">💰 New Payment Received</h2>
-                        <p>Hello <strong>{admin.full_name or admin.username}</strong>,</p>
-                        <p>A new payment has been submitted and is waiting for approval!</p>
-                        <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                            <p><strong>User:</strong> {current_user.full_name or current_user.username}</p>
-                            <p><strong>Email:</strong> {current_user.email}</p>
-                            <p><strong>Amount:</strong> {payment_data.amount} ETB</p>
-                            <p><strong>Plan:</strong> {payment_data.plan_type}</p>
-                            <p><strong>Transaction ID:</strong> {payment_data.transaction_id or 'N/A'}</p>
-                        </div>
-                        <p>Please review this payment in the admin panel.</p>
-                        <a href="http://localhost:5173/admin/payment-approvals" style="background: #f59e0b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Review Payment</a>
-                        <hr>
-                        <p style="color: #666; font-size: 12px;">EstateHub Real Estate</p>
-                    </body>
-                    </html>
-                    """
-                    
-                    await email_service.send_email(
-                        to_email=admin.email,
-                        subject=f"💰 New Payment Received - {payment_data.plan_type} Plan",
-                        html_content=html_content,
-                        text_content=f"A new payment of {payment_data.amount} ETB has been received from {current_user.full_name}"
-                    )
-                    print(f"📧 New payment email sent to admin: {admin.email}")
-        except Exception as email_error:
-            print(f"⚠️ Failed to send email: {email_error}")
-        
-        return {"success": True, "message": "Payment submitted for admin verification"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============ ADMIN: APPROVE PAYMENT ============
 @router.post("/admin/approve-payment/{request_id}")
 async def approve_payment(
     request_id: int,
@@ -672,6 +470,7 @@ async def approve_payment(
             user.has_active_subscription = True
             user.subscription_plan = activation_request.plan_type
             user.subscription_start_date = datetime.utcnow()
+            user.subscription_end_date = datetime.utcnow() + timedelta(days=180)
             user.activated_at = datetime.utcnow()
             user.status = "active"
             
@@ -696,74 +495,7 @@ async def approve_payment(
         
         db.commit()
         
-        print(f"✅ Payment {request_id} approved for user {user.email}")
-        
-        # SEND EMAIL TO USER ABOUT APPROVAL
-        try:
-            from ..services.email_service import email_service
-            
-            user_html = f"""
-            <!DOCTYPE html>
-            <html>
-            <head><title>Payment Approved - Account Activated</title></head>
-            <body style="font-family: Arial, sans-serif; padding: 20px;">
-                <h2 style="color: #10b981;">✅ Payment Approved!</h2>
-                <p>Hello <strong>{user.full_name or user.username}</strong>,</p>
-                <p>Your payment has been approved! Your account is now fully activated.</p>
-                <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                    <p><strong>Amount:</strong> {activation_request.payment_amount} ETB</p>
-                    <p><strong>Plan:</strong> {activation_request.plan_type}</p>
-                    <p><strong>Transaction ID:</strong> {activation_request.payment_transaction_id or f'TXN-{activation_request.id}'}</p>
-                </div>
-                <p>You can now start creating listings on EstateHub.</p>
-                <a href="http://localhost:5173/dashboard" style="background: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Dashboard</a>
-                <hr>
-                <p style="color: #666; font-size: 12px;">EstateHub Real Estate</p>
-            </body>
-            </html>
-            """
-            
-            await email_service.send_email(
-                to_email=user.email,
-                subject=f"✅ Payment Approved - Your {activation_request.plan_type} Plan is Active!",
-                html_content=user_html,
-                text_content=f"Your payment of {activation_request.payment_amount} ETB has been approved."
-            )
-            print(f"📧 Approval email sent to user: {user.email}")
-            
-            admin_html = f"""
-            <!DOCTYPE html>
-            <html>
-            <head><title>Payment Approved</title></head>
-            <body style="font-family: Arial, sans-serif; padding: 20px;">
-                <h2 style="color: #10b981;">✅ Payment Approved</h2>
-                <p>Hello <strong>{current_user.full_name or current_user.username}</strong>,</p>
-                <p>You have approved a payment!</p>
-                <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                    <p><strong>User:</strong> {user.full_name or user.username}</p>
-                    <p><strong>Email:</strong> {user.email}</p>
-                    <p><strong>Amount:</strong> {activation_request.payment_amount} ETB</p>
-                    <p><strong>Plan:</strong> {activation_request.plan_type}</p>
-                </div>
-                <p>The user's account has been activated.</p>
-                <hr>
-                <p style="color: #666; font-size: 12px;">EstateHub Real Estate</p>
-            </body>
-            </html>
-            """
-            
-            await email_service.send_email(
-                to_email=current_user.email,
-                subject=f"✅ Payment Approved - {activation_request.plan_type} Plan",
-                html_content=admin_html,
-                text_content=f"Payment of {activation_request.payment_amount} ETB from {user.full_name} has been approved"
-            )
-            print(f"📧 Approval email sent to admin: {current_user.email}")
-            
-        except Exception as email_error:
-            print(f"⚠️ Failed to send email: {email_error}")
-        
-        return {"success": True, "message": "Payment approved! Account fully activated. Email notifications sent."}
+        return {"success": True, "message": "Payment approved! Account activated."}
         
     except HTTPException:
         raise
@@ -773,209 +505,4 @@ async def approve_payment(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ ADMIN: REJECT PAYMENT ============
-@router.post("/admin/reject-payment/{request_id}")
-async def reject_payment(
-    request_id: int,
-    rejection_data: RejectRequest,
-    current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        activation_request = db.query(ActivationRequest).filter(
-            ActivationRequest.id == request_id
-        ).first()
-        
-        if not activation_request:
-            raise HTTPException(status_code=404, detail="Activation request not found")
-        
-        if activation_request.status not in [ActivationStatus.PAYMENT_PENDING, ActivationStatus.DOCUMENTS_PENDING]:
-            raise HTTPException(status_code=400, detail="This request cannot be rejected")
-        
-        activation_request.status = ActivationStatus.REJECTED
-        activation_request.rejection_reason = rejection_data.rejection_reason
-        activation_request.reviewed_by = current_user.id
-        activation_request.reviewed_at = datetime.utcnow()
-        
-        user = db.query(User).filter(User.id == activation_request.user_id).first()
-        
-        db.commit()
-        
-        # SEND EMAIL TO USER ABOUT REJECTION
-        if user:
-            try:
-                from ..services.email_service import email_service
-                
-                user_html = f"""
-                <!DOCTYPE html>
-                <html>
-                <head><title>Payment Rejected</title></head>
-                <body style="font-family: Arial, sans-serif; padding: 20px;">
-                    <h2 style="color: #ef4444;">❌ Payment Rejected</h2>
-                    <p>Hello <strong>{user.full_name or user.username}</strong>,</p>
-                    <p>Unfortunately, your payment has been rejected.</p>
-                    <div style="background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                        <p><strong>Amount:</strong> {activation_request.payment_amount} ETB</p>
-                        <p><strong>Plan:</strong> {activation_request.plan_type}</p>
-                    </div>
-                    <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                        <p><strong>Reason:</strong><br>{rejection_data.rejection_reason}</p>
-                    </div>
-                    <p>Please contact support for more information or try again.</p>
-                    <a href="http://localhost:5173/subscription" style="background: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Try Again</a>
-                    <hr>
-                    <p style="color: #666; font-size: 12px;">EstateHub Real Estate</p>
-                </body>
-                </html>
-                """
-                
-                await email_service.send_email(
-                    to_email=user.email,
-                    subject=f"❌ Payment Rejected - {activation_request.plan_type} Plan",
-                    html_content=user_html,
-                    text_content=f"Your payment of {activation_request.payment_amount} ETB has been rejected."
-                )
-                print(f"📧 Rejection email sent to user: {user.email}")
-            except Exception as email_error:
-                print(f"⚠️ Failed to send email: {email_error}")
-        
-        return {"success": True, "message": "Request rejected"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error rejecting request: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============ ADMIN: GET COUNTS ============
-@router.get("/admin/counts")
-async def get_activation_counts(
-    current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        pending_documents = db.query(ActivationRequest).filter(
-            ActivationRequest.status == ActivationStatus.DOCUMENTS_PENDING
-        ).count()
-        
-        pending_payments = db.query(ActivationRequest).filter(
-            ActivationRequest.status == ActivationStatus.PAYMENT_PENDING
-        ).count()
-        
-        approved = db.query(ActivationRequest).filter(
-            ActivationRequest.status == ActivationStatus.FULLY_ACTIVATED
-        ).count()
-        
-        rejected = db.query(ActivationRequest).filter(
-            ActivationRequest.status == ActivationStatus.REJECTED
-        ).count()
-        
-        return {
-            "pending_documents": pending_documents,
-            "pending_payments": pending_payments,
-            "approved": approved,
-            "rejected": rejected
-        }
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return {"pending_documents": 0, "pending_payments": 0, "approved": 0, "rejected": 0}
-
-
-# ============ GET USER STATUS (FOR SIDEBAR) ============
-@router.get("/user-status")
-async def get_user_status(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        if current_user.can_create_listings and current_user.is_activated and current_user.payment_approved:
-            return {"status": "active", "message": "Account fully activated"}
-        
-        activation_request = db.query(ActivationRequest).filter(
-            ActivationRequest.user_id == current_user.id,
-            ActivationRequest.status == ActivationStatus.PAYMENT_PENDING
-        ).first()
-        
-        if activation_request:
-            return {"status": "pending", "message": "Payment under review"}
-        
-        activation_request = db.query(ActivationRequest).filter(
-            ActivationRequest.user_id == current_user.id,
-            ActivationRequest.status == ActivationStatus.DOCUMENTS_APPROVED
-        ).first()
-        
-        if activation_request:
-            return {"status": "pending", "message": "Documents approved. Please subscribe"}
-        
-        activation_request = db.query(ActivationRequest).filter(
-            ActivationRequest.user_id == current_user.id,
-            ActivationRequest.status == ActivationStatus.DOCUMENTS_PENDING
-        ).first()
-        
-        if activation_request:
-            return {"status": "pending", "message": "Documents under review"}
-        
-        return {"status": "pending", "message": "Activation not started"}
-        
-    except Exception as e:
-        print(f"Error getting user status: {e}")
-        return {"status": "pending", "message": "Unknown status"}
-
-
-# ============ ADMIN: GET PENDING COUNT FOR SIDEBAR ============
-@router.get("/admin/pending-count")
-async def get_admin_pending_count(
-    current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        count = db.query(ActivationRequest).filter(
-            func.lower(ActivationRequest.status) == 'documents_pending'
-        ).count()
-        print(f"📊 Pending count for sidebar: {count}")
-        return {"count": count}
-    except Exception as e:
-        print(f"Error getting pending count: {e}")
-        return {"count": 0}
-
-
-# ============ ADMIN: REJECT DOCUMENT REQUEST ============
-@router.post("/admin/reject/{request_id}")
-async def reject_document_request(
-    request_id: int,
-    rejection_data: RejectRequest,
-    current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
-):
-    try:
-        activation_request = db.query(ActivationRequest).filter(
-            ActivationRequest.id == request_id
-        ).first()
-        
-        if not activation_request:
-            raise HTTPException(status_code=404, detail="Activation request not found")
-        
-        if activation_request.status != ActivationStatus.DOCUMENTS_PENDING:
-            raise HTTPException(status_code=400, detail="This request is not in pending state")
-        
-        activation_request.status = ActivationStatus.REJECTED
-        activation_request.rejection_reason = rejection_data.rejection_reason
-        activation_request.reviewed_by = current_user.id
-        activation_request.reviewed_at = datetime.utcnow()
-        
-        db.commit()
-        
-        return {"success": True, "message": "Request rejected successfully"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error rejecting request: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-print("✅ Activation router loaded successfully!")
+print("✅ Activation router loaded successfully with FIXED status endpoint!")

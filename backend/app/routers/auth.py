@@ -66,8 +66,11 @@ class GoogleAuthRequest(BaseModel):
     role_type: Optional[str] = "dual"
 
 # ============ HELPER FUNCTIONS ============
+# FIXED: Removed test user auto-activation - NO test users get auto-activated
 def is_test_user(email: str) -> bool:
-    return email in ["dani@gmail.com", "reduss@gmail.com", "test@example.com", "reduss"]
+    # Return False to disable auto-activation for all users
+    # Remove this function or return False
+    return False
 
 def get_password_hash(password: str) -> str:
     """Hash a password using bcrypt"""
@@ -146,8 +149,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         hashed_password = get_password_hash(user_data.password)
         
         user_role = user_data.role_type if user_data.role_type else "user"
-        is_test = is_test_user(user_data.email)
         
+        # FIXED: Buyers get activated immediately, sellers/landlords need approval
         if user_role == 'buyer':
             user_status = "active"
             is_activated = True
@@ -216,7 +219,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# ============ LOGIN ENDPOINT ============
+# ============ LOGIN ENDPOINT - FIXED: No auto-activation ============
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
@@ -241,17 +244,8 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         
         user.last_login = datetime.utcnow()
         
-        if is_test_user(user.email):
-            user.status = "active"
-            user.is_active = True
-            user.is_verified = True
-            user.is_activated = True
-            user.can_create_listings = True
-            user.payment_approved = True
-            user.has_active_subscription = True
-            if not user.subscription_end_date:
-                user.subscription_start_date = datetime.utcnow()
-                user.subscription_end_date = datetime.utcnow() + timedelta(days=180)
+        # FIXED: REMOVED auto-activation for test users
+        # No automatic activation - users must go through proper verification
         
         db.commit()
         db.refresh(user)
@@ -294,7 +288,7 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         traceback.print_exc()
         return {"success": False, "error": "Internal server error"}
 
-# ============ GET CURRENT USER (ME) ENDPOINT - FIXED ============
+# ============ GET CURRENT USER (ME) ENDPOINT ============
 @router.get("/me")
 async def get_current_user_endpoint(current_user: User = Depends(get_current_user)):
     """Get current user information"""

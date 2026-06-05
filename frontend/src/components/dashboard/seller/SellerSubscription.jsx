@@ -259,51 +259,50 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
   const amount = selectedPlanData?.price;
 
- const redirectToChapa = async () => {
+  const redirectToChapa = async () => {
     setLoading(true);
     
     try {
-        const token = localStorage.getItem('access_token');
-        const fullName = user?.full_name || user?.username || 'User';
-        const nameParts = fullName.split(' ');
-        const firstName = nameParts[0];
-        const lastName = nameParts.slice(1).join(' ') || 'User';
-        
-        const requestData = {
-            plan_type: selectedPlan,
-            amount: amount,
-            email: user?.email,
-            first_name: firstName,
-            last_name: lastName,
-            phone: user?.phone || '0911111111'
-        };
-        
-        const response = await fetch(`${API_URL}/api/payment/initialize`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestData)
-        });
-        
-        const data = await response.json();
-        
-        if (data.success && data.checkout_url) {
-            toast.success('Redirecting to Chapa payment page...');
-            // Redirect to Chapa checkout page
-            window.location.href = data.checkout_url;
-        } else {
-            toast.error(data.message || 'Failed to initialize payment');
-            setShowPaymentModal(false);
-        }
+      const token = localStorage.getItem('access_token');
+      const fullName = user?.full_name || user?.username || 'User';
+      const nameParts = fullName.split(' ');
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ') || 'User';
+      
+      const requestData = {
+        plan_type: selectedPlan,
+        amount: amount,
+        email: user?.email,
+        first_name: firstName,
+        last_name: lastName,
+        phone: user?.phone || '0911111111'
+      };
+      
+      const response = await fetch(`${API_URL}/api/payment/initialize`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.checkout_url) {
+        toast.success('Redirecting to Chapa payment page...');
+        window.location.href = data.checkout_url;
+      } else {
+        toast.error(data.message || 'Failed to initialize payment');
+        setShowPaymentModal(false);
+      }
     } catch (error) {
-        console.error('Payment error:', error);
-        toast.error('Failed to connect to payment gateway');
+      console.error('Payment error:', error);
+      toast.error('Failed to connect to payment gateway');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-};
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
