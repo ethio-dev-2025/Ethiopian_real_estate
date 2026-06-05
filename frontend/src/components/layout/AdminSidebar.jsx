@@ -21,18 +21,67 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [adminMessagesUnreadCount, setAdminMessagesUnreadCount] = useState(0)
-  const [lastQueueViewTime, setLastQueueViewTime] = useState(null)
+  const [profileImage, setProfileImage] = useState(null)
+  const [imageError, setImageError] = useState(false)
   
   // Settings dropdown state
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  // Load last view time from localStorage
+  // Load profile image from user
   useEffect(() => {
-    const savedTime = localStorage.getItem('lastQueueViewTime')
-    if (savedTime) {
-      setLastQueueViewTime(parseInt(savedTime))
+    if (user?.avatar_url) {
+      let imageUrl = user.avatar_url
+      if (imageUrl.startsWith('/uploads')) {
+        imageUrl = `${API_URL}${imageUrl}`
+      }
+      setProfileImage(imageUrl)
+    } else {
+      setProfileImage(null)
     }
-  }, [])
+  }, [user?.avatar_url])
+
+  // Listen for profile picture updates
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'user') {
+        try {
+          const updatedUser = JSON.parse(e.newValue)
+          if (updatedUser?.avatar_url) {
+            let imageUrl = updatedUser.avatar_url
+            if (imageUrl.startsWith('/uploads')) {
+              imageUrl = `${API_URL}${imageUrl}`
+            }
+            setProfileImage(imageUrl)
+          }
+          if (refreshUser) {
+            refreshUser()
+          }
+        } catch (err) {
+          console.error('Error parsing user from storage:', err)
+        }
+      }
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Also listen for custom event
+    const handleUserUpdated = (event) => {
+      if (event.detail?.avatar_url) {
+        let imageUrl = event.detail.avatar_url
+        if (imageUrl.startsWith('/uploads')) {
+          imageUrl = `${API_URL}${imageUrl}`
+        }
+        setProfileImage(imageUrl)
+      }
+    }
+    
+    window.addEventListener('user:updated', handleUserUpdated)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('user:updated', handleUserUpdated)
+    }
+  }, [refreshUser])
 
   // Listen for storage events
   useEffect(() => {
@@ -42,9 +91,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
         if (refreshUser) {
           refreshUser();
         }
-      }
-      if (e.key === 'lastQueueViewTime') {
-        setLastQueueViewTime(parseInt(e.newValue))
       }
     };
     
@@ -92,28 +138,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     };
   }, []);
 
-  // Function to mark queue as viewed and clear badge
-  const markQueueAsViewed = async () => {
-    try {
-      const token = localStorage.getItem('access_token')
-      if (!token) return
-      
-      await fetch(`${API_URL}/api/activation/admin/mark-queue-viewed`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      const now = Date.now()
-      setLastQueueViewTime(now)
-      localStorage.setItem('lastQueueViewTime', now.toString())
-      
-      // Also clear the pending count locally
-      setPendingCount(0)
-    } catch (e) {
-      console.error('Error marking queue viewed:', e)
-    }
-  }
-
   const fetchPendingCount = async () => {
     try {
       const token = localStorage.getItem('access_token')
@@ -124,13 +148,8 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
       })
       if (response.ok) {
         const data = await response.json()
-        const count = data.count || 0
-        
-        // Only show badge if count > 0 and user hasn't viewed the queue after these requests were created
-        // For simplicity, we'll show the badge if count > 0
-        // The badge will be cleared when user clicks on Verification Queue
-        setPendingCount(count)
-        console.log('📊 Pending verification count:', count)
+        setPendingCount(data.count || 0)
+        console.log('📊 Pending verification count:', data.count)
       }
     } catch (e) {
       console.error('Error fetching pending count:', e)
@@ -156,7 +175,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     }
   }
 
-  // Auto-refresh pending count every 10 seconds
   useEffect(() => {
     fetchPendingCount()
     fetchPendingPayments()
@@ -207,17 +225,11 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     }
   }, [location.pathname])
 
-  // Handle navigation to verification queue
-  const handleVerificationQueueClick = () => {
-    markQueueAsViewed()
-    navigate('/admin/verification-queue')
-  }
-
   const menuItems = [
     { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
     { path: '/admin/users', label: 'User Management', icon: Users },
-    { path: '/admin/verification-queue', label: 'Verification Queue', icon: FileCheck, badge: pendingCount, onClick: handleVerificationQueueClick },
-    { path: '/admin/payment-approvals', label: 'Payment History', icon: CreditCard, badge: pendingPaymentsCount },
+    { path: '/admin/verification-queue', label: 'Verification Queue', icon: FileCheck, badge: pendingCount },
+    { path: '/admin/payment-approvals', label: 'Payment History', icon: CreditCard },
     { path: '/admin/reports', label: 'Reports & Analytics', icon: BarChart3 },
     { path: '/admin/messages', label: 'Messages', icon: MessageCircle, badge: adminMessagesUnreadCount },
   ]
@@ -238,15 +250,19 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     return 'Administrator'
   }
 
-  // Determine if badge should be shown (only show if count > 0 and not recently viewed)
-  const shouldShowBadge = (item) => {
-    if (item.label === 'Verification Queue' && item.badge > 0) {
-      // For verification queue, show badge always when count > 0
-      // It will be cleared when clicked
-      return item.badge > 0
+  const getProfileImageUrl = () => {
+    if (profileImage) return profileImage
+    if (user?.avatar_url) {
+      let url = user.avatar_url
+      if (url.startsWith('/uploads')) {
+        url = `${API_URL}${url}`
+      }
+      return url
     }
-    return item.badge > 0
+    return null
   }
+
+  const profileImageUrl = getProfileImageUrl()
 
   return (
     <>
@@ -287,14 +303,13 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
               ? location.pathname === item.path
               : location.pathname.startsWith(item.path)
             
-            const showBadge = shouldShowBadge(item)
+            const hasBadge = item.badge !== undefined && item.badge > 0
             
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 end={item.end}
-                onClick={item.onClick}
                 className={({ isActive: active }) =>
                   `flex items-center gap-3 px-5 py-3 transition-colors ${
                     active ? 'bg-blue-600 text-white border-r-4 border-blue-400' : 'text-gray-300 hover:bg-gray-700 hover:text-white'
@@ -305,14 +320,14 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
                 {sidebarOpen && (
                   <div className="flex-1 flex items-center justify-between">
                     <span className="text-sm">{item.label}</span>
-                    {showBadge && (
+                    {hasBadge && (
                       <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full ml-2 animate-pulse">
                         {item.badge > 99 ? '99+' : item.badge}
                       </span>
                     )}
                   </div>
                 )}
-                {!sidebarOpen && showBadge && (
+                {!sidebarOpen && hasBadge && (
                   <span className="absolute right-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                 )}
               </NavLink>
@@ -372,12 +387,24 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
           </div>
         </nav>
 
-        {/* Bottom Section - User Info */}
+        {/* Bottom Section - User Info with Profile Picture */}
         <div className="border-t border-gray-700">
           <div className="p-3">
             <div className="w-full flex items-center gap-3 p-2 rounded-lg">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0">
-                {getUserName().charAt(0).toUpperCase()}
+              {/* Profile Picture */}
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                {profileImageUrl && !imageError ? (
+                  <img 
+                    src={profileImageUrl} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <span className="text-white font-bold text-sm">
+                    {getUserName().charAt(0).toUpperCase()}
+                  </span>
+                )}
               </div>
               {sidebarOpen && (
                 <div className="flex-1 text-left">
@@ -394,7 +421,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
           <div className="p-3 pt-0">
             <button
               onClick={handleLogoutClick}
-              className="w-full flex items-center gap-3 px-3 py-2 text-gray-300 hover:bg-red-600/20 hover:text-red-400 rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-3 px-3 py-2 text-gray-300 hover:bg-red-600/20 hover:text-red-400 rounded-lg transition-colors"
             >
               <LogOut className="w-5 h-5" />
               {sidebarOpen && <span className="text-sm">Logout</span>}

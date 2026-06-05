@@ -5,12 +5,11 @@ import {
   X, AlertCircle, User, 
   Download,
   Search, ChevronLeft, ChevronRight,
-  Calendar, CreditCard, DollarSign, Printer, Zap
+  Calendar, CreditCard, DollarSign, Printer
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const API_URL = 'http://localhost:8000'
-const WS_URL = 'ws://localhost:8000'
 
 const PaymentHistory = () => {
   const [allPayments, setAllPayments] = useState([])
@@ -21,8 +20,6 @@ const PaymentHistory = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
-  const [lastPaymentCount, setLastPaymentCount] = useState(0)
-  const [newPaymentAlert, setNewPaymentAlert] = useState(false)
 
   // Parse date safely
   const parseDate = (dateString) => {
@@ -35,19 +32,6 @@ const PaymentHistory = () => {
       return date
     } catch (e) {
       return new Date(0)
-    }
-  }
-
-  // Check if date is in the future (more than 1 day from now)
-  const isFutureDate = (dateString) => {
-    if (!dateString) return false
-    try {
-      const date = new Date(dateString)
-      const now = new Date()
-      // If date is more than 1 day in the future, consider it future-dated
-      return date > new Date(now.getTime() + 24 * 60 * 60 * 1000)
-    } catch (e) {
-      return false
     }
   }
 
@@ -79,10 +63,8 @@ const PaymentHistory = () => {
     }
   }
 
-  const fetchAllPayments = useCallback(async (silent = false) => {
-    if (!silent) {
-      setLoading(true)
-    }
+  const fetchAllPayments = useCallback(async () => {
+    setLoading(true)
     setError(null)
     
     try {
@@ -110,16 +92,13 @@ const PaymentHistory = () => {
         }
         
         // Filter out future-dated payments (2028, 2029, etc.)
-        // Only keep payments with dates <= current date + 1 day
         const validPayments = payments.filter(payment => {
           if (!payment.created_at) return false
           const date = new Date(payment.created_at)
           const now = new Date()
-          // Only include payments from today or earlier (allow 1 day buffer)
           return date <= new Date(now.getTime() + 24 * 60 * 60 * 1000)
         })
         
-        // Also keep the future-dated payments but at the bottom
         const futurePayments = payments.filter(payment => {
           if (!payment.created_at) return false
           const date = new Date(payment.created_at)
@@ -144,112 +123,27 @@ const PaymentHistory = () => {
         // Combine: valid payments first, then future payments
         const sortedPayments = [...validPayments, ...futurePayments]
         
-        // Debug logging
-        console.log('📊 PAYMENT SORTING DEBUG:')
-        console.log(`   Total payments: ${sortedPayments.length}`)
-        console.log(`   Valid payments: ${validPayments.length}`)
-        console.log(`   Future payments: ${futurePayments.length}`)
-        if (sortedPayments.length > 0) {
-          console.log(`   First payment: ${sortedPayments[0]?.user_name} - ${sortedPayments[0]?.created_at}`)
-        }
-        
-        // Check for new payments
-        if (!silent && lastPaymentCount > 0 && sortedPayments.length > lastPaymentCount) {
-          const newCount = sortedPayments.length - lastPaymentCount
-          setNewPaymentAlert(true)
-          toast.success(`💰 ${newCount} new payment${newCount > 1 ? 's' : ''} received!`, {
-            duration: 5000,
-            icon: '🎉'
-          })
-          setTimeout(() => setNewPaymentAlert(false), 5000)
-          
-          if (currentPage === 1) {
-            setCurrentPage(1)
-          }
-        }
-        
-        setLastPaymentCount(sortedPayments.length)
         setAllPayments(sortedPayments)
+        setCurrentPage(1)
         
-        console.log(`✅ Loaded ${sortedPayments.length} payments, newest first`)
+        console.log(`✅ Loaded ${sortedPayments.length} payments from database`)
       } else {
         console.error('Response not OK:', response.status)
-        if (!silent) {
-          setError(`Failed to load payments: ${response.status}`)
-        }
+        setError(`Failed to load payments: ${response.status}`)
       }
       
     } catch (error) {
       console.error('Fetch error:', error)
-      if (!silent) {
-        setError(error.message)
-        toast.error(`Failed to load: ${error.message}`)
-      }
+      setError(error.message)
+      toast.error(`Failed to load: ${error.message}`)
     } finally {
-      if (!silent) {
-        setLoading(false)
-      }
+      setLoading(false)
     }
-  }, [lastPaymentCount, currentPage])
+  }, [])
 
-  // WebSocket for real-time updates
+  // Initial load only - NO AUTO-REFRESH
   useEffect(() => {
-    let ws = null
-    let reconnectTimeout = null
-
-    const connectWebSocket = () => {
-      try {
-        const token = localStorage.getItem('access_token')
-        if (!token) return
-
-        ws = new WebSocket(`${WS_URL}/ws/payments?token=${token}`)
-
-        ws.onopen = () => {
-          console.log('🔌 WebSocket connected for real-time payments')
-        }
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data)
-            console.log('📡 WebSocket message:', data)
-            
-            if (data.type === 'new_payment') {
-              toast.success(`💳 New payment from ${data.user_name || 'User'}!`, {
-                duration: 10000,
-                icon: '💰'
-              })
-              fetchAllPayments(true)
-            }
-          } catch (e) {
-            console.error('WebSocket message error:', e)
-          }
-        }
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error)
-        }
-
-        ws.onclose = () => {
-          console.log('🔌 WebSocket disconnected, reconnecting in 5 seconds...')
-          reconnectTimeout = setTimeout(connectWebSocket, 5000)
-        }
-      } catch (error) {
-        console.error('WebSocket connection error:', error)
-        reconnectTimeout = setTimeout(connectWebSocket, 5000)
-      }
-    }
-
-    connectWebSocket()
-
-    return () => {
-      if (ws) ws.close()
-      if (reconnectTimeout) clearTimeout(reconnectTimeout)
-    }
-  }, [fetchAllPayments])
-
-  // Initial load only
-  useEffect(() => {
-    fetchAllPayments(false)
+    fetchAllPayments()
   }, [])
 
   const handleDownloadReceipt = async (paymentId) => {
@@ -420,6 +314,16 @@ const PaymentHistory = () => {
     return <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">{status}</span>
   }
 
+  // Calculate totals
+  const approvedRevenue = allPayments
+    .filter(p => p.status === 'approved')
+    .reduce((sum, p) => sum + (p.amount || 0), 0)
+
+  const totalPayments = allPayments.length
+  const approvedCount = allPayments.filter(p => p.status === 'approved').length
+  const pendingCount = allPayments.filter(p => p.status === 'pending').length
+  const rejectedCount = allPayments.filter(p => p.status === 'rejected').length
+
   // Filter payments
   const filteredPayments = [...allPayments].filter(payment => 
     payment.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -439,6 +343,11 @@ const PaymentHistory = () => {
   const handlePageChange = (page) => {
     setCurrentPage(page)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleManualRefresh = () => {
+    fetchAllPayments()
+    toast.success('Data refreshed from database!')
   }
 
   const DetailsModal = () => {
@@ -495,10 +404,6 @@ const PaymentHistory = () => {
     )
   }
 
-  const handleManualRefresh = () => {
-    fetchAllPayments(false)
-  }
-
   if (loading && allPayments.length === 0) {
     return (
       <div className="p-6 bg-gray-50 min-h-screen">
@@ -514,37 +419,36 @@ const PaymentHistory = () => {
     <div className="p-6 bg-gray-50 min-h-screen">
       {showDetailsModal && <DetailsModal />}
 
-      {newPaymentAlert && (
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 animate-pulse">
-          <Zap className="w-5 h-5 text-green-600" />
-          <span className="text-green-700 font-medium">New payment received! Refreshing data...</span>
-        </div>
-      )}
-
       <div className="mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Payment History</h1>
-            <p className="text-gray-500 mt-1">Real-time payment tracking - Newest payments shown first</p>
+            <p className="text-gray-500 mt-1">Payment records from database - Newest payments shown first</p>
           </div>
           
           <div className="flex gap-3">
             <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-gray-200">
               <p className="text-xs text-gray-500">Total Payments</p>
-              <p className="text-xl font-bold text-gray-800">{allPayments.length}</p>
+              <p className="text-xl font-bold text-gray-800">{totalPayments}</p>
             </div>
             <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-gray-200">
-              <p className="text-xs text-gray-500">Total Revenue</p>
-              <p className="text-xl font-bold text-green-600">
-                ETB {allPayments.reduce((sum, p) => sum + (p.amount || 0), 0).toLocaleString()}
-              </p>
+              <p className="text-xs text-gray-500">Approved</p>
+              <p className="text-xl font-bold text-green-600">{approvedCount}</p>
+            </div>
+            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-gray-200">
+              <p className="text-xs text-gray-500">Pending</p>
+              <p className="text-xl font-bold text-yellow-600">{pendingCount}</p>
+            </div>
+            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-gray-200">
+              <p className="text-xs text-gray-500">Rejected</p>
+              <p className="text-xl font-bold text-red-600">{rejectedCount}</p>
             </div>
             <div className="bg-green-50 rounded-lg px-4 py-2 text-center shadow-sm border border-green-200">
-              <div className="flex items-center gap-1">
-                <Zap className="w-4 h-4 text-green-600" />
-                <p className="text-xs text-green-600">Live</p>
-              </div>
-              <p className="text-xs text-green-500">Auto-refresh</p>
+              <p className="text-xs text-gray-500">Total Revenue</p>
+              <p className="text-xl font-bold text-green-600">
+                ETB {approvedRevenue.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400">(Approved only)</p>
             </div>
           </div>
         </div>
@@ -577,7 +481,7 @@ const PaymentHistory = () => {
           className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> 
-          {loading ? 'Refreshing...' : 'Refresh'}
+          {loading ? 'Loading...' : 'Refresh'}
         </button>
       </div>
 
@@ -598,6 +502,7 @@ const PaymentHistory = () => {
                     <th className="text-left p-4 text-sm font-semibold text-gray-600">Contact</th>
                     <th className="text-left p-4 text-sm font-semibold text-gray-600">Plan</th>
                     <th className="text-left p-4 text-sm font-semibold text-gray-600">Amount</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-600">Status</th>
                     <th className="text-left p-4 text-sm font-semibold text-gray-600">Payment Date & Time</th>
                     <th className="text-center p-4 text-sm font-semibold text-gray-600">Actions</th>
                   </tr>
@@ -630,6 +535,9 @@ const PaymentHistory = () => {
                         </td>
                         <td className="p-4">
                           <span className="font-bold text-green-600">{formatAmount(payment.amount)}</span>
+                        </td>
+                        <td className="p-4">
+                          {getStatusBadge(payment.status)}
                         </td>
                         <td className="p-4">
                           <div className="flex items-center gap-1 text-sm text-gray-700">

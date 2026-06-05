@@ -1,11 +1,8 @@
-// src/components/dashboard/admin/AdminSettings.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
-  User, Shield, Bell, Monitor, Building2, DollarSign, BarChart3,
-  Camera, Trash2, Eye, EyeOff, Key, LogOut, Save, CheckCircle, AlertCircle,
-  X, Sun, Moon, Users, Home, CreditCard, TrendingUp, Clock,
-  RefreshCw
+  User, Shield, Camera, Trash2, Eye, EyeOff, Key, LogOut, Save, CheckCircle, AlertCircle,
+  X, Sun, Moon
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -23,10 +20,10 @@ const AdminSettings = () => {
   
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get('tab');
-    return tab || 'profile';
+    return (tab === 'profile' || tab === 'security') ? tab : 'profile';
   });
 
-  // Password modal state - LOCAL to modal now
+  // Password modal state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Theme state
@@ -35,7 +32,7 @@ const AdminSettings = () => {
     return savedTheme === 'dark';
   });
 
-  // Profile Form Data
+  // Profile Form Data - REMOVED bio field
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -43,41 +40,9 @@ const AdminSettings = () => {
     phone: '',
     date_of_birth: '',
     region_city: '',
-    bio: '',
     address: '',
     position: '',
     department: ''
-  });
-
-  // Notification Settings
-  const [notificationSettings, setNotificationSettings] = useState({
-    email_alerts: true,
-    new_user_notifications: true,
-    payment_notifications: true
-  });
-
-  // Company Settings State
-  const [companySettings, setCompanySettings] = useState({
-    company_name: 'EstateHub Real Estate',
-    company_email: 'admin@estatehub.com',
-    company_phone: '+251 911 111 111',
-    company_address: 'Addis Ababa, Ethiopia',
-    company_website: 'www.estatehub.com',
-    company_tin: '0071406415',
-    currency: 'ETB',
-    tax_rate: 15,
-    commission_rate: 3.5,
-    listing_fee: 500,
-    subscription_fee_seller: 2500,
-    subscription_fee_landlord: 2500,
-    subscription_fee_dual: 4000
-  });
-
-  // Platform Stats
-  const [platformStats, setPlatformStats] = useState({
-    total_users: 1234,
-    total_listings: 567,
-    total_revenue: 1200000
   });
 
   // Apply dark mode
@@ -113,35 +78,13 @@ const AdminSettings = () => {
         phone: user.phone || '',
         date_of_birth: formattedDate,
         region_city: user.city || user.region || 'Addis Ababa',
-        bio: user.bio || '',
         address: user.address || '',
         position: user.position || 'Administrator',
         department: user.department || 'Management'
       });
       setProfileImage(user.avatar_url || null);
     }
-    
-    loadCompanySettings();
   }, [user]);
-
-  const loadCompanySettings = () => {
-    const savedSettings = localStorage.getItem('company_settings');
-    if (savedSettings) {
-      try {
-        setCompanySettings(JSON.parse(savedSettings));
-      } catch (e) {}
-    }
-  };
-
-  const saveCompanySettings = () => {
-    localStorage.setItem('company_settings', JSON.stringify(companySettings));
-    toast.success('Company settings saved successfully!');
-  };
-
-  const handleCompanyChange = (e) => {
-    const { name, value } = e.target;
-    setCompanySettings(prev => ({ ...prev, [name]: value }));
-  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -266,7 +209,6 @@ const AdminSettings = () => {
           date_of_birth: formData.date_of_birth,
           city: formData.region_city,
           address: formData.address,
-          bio: formData.bio,
           position: formData.position,
           department: formData.department
         })
@@ -275,7 +217,6 @@ const AdminSettings = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Fetch fresh user data
         const meResponse = await fetch(`${API_URL}/api/auth/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -283,21 +224,17 @@ const AdminSettings = () => {
         if (meResponse.ok) {
           const freshUser = await meResponse.json();
           
-          // Update localStorage
           localStorage.setItem('user', JSON.stringify(freshUser));
           
-          // Update AuthContext
           if (updateUser) {
             updateUser(freshUser);
           }
           
-          // Force refresh for sidebar
           window.dispatchEvent(new StorageEvent('storage', {
             key: 'user',
             newValue: JSON.stringify(freshUser)
           }));
           
-          // Update form data
           let formattedDate = '';
           if (freshUser.date_of_birth) {
             if (freshUser.date_of_birth.includes('/')) {
@@ -317,7 +254,6 @@ const AdminSettings = () => {
             phone: freshUser.phone || '',
             date_of_birth: formattedDate,
             region_city: freshUser.city || 'Addis Ababa',
-            bio: freshUser.bio || '',
             address: freshUser.address || '',
             position: freshUser.position || 'Administrator',
             department: freshUser.department || 'Management'
@@ -348,9 +284,8 @@ const AdminSettings = () => {
 
   const profileImageUrl = getProfileImageUrl();
 
-  // ========== PASSWORD MODAL WITH LOCAL STATE (FIXES CURSOR ISSUE) ==========
+  // ========== PASSWORD MODAL ==========
   const PasswordModal = () => {
-    // Local state for password modal inputs
     const [localCurrentPassword, setLocalCurrentPassword] = useState('');
     const [localNewPassword, setLocalNewPassword] = useState('');
     const [localConfirmPassword, setLocalConfirmPassword] = useState('');
@@ -425,9 +360,6 @@ const AdminSettings = () => {
             setShowPasswordModal(false);
             setLocalPasswordSuccess(false);
             setLocalPasswordError('');
-            setLocalCurrentPassword('');
-            setLocalNewPassword('');
-            setLocalConfirmPassword('');
           }, 2000);
         } else {
           const errorMsg = data.message || data.detail || 'Failed to change password';
@@ -599,14 +531,9 @@ const AdminSettings = () => {
     );
   };
 
-  // ========== PROFILE SECTION ==========
+  // ========== PROFILE SECTION - REMOVED BIO FIELD ==========
   const ProfileSection = () => (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Profile Information</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Update your personal details and public profile</p>
-      </div>
-      
       <div className="p-6">
         <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
           <div className="relative">
@@ -671,9 +598,15 @@ const AdminSettings = () => {
             <input type="text" name="region_city" value={formData.region_city} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white" placeholder="Addis Ababa" />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bio / About Me</label>
-            <textarea name="bio" value={formData.bio} onChange={handleChange} rows={4} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none dark:bg-gray-700 dark:text-white" placeholder="Tell us about yourself..." />
-            <p className="text-xs text-gray-400 mt-1">{formData.bio.length} / 500 characters</p>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Address</label>
+            <textarea
+              name="address"
+              value={formData.address}
+              onChange={handleChange}
+              rows={3}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none dark:bg-gray-700 dark:text-white"
+              placeholder="Your full address"
+            />
           </div>
         </div>
       </div>
@@ -690,11 +623,6 @@ const AdminSettings = () => {
   // ========== SECURITY SECTION ==========
   const SecuritySection = () => (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Security</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account security</p>
-      </div>
-      
       <div className="p-6">
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 rounded-xl border border-green-100 p-6">
           <div className="flex items-start gap-4">
@@ -712,269 +640,18 @@ const AdminSettings = () => {
           </div>
         </div>
         
-        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg text-red-600 hover:bg-red-100 transition font-medium">
-            <LogOut className="w-4 h-4" />
-            Logout from Account
-          </button>
-        </div>
       </div>
     </div>
   );
 
-  // ========== NOTIFICATIONS SECTION ==========
- // In AdminSettings.jsx - Update the NotificationsSection
+  // ========== APPEARANCE SECTION - REMOVED ==========
+  // The Appearance tab is completely removed
 
-// ========== NOTIFICATIONS SECTION - WORKING VERSION (No API) ==========
-// In AdminSettings.jsx - Update NotificationsSection
-
-const NotificationsSection = () => {
-  const [localNotificationSettings, setLocalNotificationSettings] = useState({
-    email_alerts: true,
-    new_user_notifications: true,
-    payment_notifications: true
-  });
-  const [saving, setSaving] = useState(false);
-
-  // Load saved notifications from backend AND localStorage
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`${API_URL}/api/admin/notification-settings`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setLocalNotificationSettings(data);
-          // Also save to localStorage for frontend use
-          localStorage.setItem('admin_notifications', JSON.stringify(data));
-        } else {
-          // Fallback to localStorage
-          const savedNotifications = localStorage.getItem('admin_notifications');
-          if (savedNotifications) {
-            try {
-              const parsed = JSON.parse(savedNotifications);
-              setLocalNotificationSettings(parsed);
-            } catch (e) {}
-          }
-        }
-      } catch (error) {
-        console.error('Error loading notification settings:', error);
-        // Fallback to localStorage
-        const savedNotifications = localStorage.getItem('admin_notifications');
-        if (savedNotifications) {
-          try {
-            const parsed = JSON.parse(savedNotifications);
-            setLocalNotificationSettings(parsed);
-          } catch (e) {}
-        }
-      }
-    };
-    
-    loadSettings();
-  }, []);
-
-  const handleSaveNotifications = async () => {
-    setSaving(true);
-    
-    try {
-      const token = localStorage.getItem('access_token');
-      
-      // Save to backend database
-      const response = await fetch(`${API_URL}/api/admin/notification-settings`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(localNotificationSettings)
-      });
-      
-      if (response.ok) {
-        // Also save to localStorage for frontend use
-        localStorage.setItem('admin_notifications', JSON.stringify(localNotificationSettings));
-        
-        // Dispatch event for other components
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'admin_notifications',
-          newValue: JSON.stringify(localNotificationSettings)
-        }));
-        
-        toast.success('Notification preferences saved successfully!');
-      } else {
-        // Fallback to localStorage only
-        localStorage.setItem('admin_notifications', JSON.stringify(localNotificationSettings));
-        toast.success('Notification preferences saved locally!');
-      }
-    } catch (error) {
-      console.error('Error saving notification settings:', error);
-      // Fallback to localStorage only
-      localStorage.setItem('admin_notifications', JSON.stringify(localNotificationSettings));
-      toast.success('Notification preferences saved locally!');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Notification Preferences</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Choose how you want to be notified</p>
-      </div>
-      
-      <div className="divide-y divide-gray-200 dark:divide-gray-700">
-        {[
-          { id: 'email_alerts', label: 'Email Alerts', desc: 'Receive important alerts via email' },
-          { id: 'new_user_notifications', label: 'New User Notifications', desc: 'Get notified when new users register' },
-          { id: 'payment_notifications', label: 'Payment Notifications', desc: 'Get notified about new payments' }
-        ].map((item) => (
-          <div key={item.id} className="p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">{item.label}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{item.desc}</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
-                checked={localNotificationSettings[item.id]} 
-                onChange={() => setLocalNotificationSettings(prev => ({ ...prev, [item.id]: !prev[item.id] }))} 
-              />
-              <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-        ))}
-      </div>
-      
-      <div className="p-6 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end">
-        <button 
-          onClick={handleSaveNotifications} 
-          disabled={saving}
-          className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50"
-        >
-          {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="w-4 h-4" />}
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ========== APPEARANCE SECTION - FULLY FUNCTIONAL ==========
-const AppearanceSection = () => {
-  // Local state for theme
-  const [localIsDarkMode, setLocalIsDarkMode] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark';
-  });
-
-  // Apply theme when changed
-  useEffect(() => {
-    if (localIsDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [localIsDarkMode]);
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Appearance</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Customize how the platform looks</p>
-      </div>
-      
-      <div className="p-6">
-        <p className="font-medium text-gray-900 dark:text-white mb-4">Theme Preference</p>
-        <div className="grid grid-cols-2 gap-4 max-w-md">
-          <button 
-            onClick={() => setLocalIsDarkMode(false)} 
-            className={`p-4 border-2 rounded-xl flex flex-col items-center gap-2 transition-all ${
-              !localIsDarkMode 
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md' 
-                : 'border-gray-200 dark:border-gray-700 hover:border-blue-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            <Sun className={`w-8 h-8 ${!localIsDarkMode ? 'text-blue-600' : 'text-gray-400'}`} />
-            <span className={`text-sm font-medium ${!localIsDarkMode ? 'text-blue-600' : 'text-gray-600 dark:text-gray-400'}`}>
-              Light Mode
-            </span>
-            {!localIsDarkMode && (
-              <div className="mt-2 w-full h-1 bg-blue-500 rounded-full animate-pulse"></div>
-            )}
-          </button>
-          
-          <button 
-            onClick={() => setLocalIsDarkMode(true)} 
-            className={`p-4 border-2 rounded-xl flex flex-col items-center gap-2 transition-all ${
-              localIsDarkMode 
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md' 
-                : 'border-gray-200 dark:border-gray-700 hover:border-blue-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            <Moon className={`w-8 h-8 ${localIsDarkMode ? 'text-blue-600' : 'text-gray-400'}`} />
-            <span className={`text-sm font-medium ${localIsDarkMode ? 'text-blue-600' : 'text-gray-600 dark:text-gray-400'}`}>
-              Dark Mode
-            </span>
-            {localIsDarkMode && (
-              <div className="mt-2 w-full h-1 bg-blue-500 rounded-full animate-pulse"></div>
-            )}
-          </button>
-        </div>
-        
-        {/* Preview Section */}
-        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <p className="font-medium text-gray-900 dark:text-white mb-4">Preview</p>
-          <div className={`p-4 rounded-xl transition-all duration-300 ${
-            localIsDarkMode ? 'bg-gray-800' : 'bg-gray-100'
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                localIsDarkMode ? 'bg-blue-600' : 'bg-blue-500'
-              }`}>
-                <User className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className={`text-sm font-medium ${localIsDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Preview User
-                </p>
-                <p className={`text-xs ${localIsDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  user@example.com
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Save button for appearance */}
-        <div className="mt-6 pt-4 flex justify-end">
-          <button 
-            onClick={() => {
-              toast.success('Theme updated successfully!');
-            }} 
-            className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center gap-2"
-          >
-            <Save className="w-4 h-4" />
-            Apply Theme
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-  // Render content based on active tab
+  // Render content based on active tab - ONLY Profile and Security
   const renderContent = () => {
     switch (activeTab) {
       case 'profile': return <ProfileSection />;
       case 'security': return <SecuritySection />;
-      case 'notifications': return <NotificationsSection />;
-      case 'appearance': return <AppearanceSection />;
       default: return <ProfileSection />;
     }
   };
@@ -984,14 +661,10 @@ const AppearanceSection = () => {
       <PasswordModal />
       
       <div className="container mx-auto py-8 px-4">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Settings</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your profile and preferences</p>
-        </div>
         
-        {/* ONLY Admin Settings Tabs - NO Company Settings tabs here */}
+        {/* Tabs - ONLY Profile and Security (removed Appearance) */}
         <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
-          {['profile', 'security', 'notifications', 'appearance'].map((tab) => (
+          {['profile', 'security'].map((tab) => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setSearchParams({ tab: tab }); }}

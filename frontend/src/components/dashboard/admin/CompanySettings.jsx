@@ -1,10 +1,8 @@
-// src/components/dashboard/admin/CompanySettings.jsx
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
-  Building2, Globe, DollarSign, Users, Home, CreditCard, 
-  Save, TrendingUp, Clock, BarChart3, Settings, FileText,
-  Phone, Mail, MapPin, Link, Award, Target, Shield
+  Building2, DollarSign, Save, FileText,
+  Phone, Mail, MapPin
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -49,18 +47,6 @@ const CompanySettings = () => {
     vision_text: 'To become the most trusted real estate marketplace in Africa.'
   });
 
-  // Platform Stats
-  const [platformStats, setPlatformStats] = useState({
-    total_users: 0,
-    total_listings: 0,
-    total_revenue: 0,
-    pending_approvals: 0,
-    monthly_active_users: 0,
-    completed_transactions: 0,
-    active_listings: 0,
-    verified_agents: 0
-  });
-
   // Apply dark mode
   useEffect(() => {
     if (isDarkMode) {
@@ -73,26 +59,7 @@ const CompanySettings = () => {
   // Load data
   useEffect(() => {
     loadCompanySettings();
-    fetchPlatformStats();
   }, []);
-
-  const fetchPlatformStats = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
-      
-      const response = await fetch(`${API_URL}/api/admin/stats/dashboard`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setPlatformStats(data);
-      }
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
 
   const loadCompanySettings = () => {
     const savedSettings = localStorage.getItem('company_settings');
@@ -113,30 +80,17 @@ const CompanySettings = () => {
     setCompanySettings(prev => ({ ...prev, [name]: value }));
   };
 
-  // Tabs configuration
+  // Tabs configuration - REMOVED Platform Stats tab
   const tabs = [
     { id: 'company_info', label: 'Company Info', icon: Building2, color: 'from-cyan-600 to-blue-600' },
     { id: 'financial', label: 'Financial', icon: DollarSign, color: 'from-emerald-600 to-teal-600' },
-    { id: 'platform_stats', label: 'Platform Stats', icon: BarChart3, color: 'from-orange-600 to-red-600' },
     { id: 'about', label: 'About & Legal', icon: FileText, color: 'from-purple-600 to-pink-600' }
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       <div className="max-w-full sm:max-w-3xl md:max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-2xl shadow-lg">
-              <Building2 className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-              Company Settings
-            </h1>
-          </div>
-        </div>
-
-        {/* Tabs */}
+        {/* Tabs - Only Company Info, Financial, About (removed Platform Stats) */}
         <div className="flex flex-wrap gap-3 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -164,14 +118,6 @@ const CompanySettings = () => {
         {/* Company Info Section */}
         {activeTab === 'company_info' && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-cyan-600" />
-                Company Information
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Update your company details</p>
-            </div>
-            
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -270,15 +216,7 @@ const CompanySettings = () => {
 
         {/* Financial Section */}
         {activeTab === 'financial' && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-                Financial Settings
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure fees and rates</p>
-            </div>
-            
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">            
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -347,86 +285,9 @@ const CompanySettings = () => {
           </div>
         )}
 
-        {/* Platform Stats Section */}
-        {activeTab === 'platform_stats' && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-orange-600" />
-                Platform Statistics
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of platform performance</p>
-            </div>
-            
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6 text-center">
-                  <Users className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{platformStats.total_users.toLocaleString()}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Users</p>
-                </div>
-                
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-6 text-center">
-                  <Home className="w-10 h-10 text-green-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{platformStats.total_listings.toLocaleString()}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Listings</p>
-                </div>
-                
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 text-center">
-                  <DollarSign className="w-10 h-10 text-purple-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{platformStats.total_revenue.toLocaleString()} ETB</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Revenue</p>
-                </div>
-                
-                <div className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl p-6 text-center">
-                  <Clock className="w-10 h-10 text-yellow-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{platformStats.pending_approvals}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Pending Approvals</p>
-                </div>
-                
-                <div className="bg-gradient-to-r from-cyan-50 to-sky-50 dark:from-cyan-900/20 dark:to-sky-900/20 rounded-xl p-6 text-center">
-                  <TrendingUp className="w-10 h-10 text-cyan-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{platformStats.monthly_active_users.toLocaleString()}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Monthly Active Users</p>
-                </div>
-                
-                <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 rounded-xl p-6 text-center">
-                  <CreditCard className="w-10 h-10 text-teal-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{platformStats.completed_transactions.toLocaleString()}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Completed Transactions</p>
-                </div>
-              </div>
-              
-              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                  Last updated: {new Date().toLocaleString()}
-                </p>
-              </div>
-            </div>
-            
-            <div className="p-6 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end">
-              <button
-                onClick={fetchPlatformStats}
-                className="px-6 py-2.5 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Refresh Stats
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* About & Legal Section */}
         {activeTab === 'about' && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-purple-600" />
-                About & Legal Information
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Company description and legal information</p>
-            </div>
-            
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">            
             <div className="p-6">
               <div className="space-y-6">
                 <div>

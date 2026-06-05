@@ -379,5 +379,237 @@ async def get_pending_users(
         print(f"Error getting pending users: {e}")
         return []
 
+# ============ STATS ENDPOINTS FOR REPORTS & ANALYTICS ============
 
+@router.get("/stats/users")
+async def get_users_stats(
+    current_user=Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get user statistics for reports"""
+    try:
+        total_users = db.query(User).filter(User.role_type != 'admin').count()
+        active_users = db.query(User).filter(User.status == "active", User.role_type != 'admin').count()
+        pending_users = db.query(User).filter(User.status == "pending", User.role_type != 'admin').count()
+        suspended_users = db.query(User).filter(User.status == "suspended", User.role_type != 'admin').count()
+        verified_users = db.query(User).filter(User.is_verified == True, User.role_type != 'admin').count()
+        
+        # Monthly user growth (last 12 months)
+        user_growth = []
+        for i in range(11, -1, -1):
+            month_date = datetime.utcnow() - timedelta(days=30 * i)
+            count = db.query(User).filter(
+                func.extract('year', User.created_at) == month_date.year,
+                func.extract('month', User.created_at) == month_date.month,
+                User.role_type != 'admin'
+            ).count()
+            user_growth.append({
+                "month": month_date.strftime("%b"),
+                "count": count,
+                "year": month_date.year
+            })
+        
+        return {
+            "total": total_users,
+            "active": active_users,
+            "pending": pending_users,
+            "suspended": suspended_users,
+            "verified": verified_users,
+            "growth": user_growth
+        }
+        
+    except Exception as e:
+        print(f"Error getting users stats: {e}")
+        return {"total": 0, "active": 0, "pending": 0, "suspended": 0, "verified": 0, "growth": []}
+
+
+@router.get("/stats/listings")
+async def get_listings_stats(
+    current_user=Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get listings statistics for reports"""
+    try:
+        total_listings = db.query(Listing).count()
+        active_listings = db.query(Listing).filter(Listing.status == "active", Listing.is_draft == False).count()
+        pending_listings = db.query(Listing).filter(Listing.status == "pending").count()
+        draft_listings = db.query(Listing).filter(Listing.is_draft == True).count()
+        
+        for_sale = db.query(Listing).filter(Listing.listing_type == "sale", Listing.is_draft == False).count()
+        for_rent = db.query(Listing).filter(Listing.listing_type == "rent", Listing.is_draft == False).count()
+        
+        # Property type breakdown
+        property_types = ['house', 'apartment', 'villa', 'condo', 'commercial', 'townhouse', 'land']
+        by_property_type = {}
+        for p_type in property_types:
+            count = db.query(Listing).filter(Listing.property_type == p_type, Listing.is_draft == False).count()
+            if count > 0:
+                by_property_type[p_type] = count
+        
+        # Monthly listings growth
+        listings_growth = []
+        for i in range(5, -1, -1):
+            month_date = datetime.utcnow() - timedelta(days=30 * i)
+            count = db.query(Listing).filter(
+                func.extract('year', Listing.created_at) == month_date.year,
+                func.extract('month', Listing.created_at) == month_date.month
+            ).count()
+            listings_growth.append({
+                "month": month_date.strftime("%b"),
+                "count": count
+            })
+        
+        return {
+            "total": total_listings,
+            "active": active_listings,
+            "pending": pending_listings,
+            "draft": draft_listings,
+            "for_sale": for_sale,
+            "for_rent": for_rent,
+            "by_property_type": by_property_type,
+            "growth": listings_growth
+        }
+        
+    except Exception as e:
+        print(f"Error getting listings stats: {e}")
+        return {"total": 0, "active": 0, "pending": 0, "draft": 0, "for_sale": 0, "for_rent": 0, "by_property_type": {}, "growth": []}
+
+
+@router.get("/stats/revenue")
+async def get_revenue_stats(
+    current_user=Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get revenue statistics for reports"""
+    try:
+        # All approved payments
+        approved_payments = db.query(PaymentTransaction).filter(
+            PaymentTransaction.status == "approved"
+        ).all()
+        
+        total_revenue = sum(p.amount for p in approved_payments)
+        
+        # Current month revenue
+        now = datetime.utcnow()
+        start_of_month = datetime(now.year, now.month, 1)
+        this_month_payments = db.query(PaymentTransaction).filter(
+            PaymentTransaction.status == "approved",
+            PaymentTransaction.created_at >= start_of_month
+        ).all()
+        this_month_revenue = sum(p.amount for p in this_month_payments)
+        
+        # Last month revenue
+        if now.month == 1:
+            last_month_start = datetime(now.year - 1, 12, 1)
+        else:
+            last_month_start = datetime(now.year, now.month - 1, 1)
+        last_month_payments = db.query(PaymentTransaction).filter(
+            PaymentTransaction.status == "approved",
+            PaymentTransaction.created_at >= last_month_start,
+            PaymentTransaction.created_at < start_of_month
+        ).all()
+        last_month_revenue = sum(p.amount for p in last_month_payments)
+        
+        # Monthly revenue trend (last 6 months)
+        revenue_trend = []
+        for i in range(5, -1, -1):
+            month_date = datetime.utcnow() - timedelta(days=30 * i)
+            start_date = datetime(month_date.year, month_date.month, 1)
+            if month_date.month == 12:
+                end_date = datetime(month_date.year + 1, 1, 1)
+            else:
+                end_date = datetime(month_date.year, month_date.month + 1, 1)
+            
+            month_payments = db.query(PaymentTransaction).filter(
+                PaymentTransaction.status == "approved",
+                PaymentTransaction.created_at >= start_date,
+                PaymentTransaction.created_at < end_date
+            ).all()
+            month_revenue = sum(p.amount for p in month_payments)
+            
+            revenue_trend.append({
+                "month": month_date.strftime("%b"),
+                "revenue": month_revenue
+            })
+        
+        return {
+            "total": total_revenue,
+            "this_month": this_month_revenue,
+            "last_month": last_month_revenue,
+            "trend": revenue_trend
+        }
+        
+    except Exception as e:
+        print(f"Error getting revenue stats: {e}")
+        return {"total": 0, "this_month": 0, "last_month": 0, "trend": []}
+
+
+@router.get("/reports")
+async def get_reports_data(
+    current_user=Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get all reports data at once"""
+    try:
+        # User registrations over time
+        user_registrations = []
+        for i in range(11, -1, -1):
+            month_date = datetime.utcnow() - timedelta(days=30 * i)
+            count = db.query(User).filter(
+                func.extract('year', User.created_at) == month_date.year,
+                func.extract('month', User.created_at) == month_date.month,
+                User.role_type != 'admin'
+            ).count()
+            user_registrations.append({
+                "month": month_date.strftime("%b %Y"),
+                "registrations": count
+            })
+        
+        # Property stats
+        property_stats = {
+            "total": db.query(Listing).count(),
+            "for_sale": db.query(Listing).filter(Listing.listing_type == "sale", Listing.is_draft == False).count(),
+            "for_rent": db.query(Listing).filter(Listing.listing_type == "rent", Listing.is_draft == False).count(),
+            "active": db.query(Listing).filter(Listing.status == "active", Listing.is_draft == False).count(),
+            "pending": db.query(Listing).filter(Listing.status == "pending").count(),
+            "draft": db.query(Listing).filter(Listing.is_draft == True).count(),
+            "by_property_type": {}
+        }
+        
+        property_types = ['house', 'apartment', 'villa', 'condo', 'commercial', 'townhouse', 'land']
+        for p_type in property_types:
+            count = db.query(Listing).filter(Listing.property_type == p_type, Listing.is_draft == False).count()
+            if count > 0:
+                property_stats["by_property_type"][p_type] = count
+        
+        # Revenue stats
+        approved_payments = db.query(PaymentTransaction).filter(PaymentTransaction.status == "approved").all()
+        total_revenue = sum(p.amount for p in approved_payments)
+        
+        now = datetime.utcnow()
+        start_of_month = datetime(now.year, now.month, 1)
+        this_month_payments = db.query(PaymentTransaction).filter(
+            PaymentTransaction.status == "approved",
+            PaymentTransaction.created_at >= start_of_month
+        ).all()
+        
+        revenue_stats = {
+            "total": total_revenue,
+            "this_month": sum(p.amount for p in this_month_payments)
+        }
+        
+        return {
+            "user_registrations": user_registrations,
+            "property_stats": property_stats,
+            "revenue_stats": revenue_stats
+        }
+        
+    except Exception as e:
+        print(f"Error getting reports data: {e}")
+        return {
+            "user_registrations": [],
+            "property_stats": {},
+            "revenue_stats": {"total": 0, "this_month": 0}
+        }
+    
 print("✅ Admin router loaded successfully with suspend/activate user management endpoints!")

@@ -19,12 +19,14 @@ const ReportsAnalytics = () => {
       for_rent: 0,
       active: 0,
       pending: 0,
-      draft: 0
+      draft: 0,
+      by_property_type: {}
     },
     revenue_stats: {
       total: 0,
       this_month: 0,
-      last_month: 0
+      last_month: 0,
+      trend: []
     }
   })
   const [userStats, setUserStats] = useState({
@@ -55,60 +57,78 @@ const ReportsAnalytics = () => {
         return
       }
       
-      const [reportsResponse, userStatsResponse, revenueResponse, listingsResponse] = await Promise.allSettled([
-        fetch(`${API_URL}/api/admin/reports`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          signal: abortController.signal
-        }),
-        fetch(`${API_URL}/api/admin/stats/users`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          signal: abortController.signal
-        }),
-        fetch(`${API_URL}/api/admin/stats/revenue`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          signal: abortController.signal
-        }),
-        fetch(`${API_URL}/api/admin/stats/listings`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          signal: abortController.signal
-        })
-      ])
+      console.log('📊 Fetching reports data...')
       
-      if (reportsResponse.status === 'fulfilled' && reportsResponse.value.ok) {
-        const data = await reportsResponse.value.json()
-        setReports(data)
-      }
+      // Fetch user stats
+      const userStatsResponse = await fetch(`${API_URL}/api/admin/stats/users`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      })
       
-      if (userStatsResponse.status === 'fulfilled' && userStatsResponse.value.ok) {
-        const data = await userStatsResponse.value.json()
+      if (userStatsResponse.ok) {
+        const data = await userStatsResponse.json()
+        console.log('📊 User stats:', data)
         setUserStats(data)
       }
       
-      if (revenueResponse.status === 'fulfilled' && revenueResponse.value.ok) {
-        const revenueData = await revenueResponse.value.json()
+      // Fetch listings stats
+      const listingsResponse = await fetch(`${API_URL}/api/admin/stats/listings`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      })
+      
+      if (listingsResponse.ok) {
+        const data = await listingsResponse.json()
+        console.log('📊 Listings stats:', data)
         setReports(prev => ({
           ...prev,
-          revenue_stats: {
-            total: revenueData.total || 0,
-            this_month: revenueData.this_month || 0,
-            last_month: revenueData.last_month || 0,
-            trend: revenueData.trend || []
+          property_stats: {
+            total: data.total || 0,
+            for_sale: data.for_sale || 0,
+            for_rent: data.for_rent || 0,
+            active: data.active || 0,
+            pending: data.pending || 0,
+            draft: data.draft || 0,
+            by_property_type: data.by_property_type || {}
           }
         }))
       }
       
-      if (listingsResponse.status === 'fulfilled' && listingsResponse.value.ok) {
-        const listingsData = await listingsResponse.value.json()
+      // Fetch revenue stats
+      const revenueResponse = await fetch(`${API_URL}/api/admin/stats/revenue`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      })
+      
+      if (revenueResponse.ok) {
+        const data = await revenueResponse.json()
+        console.log('📊 Revenue stats:', data)
         setReports(prev => ({
           ...prev,
+          revenue_stats: {
+            total: data.total || 0,
+            this_month: data.this_month || 0,
+            last_month: data.last_month || 0,
+            trend: data.trend || []
+          }
+        }))
+      }
+      
+      // Fetch reports data for registrations
+      const reportsResponse = await fetch(`${API_URL}/api/admin/reports`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      })
+      
+      if (reportsResponse.ok) {
+        const data = await reportsResponse.json()
+        console.log('📊 Reports data:', data)
+        setReports(prev => ({
+          ...prev,
+          user_registrations: data.user_registrations || [],
           property_stats: {
-            total: listingsData.total || 0,
-            for_sale: listingsData.for_sale || 0,
-            for_rent: listingsData.for_rent || 0,
-            active: listingsData.active || 0,
-            pending: listingsData.pending || 0,
-            draft: listingsData.draft || 0,
-            by_property_type: listingsData.by_property_type || {}
+            ...prev.property_stats,
+            ...data.property_stats
           }
         }))
       }
@@ -157,21 +177,21 @@ const ReportsAnalytics = () => {
   const statsCards = [
     { 
       title: 'Total Users', 
-      value: userStats.total || 0, 
+      value: formatNumber(userStats.total || 0), 
       icon: Users, 
       gradient: 'from-blue-500 to-blue-600',
       iconBg: 'bg-blue-100',
       iconColor: 'text-blue-600',
-      detail: `${userStats.active || 0} active users`
+      detail: `${formatNumber(userStats.active || 0)} active users`
     },
     { 
       title: 'Total Properties', 
-      value: reports.property_stats?.total || 0, 
+      value: formatNumber(reports.property_stats?.total || 0), 
       icon: Home, 
       gradient: 'from-purple-500 to-purple-600',
       iconBg: 'bg-purple-100',
       iconColor: 'text-purple-600',
-      detail: `${reports.property_stats?.active || 0} active listings`
+      detail: `${formatNumber(reports.property_stats?.active || 0)} active listings`
     },
     { 
       title: 'Total Revenue', 
@@ -185,12 +205,12 @@ const ReportsAnalytics = () => {
   ]
 
   const additionalStats = [
-    { title: 'Verified Users', value: userStats.verified || 0, icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-100' },
-    { title: 'Pending Users', value: userStats.pending || 0, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-100' },
-    { title: 'Suspended Users', value: userStats.suspended || 0, icon: XCircle, color: 'text-red-600', bgColor: 'bg-red-100' },
-    { title: 'Properties for Sale', value: reports.property_stats?.for_sale || 0, icon: TrendingUp, color: 'text-green-600', bgColor: 'bg-green-100' },
-    { title: 'Properties for Rent', value: reports.property_stats?.for_rent || 0, icon: Home, color: 'text-blue-600', bgColor: 'bg-blue-100' },
-    { title: 'Pending Listings', value: reports.property_stats?.pending || 0, icon: Clock, color: 'text-orange-600', bgColor: 'bg-orange-100' },
+    { title: 'Verified Users', value: formatNumber(userStats.verified || 0), icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-100' },
+    { title: 'Pending Users', value: formatNumber(userStats.pending || 0), icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-100' },
+    { title: 'Suspended Users', value: formatNumber(userStats.suspended || 0), icon: XCircle, color: 'text-red-600', bgColor: 'bg-red-100' },
+    { title: 'Properties for Sale', value: formatNumber(reports.property_stats?.for_sale || 0), icon: TrendingUp, color: 'text-green-600', bgColor: 'bg-green-100' },
+    { title: 'Properties for Rent', value: formatNumber(reports.property_stats?.for_rent || 0), icon: Home, color: 'text-blue-600', bgColor: 'bg-blue-100' },
+    { title: 'Pending Listings', value: formatNumber(reports.property_stats?.pending || 0), icon: Clock, color: 'text-orange-600', bgColor: 'bg-orange-100' },
   ]
 
   const propertyDistribution = [
@@ -297,7 +317,7 @@ const ReportsAnalytics = () => {
                 </div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{stat.title}</p>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{formatNumber(stat.value)}</p>
+              <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
               <div className="mt-2 w-full bg-gray-100 rounded-full h-1">
                 <div className={`h-full w-0 ${stat.bgColor} rounded-full transition-all duration-700 group-hover:w-full`}></div>
               </div>
@@ -330,7 +350,7 @@ const ReportsAnalytics = () => {
         </div>
         <div className="h-80 flex items-end gap-4">
           {chartData.length > 0 ? (
-            chartData.map((item, idx) => {
+            chartData.slice(-6).map((item, idx) => {
               const count = item.count || item.registrations || 0
               const month = item.month || ''
               const height = (count / maxRegistration) * 250
@@ -419,12 +439,12 @@ const ReportsAnalytics = () => {
           </div>
           <div className="space-y-3">
             {[
-              { icon: Users, label: 'Total Users', value: userStats.total || 0, color: 'text-blue-600', bg: 'bg-blue-50' },
-              { icon: Shield, label: 'Verified Users', value: userStats.verified || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              { icon: Home, label: 'Properties for Sale', value: reports.property_stats?.for_sale || 0, color: 'text-green-600', bg: 'bg-green-50' },
-              { icon: Building2, label: 'Properties for Rent', value: reports.property_stats?.for_rent || 0, color: 'text-purple-600', bg: 'bg-purple-50' },
-              { icon: CheckCircle, label: 'Active Properties', value: reports.property_stats?.active || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              { icon: Clock, label: 'Pending Properties', value: reports.property_stats?.pending || 0, color: 'text-amber-600', bg: 'bg-amber-50' },
+              { icon: Users, label: 'Total Users', value: formatNumber(userStats.total || 0), color: 'text-blue-600', bg: 'bg-blue-50' },
+              { icon: Shield, label: 'Verified Users', value: formatNumber(userStats.verified || 0), color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { icon: Home, label: 'Properties for Sale', value: formatNumber(reports.property_stats?.for_sale || 0), color: 'text-green-600', bg: 'bg-green-50' },
+              { icon: Building2, label: 'Properties for Rent', value: formatNumber(reports.property_stats?.for_rent || 0), color: 'text-purple-600', bg: 'bg-purple-50' },
+              { icon: CheckCircle, label: 'Active Properties', value: formatNumber(reports.property_stats?.active || 0), color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { icon: Clock, label: 'Pending Properties', value: formatNumber(reports.property_stats?.pending || 0), color: 'text-amber-600', bg: 'bg-amber-50' },
               { icon: DollarSign, label: 'Total Revenue', value: formatCurrency(reports.revenue_stats?.total || 0), color: 'text-green-600', bg: 'bg-green-50' },
             ].map((item, idx) => {
               const Icon = item.icon
