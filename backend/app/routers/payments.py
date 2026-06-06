@@ -1,4 +1,3 @@
-# backend/app/routers/payment.py
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -120,7 +119,6 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
     return end_date
 
 
-# backend/app/routers/payment.py - Update the initialize endpoint
 @router.post("/initialize")
 async def initialize_payment(
     payment_data: InitializePaymentRequest,
@@ -148,9 +146,7 @@ async def initialize_payment(
         db.commit()
         db.refresh(payment)
         
-        # IMPORTANT: Use the correct return URL format that Chapa expects
         callback_url = f"http://localhost:8000/api/payment/webhook"
-        # Chapa expects the tx_ref parameter
         return_url = f"http://localhost:5173/payment/success?tx_ref={tx_ref}"
         
         print(f"   - Plan: {payment_data.plan_type}")
@@ -235,7 +231,6 @@ async def payment_success(
             </html>
             """)
         
-        # Update payment status if not already approved
         if payment.status != "approved":
             payment.status = "approved"
             payment.payment_status = "completed"
@@ -243,12 +238,10 @@ async def payment_success(
             payment.reviewed_at = datetime.now()
             db.commit()
             
-            # Get user and activate
             user = db.query(User).filter(User.id == payment.user_id).first()
             if user:
                 end_date = activate_user(user, payment.plan_type, payment.amount, payment.transaction_id, db)
         
-        # Return HTML that redirects to dashboard
         return HTMLResponse(content=f"""
         <!DOCTYPE html>
         <html>
@@ -321,14 +314,12 @@ async def chapa_webhook(request: Request, db: Session = Depends(get_db)):
             if payment.status == "approved":
                 return {"status": "ignored", "message": "Already approved"}
             
-            # Update payment status
             payment.status = "approved"
             payment.payment_status = "completed"
             payment.transaction_id = body.get("transaction_id", tx_ref)
             payment.reviewed_at = datetime.now()
             db.commit()
             
-            # Get user and activate
             user = db.query(User).filter(User.id == payment.user_id).first()
             if user:
                 end_date = activate_user(user, payment.plan_type, payment.amount, payment.transaction_id, db)
@@ -368,13 +359,11 @@ async def verify_payment(
         
         if not payment:
             print(f"❌ Payment not found for tx_ref: {tx_ref}")
-            # Try to find by transaction_id if provided
             if transaction_id:
                 payment = db.query(PaymentTransaction).filter(PaymentTransaction.transaction_id == transaction_id).first()
             if not payment:
                 return {"success": False, "message": "Payment not found"}
         
-        # If already approved, return success
         if payment.status == "approved":
             user = db.query(User).filter(User.id == payment.user_id).first()
             if user and user.is_activated:
@@ -384,7 +373,6 @@ async def verify_payment(
                     "activated": True
                 }
         
-        # Verify with Chapa API
         async with get_chapa_client() as client:
             response = await client.get(
                 f"{CHAPA_BASE_URL}/transaction/verify/{tx_ref}",
@@ -398,14 +386,12 @@ async def verify_payment(
                 print(f"📦 Chapa verify data: {data}")
                 
                 if data.get("status") == "success":
-                    # Update payment status
                     payment.status = "approved"
                     payment.payment_status = "completed"
                     payment.transaction_id = data.get("data", {}).get("transaction_id", tx_ref)
                     payment.reviewed_at = datetime.now()
                     db.commit()
                     
-                    # Get user and activate
                     user = db.query(User).filter(User.id == payment.user_id).first()
                     if user:
                         end_date = activate_user(user, payment.plan_type, payment.amount, payment.transaction_id, db)
@@ -436,7 +422,7 @@ async def get_all_payments(
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
-    """Get all payments for admin"""
+    """Get all payments for admin - SORTED NEWEST FIRST"""
     try:
         query = db.query(PaymentTransaction)
         
@@ -445,31 +431,109 @@ async def get_all_payments(
         elif status == "approved":
             query = query.filter(PaymentTransaction.status == "approved")
         
-        payments = query.order_by(PaymentTransaction.created_at.desc()).all()
+        # Get all payments first
+        payments = query.all()
+        
+        # Sort in Python with proper date parsing
+        def parse_date(date_str):
+            if not date_str:
+                return datetime.min
+            try:
+                # Handle ISO format with timezone
+                if isinstance(date_str, datetime):
+                    return date_str
+                # Parse string to datetime
+                return datetime.fromisoformat(str(date_str).replace('Z', '+00:00'))
+            except Exception:
+                return datetime.min
+        
+        # Sort by created_at descending (newest first)
+        payments.sort(key=lambda p: p.created_at if p.created_at else datetime.min, reverse=True)
         
         result = []
         for payment in payments:
             user = db.query(User).filter(User.id == payment.user_id).first()
+            
+            # Format the date consistently
+            created_at_str = None
+            if payment.created_at:
+                # Ensure consistent format
+                created_at_str = payment.created_at.isoformat()
             
             result.append({
                 "id": payment.id,
                 "user_id": payment.user_id,
                 "user_name": user.full_name or user.username if user else "Unknown",
                 "user_email": user.email if user else "Unknown",
+                "phone_number": user.phone if user else "",
                 "plan_type": payment.plan_type,
                 "amount": payment.amount,
+                "currency": payment.currency,
                 "status": payment.status,
                 "payment_status": payment.payment_status,
                 "transaction_id": payment.transaction_id or payment.tx_ref,
-                "created_at": payment.created_at.isoformat() if payment.created_at else None,
-                "user_is_activated": user.is_activated if user else False
+                "created_at": created_at_str,
+                "reviewed_at": payment.reviewed_at.isoformat() if payment.reviewed_at else None,
+                "user_is_activated": user.is_activated if user else False,
+                "user_can_create_listings": user.can_create_listings if user else False
             })
+        
+        # Final sort in Python as string
+        result.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        
+        print(f"✅ Returning {len(result)} payments, sorted newest first")
+        if len(result) > 0:
+            print(f"   Newest payment: {result[0].get('user_name')} - {result[0].get('created_at')}")
+        if len(result) > 1:
+            print(f"   Second: {result[1].get('user_name')} - {result[1].get('created_at')}")
         
         return result
         
     except Exception as e:
         print(f"Error getting payments: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
+@router.get("/receipt/{payment_id}")
+async def get_payment_receipt(
+    payment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get payment receipt details"""
+    try:
+        payment = db.query(PaymentTransaction).filter(PaymentTransaction.id == payment_id).first()
+        
+        if not payment:
+            raise HTTPException(status_code=404, detail="Payment not found")
+        
+        user = db.query(User).filter(User.id == payment.user_id).first()
+        
+        return {
+            "success": True,
+            "receipt": {
+                "transaction_id": payment.transaction_id or payment.tx_ref,
+                "date": payment.created_at.isoformat() if payment.created_at else datetime.now().isoformat(),
+                "plan_type": payment.plan_type,
+                "amount": payment.amount,
+                "currency": payment.currency or "ETB",
+                "status": payment.status,
+                "user_name": user.full_name or user.username if user else "Unknown",
+                "user_email": user.email if user else "Unknown",
+                "user_phone": user.phone if user else "N/A",
+                "payment_method": "Chapa",
+                "business_name": "EstateHub Real Estate",
+                "business_tin": "0071406415",
+                "business_phone": "+251-960724272",
+                "business_website": "www.estatehub.com",
+                "business_address": "Addis Ababa, Ethiopia"
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error getting receipt: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-print("✅ Payment router loaded with direct mode!")
+
+print("✅ Payment router loaded successfully!")

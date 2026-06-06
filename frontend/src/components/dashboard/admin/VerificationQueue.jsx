@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   CheckCircle, XCircle, Clock, Eye, RefreshCw, UserCheck, 
   Mail, Phone, Building2, Briefcase, FileText, 
@@ -28,7 +28,42 @@ const VerificationQueue = () => {
   const [currentPhotoList, setCurrentPhotoList] = useState([])
   const [imageErrors, setImageErrors] = useState({})
   const [processingId, setProcessingId] = useState(null)
-  const [rejectionReason, setRejectionReason] = useState('')
+  
+  // Refs to prevent unnecessary re-renders and loops
+  const isFetchingRef = useRef(false)
+  const initialLoadDoneRef = useRef(false)
+
+  // ========== MARK QUEUE AS VIEWED WHEN PAGE LOADS ==========
+  useEffect(() => {
+    // When the verification queue page loads, mark it as viewed to clear the sidebar badge
+    const markAsViewed = async () => {
+      try {
+        const token = localStorage.getItem('access_token')
+        if (!token) return
+        
+        await fetch(`${API_URL}/api/activation/admin/mark-queue-viewed`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        
+        // Update localStorage to reflect that queue was viewed
+        const now = Date.now()
+        localStorage.setItem('lastQueueViewTime', now.toString())
+        
+        // Dispatch event to update sidebar
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'lastQueueViewTime',
+          newValue: now.toString()
+        }))
+        
+        console.log('✅ Verification queue marked as viewed')
+      } catch (e) {
+        console.error('Error marking queue viewed:', e)
+      }
+    }
+    
+    markAsViewed()
+  }, [])
 
   // Prevent body scroll when modals are open
   useEffect(() => {
@@ -42,9 +77,18 @@ const VerificationQueue = () => {
     }
   }, [showDocumentModal, showPhotoModal, selectedRequest, showRejectModal])
 
-  const fetchAllRequests = useCallback(async () => {
-    setLoading(true)
+  const fetchAllRequests = useCallback(async (silent = false) => {
+    // Prevent multiple simultaneous fetches
+    if (isFetchingRef.current) {
+      console.log('⏳ Fetch already in progress, skipping...')
+      return
+    }
+    
+    if (!silent) {
+      setLoading(true)
+    }
     setError(null)
+    isFetchingRef.current = true
     
     try {
       const token = localStorage.getItem('access_token')
@@ -53,6 +97,7 @@ const VerificationQueue = () => {
         setError('Please login again')
         toast.error('Please login again')
         setLoading(false)
+        isFetchingRef.current = false
         return
       }
 
@@ -65,7 +110,14 @@ const VerificationQueue = () => {
 
       if (allRequestsResponse.ok) {
         const allData = await allRequestsResponse.json()
-        const allRequests = Array.isArray(allData) ? allData : []
+        let allRequests = Array.isArray(allData) ? allData : []
+        
+        // Ensure NEWEST first (already sorted by backend, but double-check)
+        allRequests = allRequests.sort((a, b) => {
+          const dateA = new Date(a.created_at)
+          const dateB = new Date(b.created_at)
+          return dateB - dateA // Newest first
+        })
         
         const pending = allRequests.filter(req => {
           const status = req.status?.toLowerCase() || ''
@@ -94,22 +146,31 @@ const VerificationQueue = () => {
         console.log(`📊 Requests loaded - Pending: ${pending.length}, Approved: ${approved.length}, Fully Activated: ${fullyActivated.length}, Rejected: ${rejected.length}`)
       } else {
         console.error('Failed to fetch requests')
-        setError('Failed to load verification requests')
+        if (!silent) {
+          setError('Failed to load verification requests')
+        }
       }
       
     } catch (error) {
       console.error('Fetch error:', error)
-      setError(error.message)
-      toast.error(`Failed to load: ${error.message}`)
+      if (!silent) {
+        setError(error.message)
+        toast.error(`Failed to load: ${error.message}`)
+      }
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
+      isFetchingRef.current = false
     }
   }, [])
 
+  // Initial load only - no interval to prevent auto-refresh
   useEffect(() => {
-    fetchAllRequests()
-    const interval = setInterval(fetchAllRequests, 60000)
-    return () => clearInterval(interval)
+    if (!initialLoadDoneRef.current) {
+      initialLoadDoneRef.current = true
+      fetchAllRequests()
+    }
   }, [fetchAllRequests])
 
   const handleApprove = async (requestId) => {
@@ -126,7 +187,7 @@ const VerificationQueue = () => {
       if (response.ok && data.success) {
         toast.success('✅ Documents approved!')
         setSelectedRequest(null)
-        await fetchAllRequests()
+        await fetchAllRequests(true)
       } else {
         toast.error(data.detail || 'Failed to approve')
       }
@@ -160,10 +221,9 @@ const VerificationQueue = () => {
       
       if (response.ok && data.success) {
         toast.success('❌ Request rejected successfully')
-        fetchAllRequests()
+        await fetchAllRequests(true)
         setShowRejectModal(false)
         setSelectedRequest(null)
-        setRejectionReason('')
       } else {
         toast.error(data.detail || 'Failed to reject request')
       }
@@ -222,11 +282,18 @@ const VerificationQueue = () => {
   }
 
   const getCurrentRequests = () => {
-    if (activeTab === 'pending') return pendingRequests
-    if (activeTab === 'approved') return approvedRequests
-    if (activeTab === 'rejected') return rejectedRequests
-    if (activeTab === 'all') return [...pendingRequests, ...approvedRequests, ...rejectedRequests]
-    return []
+    let requests = []
+    if (activeTab === 'pending') requests = [...pendingRequests]
+    else if (activeTab === 'approved') requests = [...approvedRequests]
+    else if (activeTab === 'rejected') requests = [...rejectedRequests]
+    else if (activeTab === 'all') requests = [...pendingRequests, ...approvedRequests, ...rejectedRequests]
+    
+    // Sort by created_at descending (newest first)
+    return requests.sort((a, b) => {
+      const dateA = new Date(a.created_at)
+      const dateB = new Date(b.created_at)
+      return dateB - dateA
+    })
   }
 
   const currentRequests = getCurrentRequests()
@@ -257,7 +324,7 @@ const VerificationQueue = () => {
     }
   }
 
-  // ========== DOCUMENT MODAL - FIXED NO REFRESH ==========
+  // ========== DOCUMENT MODAL ==========
   const DocumentModal = () => {
     const [docLoading, setDocLoading] = useState(true)
     const isImage = selectedDocument?.url?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)
@@ -324,7 +391,7 @@ const VerificationQueue = () => {
     )
   }
 
-  // ========== PHOTO MODAL - FIXED NO REFRESH ==========
+  // ========== PHOTO MODAL ==========
   const PhotoModal = () => {
     const currentUrl = currentPhotoList[currentPhotoIndex]
     const [imgLoading, setImgLoading] = useState(true)
@@ -394,7 +461,7 @@ const VerificationQueue = () => {
     )
   }
 
-  // ========== REQUEST DETAIL MODAL - FIXED SCROLLING ==========
+  // ========== REQUEST DETAIL MODAL ==========
   const RequestDetailModal = ({ request, onClose }) => {
     const photos = parsePropertyPhotos(request.property_photos)
     const isApproved = request.status?.toLowerCase() === 'documents_approved' || request.status?.toLowerCase() === 'approved'
@@ -418,7 +485,6 @@ const VerificationQueue = () => {
           </div>
           
           <div className="p-6 space-y-6">
-            {/* Rest of the detail content - unchanged */}
             <div className="border-b border-gray-200 pb-4">
               <h3 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-2">
                 <User className="w-4 h-4 text-blue-600" />
@@ -625,6 +691,11 @@ const VerificationQueue = () => {
     )
   }
 
+  // Manual refresh handler
+  const handleRefresh = () => {
+    fetchAllRequests(false)
+  }
+
   // Loading skeleton
   if (loading && pendingRequests.length === 0 && approvedRequests.length === 0 && rejectedRequests.length === 0) {
     return (
@@ -669,7 +740,7 @@ const VerificationQueue = () => {
           <h3 className="text-xl font-semibold text-red-700 mb-2">Error Loading Data</h3>
           <p className="text-red-600 mb-4">{error}</p>
           <button 
-            onClick={() => fetchAllRequests()} 
+            onClick={handleRefresh} 
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
           >
             Try Again
@@ -759,7 +830,7 @@ const VerificationQueue = () => {
 
       <div className="flex justify-end mb-4">
         <button 
-          onClick={() => fetchAllRequests()} 
+          onClick={handleRefresh} 
           disabled={loading}
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50 text-gray-600 transition"
         >
@@ -813,12 +884,10 @@ const VerificationQueue = () => {
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="font-semibold text-lg text-gray-900">{req.full_name}</h3>
                         {getStatusBadge(req.status)}
-                        {req.reviewed_at && (
-                          <span className="text-xs text-gray-500 flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(req.reviewed_at).toLocaleDateString()}
-                          </span>
-                        )}
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {req.created_at ? new Date(req.created_at).toLocaleDateString() : 'N/A'}
+                        </span>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-3">
                         <div><p className="text-gray-500">Email</p><p className="font-medium text-gray-700">{req.email}</p></div>

@@ -1,4 +1,3 @@
-// src/components/layout/AdminSidebar.jsx
 import React, { useState, useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { 
@@ -22,25 +21,20 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [adminMessagesUnreadCount, setAdminMessagesUnreadCount] = useState(0)
+  const [lastQueueViewTime, setLastQueueViewTime] = useState(null)
   
-  // Main Settings dropdown state
+  // Settings dropdown state
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [adminSettingsOpen, setAdminSettingsOpen] = useState(false)
-  const [companySettingsOpen, setCompanySettingsOpen] = useState(false)
 
-  // Force refresh user data every 5 seconds
+  // Load last view time from localStorage
   useEffect(() => {
-    const interval = setInterval(async () => {
-      if (refreshUser) {
-        const freshUser = await refreshUser();
-        console.log('Auto-refreshed user:', freshUser);
-      }
-    }, 5000);
-    
-    return () => clearInterval(interval);
-  }, [refreshUser]);
+    const savedTime = localStorage.getItem('lastQueueViewTime')
+    if (savedTime) {
+      setLastQueueViewTime(parseInt(savedTime))
+    }
+  }, [])
 
-  // Listen for storage events (when user data changes in another tab)
+  // Listen for storage events
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'user') {
@@ -48,6 +42,9 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
         if (refreshUser) {
           refreshUser();
         }
+      }
+      if (e.key === 'lastQueueViewTime') {
+        setLastQueueViewTime(parseInt(e.newValue))
       }
     };
     
@@ -71,7 +68,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
       setAdminMessagesUnreadCount(parseInt(savedCount));
     }
     
-    // Fetch unread count from API
     const fetchUnreadCount = async () => {
       try {
         const token = localStorage.getItem('access_token');
@@ -90,52 +86,88 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     };
     
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
     
     return () => {
       window.removeEventListener('admin_unread_update', handleUnreadUpdate);
-      clearInterval(interval);
     };
   }, []);
 
-  const fetchAllCounts = async () => {
+  // Function to mark queue as viewed and clear badge
+  const markQueueAsViewed = async () => {
     try {
       const token = localStorage.getItem('access_token')
       if (!token) return
       
-      try {
-        const verifyResponse = await fetch(`${API_URL}/api/activation/admin/pending-count`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        if (verifyResponse.ok) {
-          const data = await verifyResponse.json()
-          setPendingCount(data.count || 0)
-        }
-      } catch (e) {
-        console.error('Error fetching pending count:', e)
-      }
+      await fetch(`${API_URL}/api/activation/admin/mark-queue-viewed`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
       
-      try {
-        const paymentResponse = await fetch(`${API_URL}/api/payment/admin/payments?status=pending`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        if (paymentResponse.ok) {
-          const payments = await paymentResponse.json()
-          const count = Array.isArray(payments) ? payments.length : 0
-          setPendingPaymentsCount(count)
-          localStorage.setItem('pendingPaymentsCount', count.toString())
-        }
-      } catch (e) {
-        console.error('Error fetching payments:', e)
-      }
-    } catch (error) {
-      console.error('Error fetching counts:', error)
+      const now = Date.now()
+      setLastQueueViewTime(now)
+      localStorage.setItem('lastQueueViewTime', now.toString())
+      
+      // Also clear the pending count locally
+      setPendingCount(0)
+    } catch (e) {
+      console.error('Error marking queue viewed:', e)
     }
   }
 
+  const fetchPendingCount = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) return
+      
+      const response = await fetch(`${API_URL}/api/activation/admin/pending-count`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const count = data.count || 0
+        
+        // Only show badge if count > 0 and user hasn't viewed the queue after these requests were created
+        // For simplicity, we'll show the badge if count > 0
+        // The badge will be cleared when user clicks on Verification Queue
+        setPendingCount(count)
+        console.log('📊 Pending verification count:', count)
+      }
+    } catch (e) {
+      console.error('Error fetching pending count:', e)
+    }
+  }
+
+  const fetchPendingPayments = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) return
+      
+      const response = await fetch(`${API_URL}/api/payment/admin/payments?status=pending`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const payments = await response.json()
+        const count = Array.isArray(payments) ? payments.length : 0
+        setPendingPaymentsCount(count)
+        localStorage.setItem('pendingPaymentsCount', count.toString())
+      }
+    } catch (e) {
+      console.error('Error fetching payments:', e)
+    }
+  }
+
+  // Auto-refresh pending count every 10 seconds
   useEffect(() => {
+    fetchPendingCount()
+    fetchPendingPayments()
+    
+    const interval = setInterval(() => {
+      fetchPendingCount()
+      fetchPendingPayments()
+    }, 10000)
+    
     const handlePaymentUpdate = () => {
-      fetchAllCounts()
+      fetchPendingPayments()
     }
     
     window.addEventListener('payment-updated', handlePaymentUpdate)
@@ -146,17 +178,13 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
           setPendingPaymentsCount(newCount)
         }
       }
+      if (e.key === 'pendingVerificationCount') {
+        const newCount = parseInt(e.newValue, 10)
+        if (!isNaN(newCount)) {
+          setPendingCount(newCount)
+        }
+      }
     })
-    
-    return () => {
-      window.removeEventListener('payment-updated', handlePaymentUpdate)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchAllCounts()
-    
-    const interval = setInterval(fetchAllCounts, 10000)
     
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
@@ -164,6 +192,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     
     return () => {
       clearInterval(interval)
+      window.removeEventListener('payment-updated', handlePaymentUpdate)
       window.removeEventListener('resize', checkMobile)
     }
   }, [])
@@ -175,25 +204,23 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     
     if (isSettingsActive) {
       setSettingsOpen(true)
-      
-      if (location.pathname.startsWith('/admin/settings')) {
-        setAdminSettingsOpen(true)
-      }
-      if (location.pathname.startsWith('/admin/company-settings')) {
-        setCompanySettingsOpen(true)
-      }
     }
   }, [location.pathname])
 
- // In AdminSidebar.jsx, update the menuItems array - remove the badge from Payment History
-const menuItems = [
-  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { path: '/admin/users', label: 'User Management', icon: Users },
-  { path: '/admin/verification-queue', label: 'Verification Queue', icon: FileCheck, badge: pendingCount },
-  { path: '/admin/payment-approvals', label: 'Payment History', icon: CreditCard }, // Removed badge here
-  { path: '/admin/reports', label: 'Reports & Analytics', icon: BarChart3 },
-  { path: '/admin/messages', label: 'Messages', icon: MessageCircle, badge: adminMessagesUnreadCount },
-]
+  // Handle navigation to verification queue
+  const handleVerificationQueueClick = () => {
+    markQueueAsViewed()
+    navigate('/admin/verification-queue')
+  }
+
+  const menuItems = [
+    { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+    { path: '/admin/users', label: 'User Management', icon: Users },
+    { path: '/admin/verification-queue', label: 'Verification Queue', icon: FileCheck, badge: pendingCount, onClick: handleVerificationQueueClick },
+    { path: '/admin/payment-approvals', label: 'Payment History', icon: CreditCard, badge: pendingPaymentsCount },
+    { path: '/admin/reports', label: 'Reports & Analytics', icon: BarChart3 },
+    { path: '/admin/messages', label: 'Messages', icon: MessageCircle, badge: adminMessagesUnreadCount },
+  ]
 
   const handleLogoutClick = () => {
     logout()
@@ -209,6 +236,16 @@ const menuItems = [
   const getUserPosition = () => {
     if (user?.position) return user.position
     return 'Administrator'
+  }
+
+  // Determine if badge should be shown (only show if count > 0 and not recently viewed)
+  const shouldShowBadge = (item) => {
+    if (item.label === 'Verification Queue' && item.badge > 0) {
+      // For verification queue, show badge always when count > 0
+      // It will be cleared when clicked
+      return item.badge > 0
+    }
+    return item.badge > 0
   }
 
   return (
@@ -250,13 +287,14 @@ const menuItems = [
               ? location.pathname === item.path
               : location.pathname.startsWith(item.path)
             
-            const hasBadge = item.badge !== undefined && item.badge > 0
+            const showBadge = shouldShowBadge(item)
             
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 end={item.end}
+                onClick={item.onClick}
                 className={({ isActive: active }) =>
                   `flex items-center gap-3 px-5 py-3 transition-colors ${
                     active ? 'bg-blue-600 text-white border-r-4 border-blue-400' : 'text-gray-300 hover:bg-gray-700 hover:text-white'
@@ -267,21 +305,21 @@ const menuItems = [
                 {sidebarOpen && (
                   <div className="flex-1 flex items-center justify-between">
                     <span className="text-sm">{item.label}</span>
-                    {hasBadge && (
+                    {showBadge && (
                       <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full ml-2 animate-pulse">
                         {item.badge > 99 ? '99+' : item.badge}
                       </span>
                     )}
                   </div>
                 )}
-                {!sidebarOpen && hasBadge && (
+                {!sidebarOpen && showBadge && (
                   <span className="absolute right-2 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                 )}
               </NavLink>
             )
           })}
 
-          {/* ========== SETTINGS DROPDOWN (MAIN) ========== */}
+          {/* ========== SETTINGS DROPDOWN ========== */}
           <div className="settings-dropdown mt-2">
             <button
               onClick={() => sidebarOpen && setSettingsOpen(!settingsOpen)}

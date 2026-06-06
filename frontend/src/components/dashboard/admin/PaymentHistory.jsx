@@ -1,5 +1,4 @@
-// src/components/dashboard/admin/PaymentHistory.jsx
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   CheckCircle, XCircle, Clock, Eye, RefreshCw, 
   Mail, Phone, FileText, 
@@ -25,17 +24,43 @@ const PaymentHistory = () => {
   const [lastPaymentCount, setLastPaymentCount] = useState(0)
   const [newPaymentAlert, setNewPaymentAlert] = useState(false)
 
-  // FIXED: Correct time formatting with 12-hour and AM/PM
+  // Parse date safely
+  const parseDate = (dateString) => {
+    if (!dateString) return new Date(0)
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) {
+        return new Date(0)
+      }
+      return date
+    } catch (e) {
+      return new Date(0)
+    }
+  }
+
+  // Check if date is in the future (more than 1 day from now)
+  const isFutureDate = (dateString) => {
+    if (!dateString) return false
+    try {
+      const date = new Date(dateString)
+      const now = new Date()
+      // If date is more than 1 day in the future, consider it future-dated
+      return date > new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    } catch (e) {
+      return false
+    }
+  }
+
+  // Format date with 12-hour and AM/PM
   const formatRealDateTime = (dateString) => {
     if (!dateString) return 'Date not available'
     
     try {
-      const date = new Date(dateString)
+      const date = parseDate(dateString)
       if (isNaN(date.getTime())) {
         return 'Invalid date'
       }
       
-      // Get local time components
       const year = date.getFullYear()
       const month = date.toLocaleString('default', { month: 'short' })
       const day = date.getDate()
@@ -44,9 +69,8 @@ const PaymentHistory = () => {
       const seconds = date.getSeconds().toString().padStart(2, '0')
       const ampm = hours >= 12 ? 'PM' : 'AM'
       
-      // Convert to 12-hour format
       hours = hours % 12
-      hours = hours ? hours : 12 // 12-hour format (0 becomes 12)
+      hours = hours ? hours : 12
       
       return `${month} ${day}, ${year} ${hours}:${minutes}:${seconds} ${ampm}`
     } catch (error) {
@@ -55,8 +79,10 @@ const PaymentHistory = () => {
     }
   }
 
-  const fetchAllPayments = useCallback(async () => {
-    setLoading(true)
+  const fetchAllPayments = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true)
+    }
     setError(null)
     
     try {
@@ -77,18 +103,58 @@ const PaymentHistory = () => {
       })
 
       if (response.ok) {
-        const allData = await response.json()
-        const payments = Array.isArray(allData) ? allData : []
+        let payments = await response.json()
         
-        // Sort by created_at in DESCENDING order (newest first)
-        const sortedPayments = payments.sort((a, b) => {
+        if (!Array.isArray(payments)) {
+          payments = []
+        }
+        
+        // Filter out future-dated payments (2028, 2029, etc.)
+        // Only keep payments with dates <= current date + 1 day
+        const validPayments = payments.filter(payment => {
+          if (!payment.created_at) return false
+          const date = new Date(payment.created_at)
+          const now = new Date()
+          // Only include payments from today or earlier (allow 1 day buffer)
+          return date <= new Date(now.getTime() + 24 * 60 * 60 * 1000)
+        })
+        
+        // Also keep the future-dated payments but at the bottom
+        const futurePayments = payments.filter(payment => {
+          if (!payment.created_at) return false
+          const date = new Date(payment.created_at)
+          const now = new Date()
+          return date > new Date(now.getTime() + 24 * 60 * 60 * 1000)
+        })
+        
+        // Sort valid payments by created_at date (newest first)
+        validPayments.sort((a, b) => {
           const dateA = new Date(a.created_at)
           const dateB = new Date(b.created_at)
           return dateB - dateA
         })
         
+        // Sort future payments by date (oldest first so they appear at bottom)
+        futurePayments.sort((a, b) => {
+          const dateA = new Date(a.created_at)
+          const dateB = new Date(b.created_at)
+          return dateA - dateB
+        })
+        
+        // Combine: valid payments first, then future payments
+        const sortedPayments = [...validPayments, ...futurePayments]
+        
+        // Debug logging
+        console.log('📊 PAYMENT SORTING DEBUG:')
+        console.log(`   Total payments: ${sortedPayments.length}`)
+        console.log(`   Valid payments: ${validPayments.length}`)
+        console.log(`   Future payments: ${futurePayments.length}`)
+        if (sortedPayments.length > 0) {
+          console.log(`   First payment: ${sortedPayments[0]?.user_name} - ${sortedPayments[0]?.created_at}`)
+        }
+        
         // Check for new payments
-        if (lastPaymentCount > 0 && sortedPayments.length > lastPaymentCount) {
+        if (!silent && lastPaymentCount > 0 && sortedPayments.length > lastPaymentCount) {
           const newCount = sortedPayments.length - lastPaymentCount
           setNewPaymentAlert(true)
           toast.success(`💰 ${newCount} new payment${newCount > 1 ? 's' : ''} received!`, {
@@ -96,27 +162,35 @@ const PaymentHistory = () => {
             icon: '🎉'
           })
           setTimeout(() => setNewPaymentAlert(false), 5000)
+          
+          if (currentPage === 1) {
+            setCurrentPage(1)
+          }
         }
         
         setLastPaymentCount(sortedPayments.length)
         setAllPayments(sortedPayments)
-        setCurrentPage(1) // Reset to first page on new data
         
         console.log(`✅ Loaded ${sortedPayments.length} payments, newest first`)
-        console.log('Newest payment:', sortedPayments[0]?.user_name, formatRealDateTime(sortedPayments[0]?.created_at))
       } else {
         console.error('Response not OK:', response.status)
-        setError(`Failed to load payments: ${response.status}`)
+        if (!silent) {
+          setError(`Failed to load payments: ${response.status}`)
+        }
       }
       
     } catch (error) {
       console.error('Fetch error:', error)
-      setError(error.message)
-      toast.error(`Failed to load: ${error.message}`)
+      if (!silent) {
+        setError(error.message)
+        toast.error(`Failed to load: ${error.message}`)
+      }
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
-  }, [lastPaymentCount])
+  }, [lastPaymentCount, currentPage])
 
   // WebSocket for real-time updates
   useEffect(() => {
@@ -144,7 +218,7 @@ const PaymentHistory = () => {
                 duration: 10000,
                 icon: '💰'
               })
-              fetchAllPayments() // Refresh immediately
+              fetchAllPayments(true)
             }
           } catch (e) {
             console.error('WebSocket message error:', e)
@@ -173,12 +247,10 @@ const PaymentHistory = () => {
     }
   }, [fetchAllPayments])
 
-  // Polling fallback (every 10 seconds for real-time)
+  // Initial load only
   useEffect(() => {
-    fetchAllPayments()
-    const interval = setInterval(fetchAllPayments, 10000) // Check every 10 seconds
-    return () => clearInterval(interval)
-  }, [fetchAllPayments])
+    fetchAllPayments(false)
+  }, [])
 
   const handleDownloadReceipt = async (paymentId) => {
     try {
@@ -349,7 +421,7 @@ const PaymentHistory = () => {
   }
 
   // Filter payments
-  const filteredPayments = allPayments.filter(payment => 
+  const filteredPayments = [...allPayments].filter(payment => 
     payment.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     payment.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     payment.phone_number?.includes(searchTerm) ||
@@ -363,6 +435,11 @@ const PaymentHistory = () => {
   const totalPages = Math.ceil(filteredPayments.length / itemsPerPage)
 
   const formatAmount = (amount) => `ETB ${amount?.toLocaleString() || 0}`
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const DetailsModal = () => {
     if (!selectedPayment) return null
@@ -418,6 +495,10 @@ const PaymentHistory = () => {
     )
   }
 
+  const handleManualRefresh = () => {
+    fetchAllPayments(false)
+  }
+
   if (loading && allPayments.length === 0) {
     return (
       <div className="p-6 bg-gray-50 min-h-screen">
@@ -433,7 +514,6 @@ const PaymentHistory = () => {
     <div className="p-6 bg-gray-50 min-h-screen">
       {showDetailsModal && <DetailsModal />}
 
-      {/* Real-time indicator */}
       {newPaymentAlert && (
         <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 animate-pulse">
           <Zap className="w-5 h-5 text-green-600" />
@@ -445,7 +525,7 @@ const PaymentHistory = () => {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Payment History</h1>
-            <p className="text-gray-500 mt-1">Real-time payment tracking with correct time display</p>
+            <p className="text-gray-500 mt-1">Real-time payment tracking - Newest payments shown first</p>
           </div>
           
           <div className="flex gap-3">
@@ -492,7 +572,7 @@ const PaymentHistory = () => {
           <span className="ml-2 text-xs text-blue-600 font-medium">(Newest first - 12-hour format)</span>
         </div>
         <button 
-          onClick={() => fetchAllPayments()} 
+          onClick={handleManualRefresh} 
           disabled={loading}
           className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
         >
@@ -523,44 +603,51 @@ const PaymentHistory = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {currentPayments.map((payment) => (
-                    <tr key={payment.id} className="hover:bg-gray-50 transition">
-                      <td className="p-4">
-                        <p className="font-medium text-gray-900">{payment.user_name || 'Unknown'}</p>
-                        <p className="text-xs text-gray-400">ID: {payment.user_id}</p>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1 text-sm text-gray-600 mb-1">
-                          <Mail className="w-3 h-3" />
-                          <span className="truncate max-w-[150px]">{payment.user_email}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <Phone className="w-3 h-3" />
-                          <span>{payment.phone_number || 'No phone'}</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span className="capitalize text-sm font-medium">{payment.plan_type}</span>
-                      </td>
-                      <td className="p-4">
-                        <span className="font-bold text-green-600">{formatAmount(payment.amount)}</span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1 text-sm text-gray-700">
-                          <Calendar className="w-3 h-3" />
-                          <span className="font-mono">{formatRealDateTime(payment.created_at)}</span>
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <button 
-                          onClick={() => { setSelectedPayment(payment); setShowDetailsModal(true); }} 
-                          className="px-3 py-1.5 border rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-1 mx-auto"
-                        >
-                          <Eye className="w-4 h-4" /> Details
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {currentPayments.map((payment, idx) => {
+                    const isNewest = idx === 0 && currentPage === 1 && allPayments.length > 0
+                    
+                    return (
+                      <tr key={payment.id} className="hover:bg-gray-50 transition">
+                        <td className="p-4">
+                          <p className="font-medium text-gray-900">{payment.user_name || 'Unknown'}</p>
+                          <p className="text-xs text-gray-400">ID: {payment.user_id}</p>
+                          {isNewest && (
+                            <span className="inline-block mt-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">🔥 Newest</span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-1 text-sm text-gray-600 mb-1">
+                            <Mail className="w-3 h-3" />
+                            <span className="truncate max-w-[150px]">{payment.user_email}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                            <Phone className="w-3 h-3" />
+                            <span>{payment.phone_number || 'No phone'}</span>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <span className="capitalize text-sm font-medium">{payment.plan_type}</span>
+                        </td>
+                        <td className="p-4">
+                          <span className="font-bold text-green-600">{formatAmount(payment.amount)}</span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-1 text-sm text-gray-700">
+                            <Calendar className="w-3 h-3" />
+                            <span className="font-mono">{formatRealDateTime(payment.created_at)}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button 
+                            onClick={() => { setSelectedPayment(payment); setShowDetailsModal(true); }} 
+                            className="px-3 py-1.5 border rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-1 mx-auto"
+                          >
+                            <Eye className="w-4 h-4" /> Details
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -570,14 +657,14 @@ const PaymentHistory = () => {
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-6">
               <button
-                onClick={() => setCurrentPage(1)}
+                onClick={() => handlePageChange(1)}
                 disabled={currentPage === 1}
                 className="p-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
               >
                 ⟪
               </button>
               <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
                 className="p-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
               >
@@ -598,7 +685,7 @@ const PaymentHistory = () => {
                 return (
                   <button
                     key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
+                    onClick={() => handlePageChange(pageNum)}
                     className={`w-10 h-10 rounded-lg font-medium transition ${
                       currentPage === pageNum
                         ? 'bg-blue-600 text-white'
@@ -611,14 +698,14 @@ const PaymentHistory = () => {
               })}
               
               <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
                 className="p-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
               <button
-                onClick={() => setCurrentPage(totalPages)}
+                onClick={() => handlePageChange(totalPages)}
                 disabled={currentPage === totalPages}
                 className="p-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
               >

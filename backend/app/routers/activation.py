@@ -347,6 +347,24 @@ async def get_activation_status(
         }
 
 
+# ============ ADMIN: GET PENDING COUNT (FOR SIDEBAR BADGE) ============
+@router.get("/admin/pending-count")
+async def get_admin_pending_count(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get count of pending document requests for admin sidebar badge"""
+    try:
+        count = db.query(ActivationRequest).filter(
+            ActivationRequest.status == ActivationStatus.DOCUMENTS_PENDING
+        ).count()
+        print(f"📊 Pending count for sidebar: {count}")
+        return {"count": count}
+    except Exception as e:
+        print(f"Error getting pending count: {e}")
+        return {"count": 0}
+
+
 # ============ ADMIN: GET ALL REQUESTS (FOR VERIFICATION QUEUE) ============
 @router.get("/admin/all-requests")
 async def get_all_activation_requests(
@@ -684,6 +702,22 @@ async def approve_payment(
         print(f"Error approving payment: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+# ============ ADMIN: MARK VERIFICATION QUEUE AS VIEWED ============
+@router.post("/admin/mark-queue-viewed")
+async def mark_verification_queue_viewed(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Mark that admin has viewed the verification queue"""
+    try:
+        # You can store this in a database table or just return success
+        # For now, we'll just return success and the frontend will clear the badge
+        return {"success": True, "message": "Queue marked as viewed"}
+    except Exception as e:
+        print(f"Error marking queue viewed: {e}")
+        return {"success": False, "error": str(e)}
 
 
-print("✅ Activation router loaded successfully with all admin endpoints!")
+print("✅ Activation router loaded successfully with all admin endpoints including pending-count!")
