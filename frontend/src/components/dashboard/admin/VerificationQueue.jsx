@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { 
   CheckCircle, XCircle, Clock, Eye, RefreshCw, UserCheck, 
   Mail, Phone, Building2, Briefcase, FileText, 
@@ -20,7 +20,6 @@ const VerificationQueue = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState('pending')
   const [selectedRequest, setSelectedRequest] = useState(null)
-  const [rejectionReason, setRejectionReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showDocumentModal, setShowDocumentModal] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState(null)
@@ -29,6 +28,19 @@ const VerificationQueue = () => {
   const [currentPhotoList, setCurrentPhotoList] = useState([])
   const [imageErrors, setImageErrors] = useState({})
   const [processingId, setProcessingId] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState('')
+
+  // Prevent body scroll when modals are open
+  useEffect(() => {
+    if (showDocumentModal || showPhotoModal || selectedRequest || showRejectModal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [showDocumentModal, showPhotoModal, selectedRequest, showRejectModal])
 
   const fetchAllRequests = useCallback(async () => {
     setLoading(true)
@@ -44,40 +56,45 @@ const VerificationQueue = () => {
         return
       }
 
-      const pendingResponse = await fetch(`${API_URL}/api/activation/admin/pending-documents`, {
+      const allRequestsResponse = await fetch(`${API_URL}/api/activation/admin/all-requests`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       })
 
-      const allPaymentsResponse = await fetch(`${API_URL}/api/activation/admin/payments?status=all`, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (pendingResponse.ok) {
-        const pendingData = await pendingResponse.json()
-        setPendingRequests(Array.isArray(pendingData) ? pendingData : [])
-      }
-
-      if (allPaymentsResponse.ok) {
-        const allData = await allPaymentsResponse.json()
+      if (allRequestsResponse.ok) {
+        const allData = await allRequestsResponse.json()
         const allRequests = Array.isArray(allData) ? allData : []
+        
+        const pending = allRequests.filter(req => {
+          const status = req.status?.toLowerCase() || ''
+          return status === 'documents_pending' || status === 'pending'
+        })
         
         const approved = allRequests.filter(req => {
           const status = req.status?.toLowerCase() || ''
-          return status === 'documents_approved' || status === 'approved' || status === 'fully_activated'
+          return status === 'documents_approved' || status === 'approved'
         })
+        
+        const fullyActivated = allRequests.filter(req => {
+          const status = req.status?.toLowerCase() || ''
+          return status === 'fully_activated'
+        })
+        
         const rejected = allRequests.filter(req => {
           const status = req.status?.toLowerCase() || ''
           return status === 'rejected'
         })
         
-        setApprovedRequests(approved)
+        setPendingRequests(pending)
+        setApprovedRequests([...approved, ...fullyActivated])
         setRejectedRequests(rejected)
+        
+        console.log(`📊 Requests loaded - Pending: ${pending.length}, Approved: ${approved.length}, Fully Activated: ${fullyActivated.length}, Rejected: ${rejected.length}`)
+      } else {
+        console.error('Failed to fetch requests')
+        setError('Failed to load verification requests')
       }
       
     } catch (error) {
@@ -122,40 +139,41 @@ const VerificationQueue = () => {
   }
 
   const handleReject = async (requestId, reason) => {
-  if (!reason || !reason.trim()) {
-    toast.error('Please provide a reason for rejection')
-    return
-  }
-  
-  setProcessingId(requestId)
-  try {
-    const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_URL}/api/activation/admin/reject/${requestId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ rejection_reason: reason })
-    })
-    
-    const data = await response.json()
-    
-    if (response.ok && data.success) {
-      toast.success('❌ Request rejected successfully')
-      fetchAllRequests()
-      setShowRejectModal(false)
-      setSelectedRequest(null)
-    } else {
-      toast.error(data.detail || 'Failed to reject request')
+    if (!reason || !reason.trim()) {
+      toast.error('Please provide a reason for rejection')
+      return
     }
-  } catch (error) {
-    console.error('Error rejecting:', error)
-    toast.error('Failed to reject request')
-  } finally {
-    setProcessingId(null)
+    
+    setProcessingId(requestId)
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`${API_URL}/api/activation/admin/reject/${requestId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ rejection_reason: reason })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        toast.success('❌ Request rejected successfully')
+        fetchAllRequests()
+        setShowRejectModal(false)
+        setSelectedRequest(null)
+        setRejectionReason('')
+      } else {
+        toast.error(data.detail || 'Failed to reject request')
+      }
+    } catch (error) {
+      console.error('Error rejecting:', error)
+      toast.error('Failed to reject request')
+    } finally {
+      setProcessingId(null)
+    }
   }
-}
 
   const getFullImageUrl = (path) => {
     if (!path) return null
@@ -191,8 +209,11 @@ const VerificationQueue = () => {
     if (statusLower === 'documents_pending' || statusLower === 'pending') {
       return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Pending Review</span>
     }
-    if (statusLower === 'documents_approved' || statusLower === 'approved' || statusLower === 'fully_activated') {
-      return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Approved</span>
+    if (statusLower === 'documents_approved' || statusLower === 'approved') {
+      return <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Docs Approved</span>
+    }
+    if (statusLower === 'fully_activated') {
+      return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Fully Active</span>
     }
     if (statusLower === 'rejected') {
       return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Rejected</span>
@@ -236,15 +257,17 @@ const VerificationQueue = () => {
     }
   }
 
-  // Document Modal Component
+  // ========== DOCUMENT MODAL - FIXED NO REFRESH ==========
   const DocumentModal = () => {
     const [docLoading, setDocLoading] = useState(true)
     const isImage = selectedDocument?.url?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)
     const isPdf = selectedDocument?.url?.match(/\.(pdf)$/i)
     
+    if (!showDocumentModal || !selectedDocument) return null
+    
     return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-200">
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => { setShowDocumentModal(false); setSelectedDocument(null); setDocLoading(true) }}>
+        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 relative z-[101]" onClick={(e) => e.stopPropagation()}>
           <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-600" />
@@ -257,7 +280,7 @@ const VerificationQueue = () => {
               <a href={selectedDocument?.url} download className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" title="Download">
                 <Download className="w-4 h-4" />
               </a>
-              <button onClick={() => setShowDocumentModal(false)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+              <button onClick={() => { setShowDocumentModal(false); setSelectedDocument(null); setDocLoading(true) }} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -301,10 +324,12 @@ const VerificationQueue = () => {
     )
   }
 
-  // Photo Gallery Modal
+  // ========== PHOTO MODAL - FIXED NO REFRESH ==========
   const PhotoModal = () => {
     const currentUrl = currentPhotoList[currentPhotoIndex]
     const [imgLoading, setImgLoading] = useState(true)
+    
+    if (!showPhotoModal) return null
     
     const nextPhoto = () => {
       if (currentPhotoIndex < currentPhotoList.length - 1) {
@@ -321,20 +346,20 @@ const VerificationQueue = () => {
     }
     
     return (
-      <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="relative max-w-5xl w-full">
-          <button onClick={() => setShowPhotoModal(false)} className="absolute top-4 right-4 text-white hover:text-gray-300 bg-black/50 rounded-full p-2 z-10 transition">
+      <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setShowPhotoModal(false)}>
+        <div className="relative max-w-5xl w-full z-[101]" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => setShowPhotoModal(false)} className="absolute top-4 right-4 text-white hover:text-gray-300 bg-black/50 rounded-full p-2 z-20 transition">
             <X className="w-6 h-6" />
           </button>
           
           {currentPhotoList.length > 1 && currentPhotoIndex > 0 && (
-            <button onClick={prevPhoto} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition">
+            <button onClick={prevPhoto} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition z-20">
               <ChevronLeft className="w-8 h-8" />
             </button>
           )}
           
           {currentPhotoList.length > 1 && currentPhotoIndex < currentPhotoList.length - 1 && (
-            <button onClick={nextPhoto} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition">
+            <button onClick={nextPhoto} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition z-20">
               <ChevronRight className="w-8 h-8" />
             </button>
           )}
@@ -360,7 +385,7 @@ const VerificationQueue = () => {
           </div>
           
           {currentPhotoList.length > 1 && (
-            <div className="absolute bottom-4 left-0 right-0 text-center text-white bg-black/50 py-2 rounded-full mx-auto w-32">
+            <div className="absolute bottom-4 left-0 right-0 text-center text-white bg-black/50 py-2 rounded-full mx-auto w-32 z-20">
               {currentPhotoIndex + 1} / {currentPhotoList.length}
             </div>
           )}
@@ -369,20 +394,22 @@ const VerificationQueue = () => {
     )
   }
 
-  // Request Detail Modal
+  // ========== REQUEST DETAIL MODAL - FIXED SCROLLING ==========
   const RequestDetailModal = ({ request, onClose }) => {
     const photos = parsePropertyPhotos(request.property_photos)
     const isApproved = request.status?.toLowerCase() === 'documents_approved' || request.status?.toLowerCase() === 'approved'
+    const isFullyActivated = request.status?.toLowerCase() === 'fully_activated'
     const isRejected = request.status?.toLowerCase() === 'rejected'
     
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
-        <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200" onClick={(e) => e.stopPropagation()}>
-          <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+        <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 relative" onClick={(e) => e.stopPropagation()}>
+          <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center z-10">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <UserCheck className="w-5 h-5 text-blue-600" />
               Document Verification Request
-              {isApproved && <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">Approved</span>}
+              {isFullyActivated && <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">Fully Active</span>}
+              {isApproved && <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">Docs Approved</span>}
               {isRejected && <span className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">Rejected</span>}
             </h2>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
@@ -391,6 +418,7 @@ const VerificationQueue = () => {
           </div>
           
           <div className="p-6 space-y-6">
+            {/* Rest of the detail content - unchanged */}
             <div className="border-b border-gray-200 pb-4">
               <h3 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-2">
                 <User className="w-4 h-4 text-blue-600" />
@@ -512,6 +540,11 @@ const VerificationQueue = () => {
                   <p className="text-sm text-red-600"><strong>Rejection Reason:</strong> {request.rejection_reason}</p>
                 </div>
               )}
+              {request.plan_type && request.payment_amount && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-3">
+                  <p className="text-sm text-green-600"><strong>Plan:</strong> {request.plan_type} | <strong>Amount:</strong> ETB {request.payment_amount}</p>
+                </div>
+              )}
             </div>
             
             {(request.status?.toLowerCase() === 'documents_pending' || request.status?.toLowerCase() === 'pending') && (
@@ -540,57 +573,57 @@ const VerificationQueue = () => {
     )
   }
 
- // Fixed Reject Modal for VerificationQueue.jsx
-const RejectModal = () => {
-  const [localReason, setLocalReason] = useState('')
-  
-  const handleConfirmReject = () => {
-    if (!localReason.trim()) {
-      toast.error('Please provide a reason for rejection')
-      return
+  // ========== REJECT MODAL ==========
+  const RejectModal = () => {
+    const [localReason, setLocalReason] = useState('')
+    
+    const handleConfirmReject = () => {
+      if (!localReason.trim()) {
+        toast.error('Please provide a reason for rejection')
+        return
+      }
+      if (selectedRequest?.id) {
+        handleReject(selectedRequest.id, localReason)
+      }
+      setShowRejectModal(false)
+      setLocalReason('')
     }
-    // Pass the reason directly to handleReject
-    if (selectedRequest?.id) {
-      handleReject(selectedRequest.id, localReason)
-    }
-    setShowRejectModal(false)
-  }
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-gray-200 shadow-xl">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Request</h3>
-        <p className="text-gray-600 mb-4">Please provide a reason for rejection:</p>
-        <textarea 
-          value={localReason}
-          onChange={(e) => setLocalReason(e.target.value)}
-          rows="4"
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-          placeholder="Type your rejection reason here..."
-          autoFocus
-        />
-        <div className="flex gap-3 mt-4">
-          <button 
-            onClick={() => {
-              setShowRejectModal(false)
-              setLocalReason('')
-            }} 
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleConfirmReject} 
-            disabled={processingId === selectedRequest?.id}
-            className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
-          >
-            {processingId === selectedRequest?.id ? 'Processing...' : 'Confirm Reject'}
-          </button>
+    
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-gray-200 shadow-xl">
+          <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Request</h3>
+          <p className="text-gray-600 mb-4">Please provide a reason for rejection:</p>
+          <textarea 
+            value={localReason}
+            onChange={(e) => setLocalReason(e.target.value)}
+            rows="4"
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            placeholder="Type your rejection reason here..."
+            autoFocus
+          />
+          <div className="flex gap-3 mt-4">
+            <button 
+              onClick={() => {
+                setShowRejectModal(false)
+                setLocalReason('')
+              }} 
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleConfirmReject} 
+              disabled={processingId === selectedRequest?.id}
+              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+            >
+              {processingId === selectedRequest?.id ? 'Processing...' : 'Confirm Reject'}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
 
   // Loading skeleton
   if (loading && pendingRequests.length === 0 && approvedRequests.length === 0 && rejectedRequests.length === 0) {
@@ -648,8 +681,8 @@ const RejectModal = () => {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      {showDocumentModal && <DocumentModal />}
-      {showPhotoModal && <PhotoModal />}
+      <DocumentModal />
+      <PhotoModal />
       {selectedRequest && !showRejectModal && <RequestDetailModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
       {showRejectModal && <RejectModal />}
 
@@ -770,10 +803,11 @@ const RejectModal = () => {
               const photos = parsePropertyPhotos(req.property_photos)
               const photoCount = photos.length
               const isApproved = req.status?.toLowerCase() === 'documents_approved' || req.status?.toLowerCase() === 'approved'
+              const isFullyActivated = req.status?.toLowerCase() === 'fully_activated'
               const isRejected = req.status?.toLowerCase() === 'rejected'
               
               return (
-                <div key={req.id} className={`p-6 hover:bg-gray-50 transition ${isApproved ? 'border-l-4 border-l-green-500' : isRejected ? 'border-l-4 border-l-red-500' : ''}`}>
+                <div key={req.id} className={`p-6 hover:bg-gray-50 transition ${isFullyActivated ? 'border-l-4 border-l-green-500' : isApproved ? 'border-l-4 border-l-blue-500' : isRejected ? 'border-l-4 border-l-red-500' : ''}`}>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">

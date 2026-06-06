@@ -159,13 +159,13 @@ async def submit_activation_request(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ FIXED STATUS ENDPOINT - CRITICAL ============
+# ============ STATUS ENDPOINT ============
 @router.get("/status")
 async def get_activation_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's activation status - CORRECTED VERSION"""
+    """Get user's activation status"""
     try:
         print(f"🔍 Getting activation status for user: {current_user.email}")
         print(f"   DB values - is_activated: {current_user.is_activated}")
@@ -187,14 +187,7 @@ async def get_activation_status(
             else:
                 days_remaining = 0
         
-        # IMPORTANT: Check if user is FULLY ACTIVATED based on DATABASE values
-        # User is only active if ALL conditions are met:
-        # 1. is_activated is True
-        # 2. can_create_listings is True  
-        # 3. has_active_subscription is True
-        # 4. payment_approved is True
-        # 5. subscription_end_date is in the future (days_remaining > 0)
-        
+        # Check if user is fully activated
         is_fully_active = (
             current_user.is_activated == True and
             current_user.can_create_listings == True and
@@ -203,7 +196,6 @@ async def get_activation_status(
             days_remaining > 0
         )
         
-        # If user is fully active, return fully_activated
         if is_fully_active:
             print(f"✅ User {current_user.email} is FULLY ACTIVATED")
             return {
@@ -218,7 +210,7 @@ async def get_activation_status(
                 "payment_approved": True
             }
         
-        # Check if subscription expired (was active but now expired)
+        # Check if subscription expired
         if current_user.subscription_end_date and days_remaining <= 0 and current_user.payment_approved:
             print(f"⚠️ User {current_user.email} subscription EXPIRED")
             return {
@@ -238,7 +230,6 @@ async def get_activation_status(
             ActivationRequest.user_id == current_user.id
         ).order_by(ActivationRequest.created_at.desc()).first()
         
-        # NEW USER - no activation request yet
         if not activation_request:
             print(f"📝 User {current_user.email} has NO activation request")
             return {
@@ -255,7 +246,6 @@ async def get_activation_status(
         
         # Map status from activation request
         if activation_request.status == ActivationStatus.DOCUMENTS_PENDING:
-            print(f"📄 User {current_user.email} documents PENDING")
             return {
                 "is_activated": False,
                 "status": "documents_pending",
@@ -269,7 +259,6 @@ async def get_activation_status(
             }
         
         elif activation_request.status == ActivationStatus.DOCUMENTS_APPROVED:
-            print(f"✅ User {current_user.email} documents APPROVED - needs payment")
             return {
                 "is_activated": False,
                 "status": "documents_approved",
@@ -283,7 +272,6 @@ async def get_activation_status(
             }
         
         elif activation_request.status == ActivationStatus.PAYMENT_PENDING:
-            print(f"💰 User {current_user.email} payment PENDING")
             return {
                 "is_activated": False,
                 "status": "payment_pending",
@@ -297,7 +285,6 @@ async def get_activation_status(
             }
         
         elif activation_request.status == ActivationStatus.FULLY_ACTIVATED:
-            # This should have been caught above, but just in case
             if days_remaining > 0:
                 return {
                     "is_activated": True,
@@ -324,7 +311,6 @@ async def get_activation_status(
                 }
         
         elif activation_request.status == ActivationStatus.REJECTED:
-            print(f"❌ User {current_user.email} REJECTED")
             return {
                 "is_activated": False,
                 "status": "rejected",
@@ -337,7 +323,6 @@ async def get_activation_status(
                 "payment_approved": False
             }
         
-        # Default fallback
         return {
             "is_activated": False,
             "status": "unknown",
@@ -352,27 +337,83 @@ async def get_activation_status(
         
     except Exception as e:
         print(f"Error getting status: {e}")
-        import traceback
-        traceback.print_exc()
         return {
             "is_activated": False, 
             "status": "error", 
             "message": str(e), 
             "can_create_listings": False, 
             "has_active_subscription": False,
-            "days_remaining": 0,
-            "subscription_end_date": None,
-            "subscription_plan": None,
-            "payment_approved": False
+            "days_remaining": 0
         }
 
 
-# ============ ADMIN ENDPOINTS ============
+# ============ ADMIN: GET ALL REQUESTS (FOR VERIFICATION QUEUE) ============
+@router.get("/admin/all-requests")
+async def get_all_activation_requests(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get all activation requests for admin verification queue"""
+    try:
+        requests = db.query(ActivationRequest).order_by(ActivationRequest.created_at.desc()).all()
+        
+        result = []
+        for req in requests:
+            user = db.query(User).filter(User.id == req.user_id).first()
+            
+            # Parse property_photos if it's a string
+            property_photos = req.property_photos
+            if property_photos and isinstance(property_photos, str):
+                try:
+                    property_photos = json.loads(property_photos)
+                except:
+                    property_photos = []
+            
+            result.append({
+                "id": req.id,
+                "user_id": req.user_id,
+                "full_name": req.full_name or (user.full_name if user else ""),
+                "email": req.email or (user.email if user else ""),
+                "phone_number": req.phone_number or (user.phone if user else ""),
+                "property_address": req.property_address,
+                "property_type": req.property_type,
+                "business_name": req.business_name,
+                "tax_id": req.tax_id,
+                "experience_years": req.experience_years,
+                "reason_for_activation": req.reason_for_activation,
+                "business_license": req.business_license,
+                "ownership_document": req.ownership_document,
+                "title_deed": req.title_deed,
+                "tax_clearance": req.tax_clearance,
+                "government_id": req.government_id,
+                "property_photos": property_photos,
+                "status": req.status,
+                "rejection_reason": req.rejection_reason,
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+                "reviewed_at": req.reviewed_at.isoformat() if req.reviewed_at else None,
+                "plan_type": req.plan_type,
+                "payment_amount": req.payment_amount,
+                "payment_receipt": req.payment_receipt,
+                "payment_transaction_id": req.payment_transaction_id
+            })
+        
+        print(f"✅ Returning {len(result)} activation requests for admin")
+        return result
+        
+    except Exception as e:
+        print(f"Error getting all requests: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+# ============ ADMIN: GET PENDING DOCUMENTS ============
 @router.get("/admin/pending-documents")
 async def get_pending_document_requests(
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
+    """Get pending document verification requests"""
     try:
         requests = db.query(ActivationRequest).filter(
             ActivationRequest.status == ActivationStatus.DOCUMENTS_PENDING
@@ -381,22 +422,120 @@ async def get_pending_document_requests(
         result = []
         for req in requests:
             user = db.query(User).filter(User.id == req.user_id).first()
+            
+            property_photos = req.property_photos
+            if property_photos and isinstance(property_photos, str):
+                try:
+                    property_photos = json.loads(property_photos)
+                except:
+                    property_photos = []
+            
             result.append({
                 "id": req.id,
                 "user_id": req.user_id,
-                "full_name": req.full_name,
-                "email": req.email,
-                "phone_number": req.phone_number,
+                "full_name": req.full_name or (user.full_name if user else ""),
+                "email": req.email or (user.email if user else ""),
+                "phone_number": req.phone_number or (user.phone if user else ""),
                 "property_address": req.property_address,
                 "property_type": req.property_type,
                 "business_name": req.business_name,
+                "tax_id": req.tax_id,
+                "experience_years": req.experience_years,
+                "reason_for_activation": req.reason_for_activation,
                 "business_license": req.business_license,
                 "ownership_document": req.ownership_document,
                 "title_deed": req.title_deed,
                 "tax_clearance": req.tax_clearance,
                 "government_id": req.government_id,
-                "created_at": req.created_at.isoformat() if req.created_at else None,
+                "property_photos": property_photos,
                 "status": req.status,
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+            })
+        
+        print(f"✅ Found {len(result)} pending documents")
+        return result
+        
+    except Exception as e:
+        print(f"Error getting pending documents: {e}")
+        return []
+
+
+# ============ ADMIN: GET PENDING PAYMENTS ============
+@router.get("/admin/pending-payments")
+async def get_pending_payments(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get pending payment verification requests"""
+    try:
+        requests = db.query(ActivationRequest).filter(
+            ActivationRequest.status == ActivationStatus.PAYMENT_PENDING
+        ).order_by(ActivationRequest.created_at.desc()).all()
+        
+        result = []
+        for req in requests:
+            user = db.query(User).filter(User.id == req.user_id).first()
+            
+            result.append({
+                "id": req.id,
+                "user_id": req.user_id,
+                "full_name": req.full_name or (user.full_name if user else ""),
+                "email": req.email or (user.email if user else ""),
+                "phone_number": req.phone_number or (user.phone if user else ""),
+                "plan_type": req.plan_type,
+                "payment_amount": req.payment_amount,
+                "payment_receipt": req.payment_receipt,
+                "payment_transaction_id": req.payment_transaction_id,
+                "status": req.status,
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+            })
+        
+        print(f"✅ Found {len(result)} pending payments")
+        return result
+        
+    except Exception as e:
+        print(f"Error getting pending payments: {e}")
+        return []
+
+
+# ============ ADMIN: GET ALL PAYMENTS ============
+@router.get("/admin/payments")
+async def get_all_payments(
+    status: str = "all",
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get all payment requests for admin"""
+    try:
+        query = db.query(ActivationRequest)
+        
+        if status == "pending":
+            query = query.filter(ActivationRequest.status == ActivationStatus.PAYMENT_PENDING)
+        elif status == "approved":
+            query = query.filter(ActivationRequest.status == ActivationStatus.FULLY_ACTIVATED)
+        elif status == "rejected":
+            query = query.filter(ActivationRequest.status == ActivationStatus.REJECTED)
+        
+        requests = query.order_by(ActivationRequest.created_at.desc()).all()
+        
+        result = []
+        for req in requests:
+            user = db.query(User).filter(User.id == req.user_id).first()
+            
+            result.append({
+                "id": req.id,
+                "user_id": req.user_id,
+                "full_name": req.full_name or (user.full_name if user else ""),
+                "email": req.email or (user.email if user else ""),
+                "phone_number": req.phone_number or (user.phone if user else ""),
+                "plan_type": req.plan_type,
+                "payment_amount": req.payment_amount,
+                "payment_receipt": req.payment_receipt,
+                "payment_transaction_id": req.payment_transaction_id,
+                "status": req.status,
+                "rejection_reason": req.rejection_reason,
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+                "reviewed_at": req.reviewed_at.isoformat() if req.reviewed_at else None,
                 "user_name": user.full_name if user else req.full_name,
                 "user_email": user.email if user else req.email
             })
@@ -404,10 +543,11 @@ async def get_pending_document_requests(
         return result
         
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error getting payments: {e}")
         return []
 
 
+# ============ ADMIN: APPROVE DOCUMENTS ============
 @router.post("/admin/approve-documents/{request_id}")
 async def approve_documents(
     request_id: int,
@@ -429,6 +569,10 @@ async def approve_documents(
         activation_request.reviewed_by = current_user.id
         activation_request.reviewed_at = datetime.utcnow()
         
+        user = db.query(User).filter(User.id == activation_request.user_id).first()
+        if user:
+            user.is_verified = True
+        
         db.commit()
         
         return {"success": True, "message": "Documents approved! User can now subscribe"}
@@ -436,11 +580,48 @@ async def approve_documents(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error approving documents: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============ ADMIN: REJECT REQUEST ============
+@router.post("/admin/reject/{request_id}")
+async def reject_request(
+    request_id: int,
+    rejection_data: RejectRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        activation_request = db.query(ActivationRequest).filter(
+            ActivationRequest.id == request_id
+        ).first()
+        
+        if not activation_request:
+            raise HTTPException(status_code=404, detail="Activation request not found")
+        
+        if activation_request.status not in [ActivationStatus.DOCUMENTS_PENDING, ActivationStatus.PAYMENT_PENDING]:
+            raise HTTPException(status_code=400, detail="This request cannot be rejected")
+        
+        activation_request.status = ActivationStatus.REJECTED
+        activation_request.rejection_reason = rejection_data.rejection_reason
+        activation_request.reviewed_by = current_user.id
+        activation_request.reviewed_at = datetime.utcnow()
+        
+        db.commit()
+        
+        return {"success": True, "message": "Request rejected successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error rejecting request: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ ADMIN: APPROVE PAYMENT ============
 @router.post("/admin/approve-payment/{request_id}")
 async def approve_payment(
     request_id: int,
@@ -500,9 +681,9 @@ async def approve_payment(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error approving payment: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-print("✅ Activation router loaded successfully with FIXED status endpoint!")
+print("✅ Activation router loaded successfully with all admin endpoints!")

@@ -1,4 +1,3 @@
-# backend/app/routers/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -66,10 +65,8 @@ class GoogleAuthRequest(BaseModel):
     role_type: Optional[str] = "dual"
 
 # ============ HELPER FUNCTIONS ============
-# FIXED: Removed test user auto-activation - NO test users get auto-activated
 def is_test_user(email: str) -> bool:
     # Return False to disable auto-activation for all users
-    # Remove this function or return False
     return False
 
 def get_password_hash(password: str) -> str:
@@ -150,7 +147,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         
         user_role = user_data.role_type if user_data.role_type else "user"
         
-        # FIXED: Buyers get activated immediately, sellers/landlords need approval
+        # Buyers get activated immediately, sellers/landlords need approval
         if user_role == 'buyer':
             user_status = "active"
             is_activated = True
@@ -219,7 +216,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# ============ LOGIN ENDPOINT - FIXED: No auto-activation ============
+# ============ LOGIN ENDPOINT - WITH SUSPENSION CHECK ============
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
@@ -234,6 +231,11 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
             print(f"❌ User not found: {login_data.email}")
             return {"success": False, "error": "Invalid email/username or password"}
         
+        # ========== CHECK IF USER IS SUSPENDED ==========
+        if user.status == "suspended":
+            print(f"🚫 User {user.email} is SUSPENDED - login blocked")
+            return {"success": False, "error": "Your account has been suspended. Please contact support."}
+        
         password_valid = verify_password(login_data.password, user.hashed_password)
         
         if not password_valid:
@@ -243,9 +245,6 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         print(f"✅ Login successful for: {user.email}")
         
         user.last_login = datetime.utcnow()
-        
-        # FIXED: REMOVED auto-activation for test users
-        # No automatic activation - users must go through proper verification
         
         db.commit()
         db.refresh(user)
@@ -616,4 +615,4 @@ async def debug_user(
         "status": user.status
     }
 
-print("✅ Auth router loaded successfully!")
+print("✅ Auth router loaded successfully with suspension check!")

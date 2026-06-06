@@ -1,4 +1,3 @@
-// src/components/dashboard/admin/UserManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react'
 import { 
   Search, UserX, Eye, Shield, CheckCircle, 
@@ -20,6 +19,11 @@ const UserManagement = () => {
   const [totalUsers, setTotalUsers] = useState(0)
   const [selectedUser, setSelectedUser] = useState(null)
   const [showViewModal, setShowViewModal] = useState(false)
+  
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmUser, setConfirmUser] = useState(null)
 
   const [counts, setCounts] = useState({ 
     total: 0,
@@ -45,9 +49,12 @@ const UserManagement = () => {
         return
       }
       
-      // Try multiple endpoints to find which one works
-      let url = `${API_URL}/api/admin/users?limit=200`
+      const params = new URLSearchParams()
+      if (searchTerm) params.append('search', searchTerm)
+      if (filterStatus !== 'all') params.append('status', filterStatus)
+      if (filterRole !== 'all') params.append('role', filterRole)
       
+      const url = `${API_URL}/api/admin/users?${params.toString()}`
       console.log('📊 Fetching users from:', url)
       
       const response = await fetch(url, {
@@ -58,141 +65,61 @@ const UserManagement = () => {
       })
       
       if (!response.ok) {
-        console.warn('Failed to fetch from /api/admin/users, trying /api/users/admin/all')
-        // Try alternative endpoint
-        const altResponse = await fetch(`${API_URL}/api/users/admin/all?limit=200`, {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        
-        if (!altResponse.ok) {
-          throw new Error('Failed to fetch users from all endpoints')
-        }
-        
-        const altData = await altResponse.json()
-        let usersData = altData.users || altData || []
-        
-        if (!Array.isArray(usersData)) {
-          usersData = []
-        }
-        
-        setUsers(usersData)
-        setTotalUsers(usersData.length)
-        
-        // Calculate counts
-        const allUsers = usersData
-        
-        const fullyActive = allUsers.filter(u => u.is_verified === true && u.payment_approved === true).length
-        const docApprovedWaitingPayment = allUsers.filter(u => u.is_verified === true && u.payment_approved !== true).length
-        const docsSubmittedPending = allUsers.filter(u => 
-          (u.seller_documents_submitted === true || u.landlord_documents_submitted === true) && 
-          u.is_verified !== true
-        ).length
-        const noDocuments = allUsers.filter(u => 
-          (u.seller_documents_submitted !== true && u.landlord_documents_submitted !== true) && 
-          u.is_verified !== true
-        ).length
-        const suspended = allUsers.filter(u => u.status === 'suspended').length
-        
-        const buyers = allUsers.filter(u => u.role_type === 'buyer').length
-        const sellers = allUsers.filter(u => u.role_type === 'seller').length
-        const landlords = allUsers.filter(u => u.role_type === 'landlord').length
-        const dual = allUsers.filter(u => u.role_type === 'dual').length
-        const usersCount = allUsers.filter(u => u.role_type === 'user').length
-        
-        setCounts({
-          total: allUsers.length,
-          fullyActive,
-          docApprovedWaitingPayment,
-          docsSubmittedPending,
-          noDocuments,
-          suspended,
-          buyers,
-          sellers,
-          landlords,
-          dual,
-          users: usersCount
-        })
-        
-        setLoading(false)
-        return
+        throw new Error('Failed to fetch users')
       }
       
       const data = await response.json()
       console.log('📊 Users data received:', data)
       
-      let usersData = data.users || data || []
+      let usersData = data.users || []
       
       if (!Array.isArray(usersData)) {
         usersData = []
       }
       
-      // Filter out agents and admins
-      usersData = usersData.filter(u => u.role_type !== 'agent' && u.role_type !== 'admin')
+      let filteredUsers = [...usersData]
       
-      // Apply role filter
-      if (filterRole !== 'all') {
-        usersData = usersData.filter(u => u.role_type === filterRole)
-      }
-      
-      // Apply verification filter
       if (filterVerification !== 'all') {
         if (filterVerification === 'fully_active') {
-          usersData = usersData.filter(u => u.is_verified === true && u.payment_approved === true)
+          filteredUsers = filteredUsers.filter(u => u.is_verified === true && u.payment_approved === true)
         } else if (filterVerification === 'doc_approved') {
-          usersData = usersData.filter(u => u.is_verified === true && u.payment_approved !== true)
+          filteredUsers = filteredUsers.filter(u => u.is_verified === true && u.payment_approved !== true)
         } else if (filterVerification === 'docs_submitted') {
-          usersData = usersData.filter(u => 
+          filteredUsers = filteredUsers.filter(u => 
             (u.seller_documents_submitted === true || u.landlord_documents_submitted === true) && 
             u.is_verified !== true
           )
         } else if (filterVerification === 'no_docs') {
-          usersData = usersData.filter(u => 
+          filteredUsers = filteredUsers.filter(u => 
             (u.seller_documents_submitted !== true && u.landlord_documents_submitted !== true) && 
             u.is_verified !== true
           )
         }
       }
       
-      setUsers(usersData)
-      setTotalUsers(usersData.length)
+      setUsers(filteredUsers)
+      setTotalUsers(filteredUsers.length)
       
-      // Calculate counts
-      const allUsers = data.users || data || []
-      
-      const fullyActive = allUsers.filter(u => u.is_verified === true && u.payment_approved === true).length
-      const docApprovedWaitingPayment = allUsers.filter(u => u.is_verified === true && u.payment_approved !== true).length
-      const docsSubmittedPending = allUsers.filter(u => 
-        (u.seller_documents_submitted === true || u.landlord_documents_submitted === true) && 
-        u.is_verified !== true
-      ).length
-      const noDocuments = allUsers.filter(u => 
-        (u.seller_documents_submitted !== true && u.landlord_documents_submitted !== true) && 
-        u.is_verified !== true
-      ).length
-      const suspended = allUsers.filter(u => u.status === 'suspended').length
-      
-      const buyers = allUsers.filter(u => u.role_type === 'buyer').length
-      const sellers = allUsers.filter(u => u.role_type === 'seller').length
-      const landlords = allUsers.filter(u => u.role_type === 'landlord').length
-      const dual = allUsers.filter(u => u.role_type === 'dual').length
-      const usersCount = allUsers.filter(u => u.role_type === 'user').length
-      
-      setCounts({
-        total: allUsers.length,
-        fullyActive,
-        docApprovedWaitingPayment,
-        docsSubmittedPending,
-        noDocuments,
-        suspended,
-        buyers,
-        sellers,
-        landlords,
-        dual,
-        users: usersCount
+      const statsResponse = await fetch(`${API_URL}/api/admin/users/stats`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       })
+      
+      if (statsResponse.ok) {
+        const stats = await statsResponse.json()
+        setCounts({
+          total: stats.total || 0,
+          fullyActive: stats.fullyActive || 0,
+          docApprovedWaitingPayment: stats.docApprovedWaitingPayment || 0,
+          docsSubmittedPending: stats.docsSubmittedPending || 0,
+          noDocuments: stats.noDocuments || 0,
+          suspended: stats.suspended || 0,
+          buyers: stats.buyers || 0,
+          sellers: stats.sellers || 0,
+          landlords: stats.landlords || 0,
+          dual: stats.dual || 0,
+          users: stats.users || 0
+        })
+      }
       
     } catch (error) {
       console.error('Error fetching users:', error)
@@ -200,18 +127,32 @@ const UserManagement = () => {
     } finally {
       setLoading(false)
     }
-  }, [filterRole, filterVerification])
+  }, [searchTerm, filterStatus, filterRole, filterVerification])
 
   useEffect(() => {
     fetchUsers()
   }, [fetchUsers])
 
-  const handleSuspendUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to suspend this user?')) return
+  // Show confirmation modal before suspend
+  const showSuspendConfirmation = (user) => {
+    setConfirmUser(user)
+    setConfirmAction('suspend')
+    setShowConfirmModal(true)
+  }
+
+  // Show confirmation modal before activate
+  const showActivateConfirmation = (user) => {
+    setConfirmUser(user)
+    setConfirmAction('activate')
+    setShowConfirmModal(true)
+  }
+
+  const handleSuspendUser = async () => {
+    if (!confirmUser) return
     
     try {
       const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/api/admin/users/${userId}/suspend`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${confirmUser.id}/suspend`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -219,7 +160,7 @@ const UserManagement = () => {
       const data = await response.json()
       
       if (response.ok && data.success) {
-        toast.success('User suspended successfully')
+        toast.success(`${confirmUser.full_name || confirmUser.username} has been suspended`)
         fetchUsers()
       } else {
         toast.error(data.detail || 'Failed to suspend user')
@@ -227,13 +168,19 @@ const UserManagement = () => {
     } catch (error) {
       console.error('Error suspending user:', error)
       toast.error('Failed to suspend user')
+    } finally {
+      setShowConfirmModal(false)
+      setConfirmUser(null)
+      setConfirmAction(null)
     }
   }
 
-  const handleActivateUser = async (userId) => {
+  const handleActivateUser = async () => {
+    if (!confirmUser) return
+    
     try {
       const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/api/admin/users/${userId}/activate`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${confirmUser.id}/activate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -241,7 +188,7 @@ const UserManagement = () => {
       const data = await response.json()
       
       if (response.ok && data.success) {
-        toast.success('User activated successfully')
+        toast.success(`${confirmUser.full_name || confirmUser.username} has been activated`)
         fetchUsers()
       } else {
         toast.error(data.detail || 'Failed to activate user')
@@ -249,6 +196,10 @@ const UserManagement = () => {
     } catch (error) {
       console.error('Error activating user:', error)
       toast.error('Failed to activate user')
+    } finally {
+      setShowConfirmModal(false)
+      setConfirmUser(null)
+      setConfirmAction(null)
     }
   }
 
@@ -345,6 +296,110 @@ const UserManagement = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
+  // Confirmation Modal Component
+  const ConfirmationModal = () => {
+    if (!showConfirmModal || !confirmUser) return null
+    
+    const isSuspend = confirmAction === 'suspend'
+    
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+          <div className={`p-6 border-b ${isSuspend ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} rounded-t-2xl`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isSuspend ? 'bg-red-100' : 'bg-green-100'}`}>
+                {isSuspend ? <UserX className="w-6 h-6 text-red-600" /> : <CheckCircle className="w-6 h-6 text-green-600" />}
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">
+                {isSuspend ? 'Suspend User' : 'Activate User'}
+              </h2>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <p className="text-gray-700 mb-4">
+              Are you sure you want to <span className={`font-semibold ${isSuspend ? 'text-red-600' : 'text-green-600'}`}>
+                {isSuspend ? 'SUSPEND' : 'ACTIVATE'}
+              </span> this user?
+            </p>
+            
+            <div className="bg-gray-50 rounded-xl p-4 mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-10 h-10 bg-gradient-to-r ${getRoleGradient(confirmUser.role_type)} rounded-lg flex items-center justify-center text-white font-bold`}>
+                  {confirmUser.full_name?.charAt(0)?.toUpperCase() || confirmUser.username?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{confirmUser.full_name || confirmUser.username}</p>
+                  <p className="text-sm text-gray-500">{confirmUser.email}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-gray-500">Role:</span>
+                  <span className="ml-2 font-medium">{confirmUser.role_type?.toUpperCase()}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Status:</span>
+                  <span className={`ml-2 font-medium ${confirmUser.status === 'suspended' ? 'text-red-600' : 'text-green-600'}`}>
+                    {confirmUser.status || 'Active'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {isSuspend ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ Suspending this user will:
+                </p>
+                <ul className="text-sm text-yellow-700 mt-2 list-disc list-inside">
+                  <li>Block them from logging in</li>
+                  <li>Prevent them from creating new listings</li>
+                  <li>Hide their existing listings from public view</li>
+                </ul>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-green-800">
+                  ✅ Activating this user will:
+                </p>
+                <ul className="text-sm text-green-700 mt-2 list-disc list-inside">
+                  <li>Restore their login access</li>
+                  <li>Allow them to create listings again</li>
+                  <li>Restore their subscription benefits</li>
+                </ul>
+              </div>
+            )}
+          </div>
+          
+          <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+            <button
+              onClick={() => {
+                setShowConfirmModal(false)
+                setConfirmUser(null)
+                setConfirmAction(null)
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-100 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={isSuspend ? handleSuspendUser : handleActivateUser}
+              className={`px-4 py-2 rounded-xl text-white font-medium transition flex items-center gap-2 ${
+                isSuspend 
+                  ? 'bg-red-600 hover:bg-red-700' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
+            >
+              {isSuspend ? <UserX className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+              {isSuspend ? 'Yes, Suspend User' : 'Yes, Activate User'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const ViewUserModal = () => (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowViewModal(false)}>
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200" onClick={(e) => e.stopPropagation()}>
@@ -435,6 +490,7 @@ const UserManagement = () => {
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="p-8">
+        <ConfirmationModal />
         {showViewModal && <ViewUserModal />}
         
         <div className="mb-8">
@@ -568,7 +624,7 @@ const UserManagement = () => {
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Joined</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
-                </tr>
+                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {users.length === 0 ? (
@@ -626,7 +682,7 @@ const UserManagement = () => {
                             </button>
                             {user.status === 'suspended' ? (
                               <button 
-                                onClick={() => handleActivateUser(user.id)} 
+                                onClick={() => showActivateConfirmation(user)} 
                                 className="p-1.5 rounded-lg hover:bg-emerald-100 transition"
                                 title="Activate User"
                               >
@@ -634,7 +690,7 @@ const UserManagement = () => {
                               </button>
                             ) : (
                               <button 
-                                onClick={() => handleSuspendUser(user.id)} 
+                                onClick={() => showSuspendConfirmation(user)} 
                                 className="p-1.5 rounded-lg hover:bg-red-100 transition"
                                 title="Suspend User"
                               >

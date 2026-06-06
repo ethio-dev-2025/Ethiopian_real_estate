@@ -1,10 +1,9 @@
-// src/components/layout/BuyerSidebar.jsx
 import React, { useState, useEffect, memo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
-  Home, Search, Heart, MessageCircle, Settings, LogOut, Menu, X, ChevronRight, Building2, Bell, Camera,
-  User, Lock, Shield, Monitor, ChevronDown
+  Home, Search, Heart, MessageCircle, Settings, LogOut, Menu, X, ChevronRight, Building2, Camera,
+  User, Lock, ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../../context/LanguageContext'
@@ -26,13 +25,10 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
 
   const { t } = useLanguage()
 
-  // Settings dropdown menu items
+  // Settings dropdown menu items - Only Profile and Security
   const settingsMenuItems = [
-    { id: 'profile', labelKey: 'profile_information', icon: User, tab: 'profile' },
-    { id: 'security', labelKey: 'security', icon: Lock, tab: 'security' },
-    { id: 'notifications', labelKey: 'notification_preferences', icon: Bell, tab: 'notifications' },
-    { id: 'privacy', labelKey: 'privacy', icon: Shield, tab: 'privacy' },
-    { id: 'appearance', labelKey: 'appearance', icon: Monitor, tab: 'appearance' }
+    { id: 'profile', labelKey: 'profile_information', label: 'Profile Information', icon: User, tab: 'profile' },
+    { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' }
   ];
 
   // Close dropdown when clicking outside
@@ -71,7 +67,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
           const conversations = await response.json();
           const total = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
           setUnreadCount(total);
-          // Save to localStorage for persistence
           localStorage.setItem('buyer_unread_count', total.toString());
         }
       } catch (error) {
@@ -88,7 +83,7 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     };
   }, []);
 
-  // ========== LISTEN FOR REAL-TIME UNREAD UPDATES ==========
+  // Listen for real-time unread updates
   useEffect(() => {
     const handleUnreadUpdate = (event) => {
       if (event.detail?.count !== undefined) {
@@ -97,10 +92,8 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
       }
     };
     
-    // Listen for custom event from BuyerMessages
     window.addEventListener('buyer_unread_update', handleUnreadUpdate);
     
-    // Also check localStorage for initial count
     const savedCount = localStorage.getItem('buyer_unread_count');
     if (savedCount) {
       setUnreadCount(parseInt(savedCount));
@@ -137,7 +130,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     if (isMobile) setSidebarOpen(false);
   };
 
-  // Handle settings dropdown navigation
   const handleSettingsNavigation = (tab) => {
     navigate(`/dashboard/buyer/settings?tab=${tab}`);
     setIsSettingsDropdownOpen(false);
@@ -212,7 +204,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
 
   const profileImageUrl = profileImage;
   
-  // Get current tab from URL params
   const getCurrentTab = () => {
     const params = new URLSearchParams(location.search);
     return params.get('tab') || 'profile';
@@ -221,7 +212,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const currentTab = getCurrentTab();
   const isSettingsActive = location.pathname === '/dashboard/buyer/settings';
 
-  // Toggle dropdown - prevent event propagation
   const toggleDropdown = (e) => {
     e.stopPropagation();
     setIsSettingsDropdownOpen(!isSettingsDropdownOpen);
@@ -318,7 +308,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 >
                   {settingsMenuItems.map((item) => {
                     const Icon = item.icon;
-                    // Check if this specific tab is active
                     const isActive = isSettingsActive && currentTab === item.tab;
                     return (
                       <button
@@ -332,7 +321,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                       >
                         <Icon className="w-4 h-4" />
                         <span className="text-sm">{item.label}</span>
-                        {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
                       </button>
                     );
                   })}

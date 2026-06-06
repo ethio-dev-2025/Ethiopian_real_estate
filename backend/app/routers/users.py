@@ -1,17 +1,153 @@
-# app/routers/users.py
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
 import uuid
 import shutil
+from pydantic import BaseModel
+from passlib.context import CryptContext
 from ..database import get_db
 from ..models.user import User
 from .auth import get_current_user
 
 router = APIRouter()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# ============ PYDANTIC MODELS ============
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
+class UpdateProfileRequest(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    bio: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+
+
+@router.post("/change-password")
+async def change_password(
+    password_data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Change user's password"""
+    try:
+        print(f"🔐 Changing password for user: {current_user.email}")
+        print(f"   Provided current password length: {len(password_data.current_password)}")
+        print(f"   Stored hash: {current_user.hashed_password[:50]}...")
+        
+        # Verify current password - FIXED verification
+        is_valid = pwd_context.verify(password_data.current_password, current_user.hashed_password)
+        print(f"   Password valid: {is_valid}")
+        
+        if not is_valid:
+            raise HTTPException(
+                status_code=400,
+                detail="Current password is incorrect"
+            )
+        
+        # Validate new password length
+        if len(password_data.new_password) < 6:
+            raise HTTPException(
+                status_code=400,
+                detail="Password must be at least 6 characters"
+            )
+        
+        # Check that new password is different from current
+        if pwd_context.verify(password_data.new_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=400,
+                detail="New password must be different from current password"
+            )
+        
+        # Hash new password
+        hashed_new_password = pwd_context.hash(password_data.new_password)
+        
+        # Update user's password
+        current_user.hashed_password = hashed_new_password
+        
+        db.commit()
+        
+        print(f"✅ Password changed successfully for user: {current_user.email}")
+        
+        return {
+            "success": True,
+            "message": "Password changed successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error changing password: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ UPDATE PROFILE SETTINGS ============
+@router.put("/update-profile-settings")
+async def update_profile_settings(
+    profile_data: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user's profile information"""
+    try:
+        print(f"=== UPDATING PROFILE ===")
+        print(f"User ID: {current_user.id}")
+        print(f"Email: {current_user.email}")
+        
+        if profile_data.full_name is not None:
+            current_user.full_name = profile_data.full_name
+        if profile_data.phone is not None:
+            current_user.phone = profile_data.phone
+        if profile_data.date_of_birth is not None:
+            current_user.date_of_birth = profile_data.date_of_birth
+        if profile_data.city is not None:
+            current_user.city = profile_data.city
+        if profile_data.address is not None:
+            current_user.address = profile_data.address
+        if profile_data.bio is not None:
+            current_user.bio = profile_data.bio
+        if profile_data.position is not None:
+            current_user.position = profile_data.position
+        if profile_data.department is not None:
+            current_user.department = profile_data.department
+        
+        db.commit()
+        db.refresh(current_user)
+        
+        return {
+            "success": True,
+            "message": "Profile updated successfully",
+            "user": {
+                "id": current_user.id,
+                "full_name": current_user.full_name,
+                "phone": current_user.phone,
+                "date_of_birth": current_user.date_of_birth,
+                "city": current_user.city,
+                "address": current_user.address,
+                "bio": current_user.bio,
+                "position": current_user.position,
+                "department": current_user.department,
+                "avatar_url": current_user.avatar_url,
+                "email": current_user.email,
+                "username": current_user.username
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error updating profile: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ UPLOAD PROFILE PICTURE ============
 @router.post("/upload-profile-picture")
 async def upload_profile_picture(
     profile_picture: UploadFile = File(...),
@@ -33,6 +169,7 @@ async def upload_profile_picture(
         upload_dir = f"uploads/profiles/user_{current_user.id}"
         os.makedirs(upload_dir, exist_ok=True)
         
+        # Remove old profile picture if exists
         if current_user.avatar_url:
             old_file_path = os.path.join(".", current_user.avatar_url.lstrip('/'))
             if os.path.exists(old_file_path):
@@ -65,6 +202,7 @@ async def upload_profile_picture(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============ REMOVE PROFILE PICTURE ============
 @router.delete("/remove-profile-picture")
 async def remove_profile_picture(
     current_user: User = Depends(get_current_user),
@@ -86,89 +224,9 @@ async def remove_profile_picture(
         print(f"Error: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-# app/routers/users.py - Update the update_profile_settings function
 
-# app/routers/users.py - Update the update_profile_settings function
 
-@router.put("/update-profile-settings")
-async def update_profile_settings(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Update user profile settings"""
-    try:
-        body = await request.json()
-        
-        full_name = body.get('full_name')
-        phone = body.get('phone')
-        date_of_birth = body.get('date_of_birth')
-        city = body.get('city')
-        address = body.get('address')
-        bio = body.get('bio')
-        position = body.get('position')
-        department = body.get('department')
-        
-        print(f"=== UPDATING PROFILE ===")
-        print(f"User ID: {current_user.id}")
-        print(f"Email: {current_user.email}")
-        print(f"Full Name: {full_name}")
-        print(f"Position received: {position}")
-        print(f"Department received: {department}")
-        
-        # Update fields
-        if full_name is not None:
-            current_user.full_name = full_name
-        if phone is not None:
-            current_user.phone = phone
-        if date_of_birth is not None:
-            current_user.date_of_birth = date_of_birth
-        if city is not None:
-            current_user.city = city
-        if address is not None:
-            current_user.address = address
-        if bio is not None:
-            current_user.bio = bio
-        if position is not None:
-            current_user.position = position
-            print(f"Setting position to: {position}")
-        if department is not None:
-            current_user.department = department
-            print(f"Setting department to: {department}")
-        
-        # Commit to database
-        db.commit()
-        db.refresh(current_user)
-        
-        print(f"After commit - Position: {current_user.position}")
-        print(f"After commit - Department: {current_user.department}")
-        
-        # Return updated user data
-        return {
-            "success": True,
-            "message": "Profile updated successfully",
-            "user": {
-                "id": current_user.id,
-                "full_name": current_user.full_name,
-                "phone": current_user.phone,
-                "date_of_birth": current_user.date_of_birth,
-                "city": current_user.city,
-                "address": current_user.address,
-                "bio": current_user.bio,
-                "position": current_user.position,
-                "department": current_user.department,
-                "avatar_url": current_user.avatar_url,
-                "email": current_user.email,
-                "username": current_user.username
-            }
-        }
-        
-    except Exception as e:
-        print(f"Error updating profile: {e}")
-        import traceback
-        traceback.print_exc()
-        db.rollback()
-        return {"success": False, "message": str(e)}
+# ============ GET USER PROFILE ============
 @router.get("/profile")
 async def get_user_profile(
     current_user: User = Depends(get_current_user),
@@ -200,24 +258,7 @@ async def get_user_profile(
         return {"success": False, "error": str(e)}
 
 
-print("✅ Users router loaded successfully!")
-
-@router.post("/reset-admin-password")
-async def reset_admin_password(db: Session = Depends(get_db)):
-    """Temporary endpoint to reset admin password"""
-    from passlib.context import CryptContext
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    
-    admin = db.query(User).filter(User.id == 2).first()
-    if admin:
-        new_password = "admin123"
-        admin.hashed_password = pwd_context.hash(new_password)
-        db.commit()
-        return {"success": True, "message": f"Password reset to {new_password} for {admin.email}"}
-    return {"success": False, "message": "Admin not found"}
-
-# Add this function to app/routers/users.py
-
+# ============ GET USER BY EMAIL ============
 @router.get("/by-email")
 async def get_user_by_email(
     email: str,
@@ -251,8 +292,8 @@ async def get_user_by_email(
         print(f"Error finding user by email: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# backend/app/routers/users.py - Add this endpoint
 
+# ============ GET USER BY USERNAME ============
 @router.get("/by-username")
 async def get_user_by_username(
     username: str,
@@ -284,3 +325,19 @@ async def get_user_by_username(
     except Exception as e:
         print(f"Error finding user by username: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ RESET ADMIN PASSWORD (Temporary) ============
+@router.post("/reset-admin-password")
+async def reset_admin_password(db: Session = Depends(get_db)):
+    """Temporary endpoint to reset admin password"""
+    admin = db.query(User).filter(User.id == 2).first()
+    if admin:
+        new_password = "admin123"
+        admin.hashed_password = pwd_context.hash(new_password)
+        db.commit()
+        return {"success": True, "message": f"Password reset to {new_password} for {admin.email}"}
+    return {"success": False, "message": "Admin not found"}
+
+
+print("✅ Users router loaded successfully!")

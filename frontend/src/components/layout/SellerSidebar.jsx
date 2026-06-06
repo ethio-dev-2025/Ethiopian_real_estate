@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, PlusCircle, List, Building2, MessageSquare,
   Shield, CreditCard, Settings, LogOut, Menu, X, ChevronRight, Camera,
-  User, Lock, Bell, Monitor, ChevronDown
+  User, Lock, ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../../context/LanguageContext'
@@ -30,12 +30,10 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
 
   const { t } = useLanguage()
 
+  // Settings dropdown menu items - Only Profile and Security
   const settingsMenuItems = [
     { id: 'profile', labelKey: 'profile_information', label: 'Profile Information', icon: User, tab: 'profile' },
-    { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' },
-    { id: 'notifications', labelKey: 'notification_preferences', label: 'Notification Preferences', icon: Bell, tab: 'notifications' },
-    { id: 'privacy', labelKey: 'privacy', label: 'Privacy', icon: Shield, tab: 'privacy' },
-    { id: 'appearance', labelKey: 'appearance', label: 'Appearance', icon: Monitor, tab: 'appearance' }
+    { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' }
   ];
 
   useEffect(() => {
@@ -186,7 +184,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     return 'Seller';
   };
 
-  // FIXED: NO HARDCODED DAYS - only use real subscription end date
   const getDaysRemaining = () => {
     if (user?.subscription_end_date) {
       const end = new Date(user.subscription_end_date);
@@ -202,11 +199,8 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
 
   const daysRemaining = getDaysRemaining();
 
-  // FIXED: Get user status based ONLY on real API data
   const getUserStatus = () => {
-    // First check liveStatus from API (most reliable)
     if (liveStatus) {
-      // Only active if can_create_listings is true AND days_remaining > 0
       if (liveStatus.can_create_listings === true && (liveStatus.days_remaining || 0) > 0) {
         return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
       }
@@ -228,12 +222,10 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
       return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
     }
     
-    // Check user object if liveStatus not available
     if (user?.role_type === 'admin') {
       return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
     }
 
-    // Only active if has_active_subscription AND subscription_end_date is in future
     if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining > 0) {
       return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
     }
@@ -454,7 +446,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                       >
                         <Icon className="w-4 h-4 flex-shrink-0" />
                         <span className="text-sm">{t(item.labelKey) || item.label}</span>
-                        {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
                       </button>
                     );
                   })}

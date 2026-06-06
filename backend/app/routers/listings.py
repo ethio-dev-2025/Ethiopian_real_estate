@@ -1,4 +1,3 @@
-# backend/app/routers/listings.py - COMPLETE WITH SUBSCRIPTION CHECK AND GEOCODING
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, text, or_
@@ -82,6 +81,10 @@ def check_subscription_valid(user: User) -> tuple[bool, str]:
     # Admin users can always create listings
     if user.role_type == 'admin':
         return True, ""
+    
+    # Check if user is suspended
+    if user.status == "suspended":
+        return False, "Your account has been suspended. Please contact support."
     
     # Check if user has active subscription
     if not user.has_active_subscription:
@@ -670,6 +673,14 @@ async def check_subscription_before_listing(
                 "message": "Admin - you can create listings"
             }
         
+        # Check if user is suspended
+        if current_user.status == "suspended":
+            return {
+                "can_create": False,
+                "message": "Your account has been suspended. Please contact support.",
+                "suspended": True
+            }
+        
         if not current_user.has_active_subscription:
             return {
                 "can_create": False,
@@ -714,7 +725,7 @@ async def check_subscription_before_listing(
         }
 
 
-# ============ CREATE LISTING WITH SUBSCRIPTION CHECK ============
+# ============ CREATE LISTING WITH SUBSCRIPTION AND SUSPENSION CHECK ============
 @router.post("/create", status_code=status.HTTP_201_CREATED)
 async def create_listing(
     listing_data: ListingCreate,
@@ -722,6 +733,13 @@ async def create_listing(
     db: Session = Depends(get_db)
 ):
     try:
+        # ========== CHECK IF USER IS SUSPENDED ==========
+        if current_user.status == "suspended":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been suspended. You cannot create listings."
+            )
+        
         # ========== SUBSCRIPTION EXPIRY CHECK ==========
         is_valid, message = check_subscription_valid(current_user)
         if not is_valid:
@@ -1129,4 +1147,4 @@ async def get_sold_rented_listings(
         }
 
 
-print("✅ Listings router loaded with subscription check and geocoding!")
+print("✅ Listings router loaded with subscription check, geocoding, and suspension check!")
