@@ -13,10 +13,9 @@ export const SocketProvider = ({ children }) => {
   const [unreadCount, setUnreadCount] = useState(0)
   const socketRef = useRef(null)
   const eventHandlersRef = useRef(new Map())
-  const [webSocketEnabled, setWebSocketEnabled] = useState(true) // ✅ ENABLED
+  const [webSocketEnabled, setWebSocketEnabled] = useState(true)
 
   useEffect(() => {
-    // ✅ WebSocket ENABLED
     if (!webSocketEnabled) {
       console.log('🔌 WebSocket is disabled')
       return
@@ -30,8 +29,11 @@ export const SocketProvider = ({ children }) => {
       return
     }
 
-    const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/ws'
+    // ✅ Correct WebSocket URL - matches backend /ws/{token}
+    const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
     const websocketUrl = `${wsBaseUrl}/${encodeURIComponent(token)}`
+    console.log('🔌 Connecting to WebSocket:', websocketUrl)
+    
     const newSocket = new WebSocket(websocketUrl)
 
     eventHandlersRef.current = new Map()
@@ -61,26 +63,87 @@ export const SocketProvider = ({ children }) => {
         const handlers = eventHandlersRef.current.get(type) || []
         handlers.forEach((handler) => handler(payload))
 
-        // Dispatch chat-related events for BuyerMessages/SellerMessages
         switch (type) {
+          // Step 2: New message received by User B
           case 'new_message':
+            console.log('📨 New message received:', payload.message)
             window.dispatchEvent(new CustomEvent('new_chat_message', { detail: payload.message }))
+            
+            // Auto-send delivered receipt
+            if (socketRef.current?.readyState === WebSocket.OPEN && payload.message) {
+              socketRef.current.send(JSON.stringify({
+                type: 'message_delivered',
+                message_id: payload.message.id,
+                sender_id: payload.message.sender_id
+              }))
+              console.log(`📤 Sent delivered receipt for message ${payload.message.id}`)
+            }
+            
+            if (payload.message) {
+              window.dispatchEvent(new CustomEvent('new_chat_message_notification', {
+                detail: {
+                  message: payload.message,
+                  sender_id: payload.message.sender_id,
+                  sender_name: payload.message.sender_name,
+                  sender_role: payload.message.sender_role
+                }
+              }))
+            }
             break
+            
+          // Step 3: Message sent confirmation to User A (Single gray check)
           case 'message_sent':
+            console.log('✅ Message sent confirmation:', payload.message)
             window.dispatchEvent(new CustomEvent('message_sent', { detail: payload.message }))
             break
-          case 'messages_read':
-            window.dispatchEvent(new CustomEvent('messages_read', { detail: payload }))
+            
+          // Step 5: Delivered receipt to User A (Gray double check)
+          case 'message_delivered':
+            console.log('📦 Message delivered receipt:', payload)
+            window.dispatchEvent(new CustomEvent('message_delivered', { 
+              detail: { 
+                message_id: payload.message_id,
+                status: 'delivered'
+              } 
+            }))
             break
+            
+          // Step 8: Read receipt to User A (Blue double check)
+          case 'messages_read':
+            console.log('📖 Messages read event received:', payload)
+            window.dispatchEvent(new CustomEvent('messages_read', { 
+              detail: { 
+                reader_id: payload.reader_id, 
+                sender_id: payload.sender_id,
+                read_at: payload.read_at 
+              } 
+            }))
+            break
+            
+          // Handle read_receipt events from backend
+          case 'read_receipt':
+            console.log('📖 Read receipt received:', payload)
+            window.dispatchEvent(new CustomEvent('messages_read', { 
+              detail: { 
+                reader_id: payload.reader_id, 
+                sender_id: payload.sender_id,
+                read_at: payload.read_at 
+              } 
+            }))
+            break
+            
           case 'typing':
             window.dispatchEvent(new CustomEvent('user_typing', { detail: payload }))
             break
+            
           case 'user_status':
             window.dispatchEvent(new CustomEvent('user_status_change', { detail: payload }))
             break
+            
           case 'connection_established':
             console.log('🔌 Connection established with server')
             break
+            
           case 'new_payment':
             setNotifications((prev) => [{
               id: Date.now(),
@@ -104,6 +167,7 @@ export const SocketProvider = ({ children }) => {
               { duration: 10000 }
             )
             break
+            
           case 'account_activated':
             setNotifications((prev) => [{
               id: Date.now(),
@@ -135,6 +199,7 @@ export const SocketProvider = ({ children }) => {
               { duration: 5000 }
             )
             break
+            
           case 'payment_approved':
             setNotifications((prev) => [{
               id: Date.now(),
@@ -166,6 +231,7 @@ export const SocketProvider = ({ children }) => {
               { duration: 5000 }
             )
             break
+            
           case 'payment_rejected':
             setNotifications((prev) => [{
               id: Date.now(),
@@ -185,6 +251,7 @@ export const SocketProvider = ({ children }) => {
               { duration: 8000 }
             )
             break
+            
           default:
             break
         }

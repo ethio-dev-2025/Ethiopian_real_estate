@@ -1,3 +1,4 @@
+// src/components/dashboard/admin/PaymentHistory.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   CheckCircle, XCircle, Clock, Eye, RefreshCw, 
@@ -141,7 +142,6 @@ const PaymentHistory = () => {
     }
   }, [])
 
-  // Initial load only - NO AUTO-REFRESH
   useEffect(() => {
     fetchAllPayments()
   }, [])
@@ -190,7 +190,7 @@ const PaymentHistory = () => {
               overflow: hidden;
             }
             .receipt-header {
-              background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+              background: linear-gradient(135deg, #1e3a8a 0%, #0f766e 100%);
               color: white;
               padding: 30px;
               text-align: center;
@@ -283,7 +283,7 @@ const PaymentHistory = () => {
               </div>
             </div>
             <div class="no-print" style="text-align: center; margin-top: 15px;">
-              <button onclick="window.print()" style="padding: 8px 16px; background: #2563EB; color: white; border: none; border-radius: 6px; cursor: pointer;">🖨️ Print</button>
+              <button onclick="window.print()" style="padding: 8px 16px; background: #1e3a8a; color: white; border: none; border-radius: 6px; cursor: pointer;">🖨️ Print</button>
               <button onclick="window.close()" style="padding: 8px 16px; background: #6B7280; color: white; border: none; border-radius: 6px; cursor: pointer;">Close</button>
             </div>
           </div>
@@ -303,15 +303,15 @@ const PaymentHistory = () => {
     const statusLower = status?.toLowerCase() || ''
     
     if (statusLower === 'pending') {
-      return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Pending</span>
+      return <span className="px-2 py-1 bg-warning/10 text-warning rounded-full text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Pending</span>
     }
     if (statusLower === 'approved') {
-      return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Paid</span>
+      return <span className="px-2 py-1 bg-success/10 text-success rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Paid</span>
     }
     if (statusLower === 'rejected') {
-      return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Rejected</span>
+      return <span className="px-2 py-1 bg-error/10 text-error rounded-full text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Rejected</span>
     }
-    return <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">{status}</span>
+    return <span className="px-2 py-1 bg-gray-100 text-text-muted rounded-full text-xs">{status}</span>
   }
 
   // Calculate totals
@@ -355,37 +355,40 @@ const PaymentHistory = () => {
     
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={() => setShowDetailsModal(false)}>
-        <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200" onClick={(e) => e.stopPropagation()}>
-          <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-blue-600" />
+        <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-border-light" onClick={(e) => e.stopPropagation()}>
+          <div className="sticky top-0 bg-white border-b border-border-light p-4 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-primary-600" />
               Payment Details
             </h2>
             <button onClick={() => setShowDetailsModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition">
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-text-muted" />
             </button>
           </div>
           
           <div className="p-6 space-y-6">
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">User Information</h3>
+              <h3 className="font-semibold text-text-primary mb-3">User Information</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-sm text-gray-500">Name</p><p className="font-medium">{selectedPayment.user_name}</p></div>
-                <div><p className="text-sm text-gray-500">Email</p><p className="font-medium">{selectedPayment.user_email}</p></div>
-                <div><p className="text-sm text-gray-500">Phone</p><p className="font-medium">{selectedPayment.phone_number || 'N/A'}</p></div>
+                <div><p className="text-sm text-text-muted">Name</p><p className="font-medium text-text-primary">{selectedPayment.user_name}</p></div>
+                <div><p className="text-sm text-text-muted">Email</p><p className="font-medium text-text-primary">{selectedPayment.user_email}</p></div>
+                <div><p className="text-sm text-text-muted">Phone</p><p className="font-medium text-text-primary">{selectedPayment.phone_number || 'N/A'}</p></div>
               </div>
             </div>
             
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Payment Information</h3>
+              <h3 className="font-semibold text-text-primary mb-3">Payment Information</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-sm text-gray-500">Plan</p><p className="font-medium capitalize">{selectedPayment.plan_type}</p></div>
-                <div><p className="text-sm text-gray-500">Amount</p><p className="font-bold text-green-600">{formatAmount(selectedPayment.amount)}</p></div>
-                <div><p className="text-sm text-gray-500">Status</p><div>{getStatusBadge(selectedPayment.status)}</div></div>
-                <div><p className="text-sm text-gray-500">Transaction ID</p><p className="font-medium text-sm break-all">{selectedPayment.transaction_id}</p></div>
+                <div><p className="text-sm text-text-muted">Plan</p><p className="font-medium capitalize text-text-primary">{selectedPayment.plan_type}</p></div>
+                <div><p className="text-sm text-text-muted">Amount</p><p className="font-bold text-success">{formatAmount(selectedPayment.amount)}</p></div>
+                <div><p className="text-sm text-text-muted">Status</p><div>{getStatusBadge(selectedPayment.status)}</div></div>
                 <div className="col-span-2">
-                  <p className="text-sm text-gray-500">Payment Date & Time</p>
-                  <p className="font-medium">{formatRealDateTime(selectedPayment.created_at)}</p>
+                  <p className="text-sm text-text-muted">Transaction ID</p>
+                  <p className="font-medium text-text-primary text-sm break-all">{selectedPayment.transaction_id}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-text-muted">Payment Date & Time</p>
+                  <p className="font-medium text-text-primary">{formatRealDateTime(selectedPayment.created_at)}</p>
                 </div>
               </div>
             </div>
@@ -393,7 +396,7 @@ const PaymentHistory = () => {
             <div>
               <button 
                 onClick={() => handleDownloadReceipt(selectedPayment.id)} 
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
               >
                 <Printer className="w-4 h-4" /> Print Receipt
               </button>
@@ -406,7 +409,7 @@ const PaymentHistory = () => {
 
   if (loading && allPayments.length === 0) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="p-6 bg-background min-h-screen">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-64"></div>
           <div className="h-64 bg-gray-200 rounded"></div>
@@ -416,39 +419,39 @@ const PaymentHistory = () => {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-background min-h-screen">
       {showDetailsModal && <DetailsModal />}
 
       <div className="mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Payment History</h1>
-            <p className="text-gray-500 mt-1">Payment records from database - Newest payments shown first</p>
+            <h1 className="text-2xl font-bold text-text-primary">Payment History</h1>
+            <p className="text-text-muted mt-1">Payment records from database - Newest payments shown first</p>
           </div>
           
           <div className="flex gap-3">
-            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-gray-200">
-              <p className="text-xs text-gray-500">Total Payments</p>
-              <p className="text-xl font-bold text-gray-800">{totalPayments}</p>
+            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-border-light">
+              <p className="text-xs text-text-muted">Total Payments</p>
+              <p className="text-xl font-bold text-text-primary">{totalPayments}</p>
             </div>
-            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-gray-200">
-              <p className="text-xs text-gray-500">Approved</p>
-              <p className="text-xl font-bold text-green-600">{approvedCount}</p>
+            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-border-light">
+              <p className="text-xs text-text-muted">Approved</p>
+              <p className="text-xl font-bold text-success">{approvedCount}</p>
             </div>
-            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-gray-200">
-              <p className="text-xs text-gray-500">Pending</p>
-              <p className="text-xl font-bold text-yellow-600">{pendingCount}</p>
+            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-border-light">
+              <p className="text-xs text-text-muted">Pending</p>
+              <p className="text-xl font-bold text-warning">{pendingCount}</p>
             </div>
-            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-gray-200">
-              <p className="text-xs text-gray-500">Rejected</p>
-              <p className="text-xl font-bold text-red-600">{rejectedCount}</p>
+            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-border-light">
+              <p className="text-xs text-text-muted">Rejected</p>
+              <p className="text-xl font-bold text-error">{rejectedCount}</p>
             </div>
-            <div className="bg-green-50 rounded-lg px-4 py-2 text-center shadow-sm border border-green-200">
-              <p className="text-xs text-gray-500">Total Revenue</p>
-              <p className="text-xl font-bold text-green-600">
+            <div className="bg-success/10 rounded-lg px-4 py-2 text-center shadow-sm border border-success/20">
+              <p className="text-xs text-text-muted">Total Revenue</p>
+              <p className="text-xl font-bold text-success">
                 ETB {approvedRevenue.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-400">(Approved only)</p>
+              <p className="text-xs text-text-muted">(Approved only)</p>
             </div>
           </div>
         </div>
@@ -456,7 +459,7 @@ const PaymentHistory = () => {
 
       {/* Search */}
       <div className="mb-6 relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted w-5 h-5" />
         <input 
           type="text" 
           placeholder="Search by name, email, phone, or transaction ID..." 
@@ -465,20 +468,20 @@ const PaymentHistory = () => {
             setSearchTerm(e.target.value)
             setCurrentPage(1)
           }} 
-          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" 
+          className="w-full pl-10 pr-4 py-2 bg-white border border-border-light rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-text-primary placeholder-text-muted" 
         />
       </div>
 
       {/* Stats */}
       <div className="flex justify-between items-center mb-4">
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-text-muted">
           Showing {filteredPayments.length > 0 ? indexOfFirstItem + 1 : 0} - {Math.min(indexOfLastItem, filteredPayments.length)} of {filteredPayments.length} payments
-          <span className="ml-2 text-xs text-blue-600 font-medium">(Newest first - 12-hour format)</span>
+          <span className="ml-2 text-xs text-primary-600 font-medium">(Newest first - 12-hour format)</span>
         </div>
         <button 
           onClick={handleManualRefresh} 
           disabled={loading}
-          className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+          className="px-3 py-2 text-sm border border-border-light rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50 text-text-secondary transition"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> 
           {loading ? 'Loading...' : 'Refresh'}
@@ -486,61 +489,61 @@ const PaymentHistory = () => {
       </div>
 
       {filteredPayments.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center">
-          <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">No Payments Found</h3>
-          <p className="text-gray-500">No payment records available yet.</p>
+        <div className="bg-white rounded-xl border border-border-light p-12 text-center">
+          <CreditCard className="w-16 h-16 text-text-muted mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-text-primary mb-2">No Payments Found</h3>
+          <p className="text-text-muted">No payment records available yet.</p>
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-border-light shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[800px]">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-gray-50 border-b border-border-light">
                   <tr>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600">User</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600">Contact</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600">Plan</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600">Amount</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600">Status</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600">Payment Date & Time</th>
-                    <th className="text-center p-4 text-sm font-semibold text-gray-600">Actions</th>
+                    <th className="text-left p-4 text-sm font-semibold text-text-muted">User</th>
+                    <th className="text-left p-4 text-sm font-semibold text-text-muted">Contact</th>
+                    <th className="text-left p-4 text-sm font-semibold text-text-muted">Plan</th>
+                    <th className="text-left p-4 text-sm font-semibold text-text-muted">Amount</th>
+                    <th className="text-left p-4 text-sm font-semibold text-text-muted">Status</th>
+                    <th className="text-left p-4 text-sm font-semibold text-text-muted">Payment Date & Time</th>
+                    <th className="text-center p-4 text-sm font-semibold text-text-muted">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-border-light">
                   {currentPayments.map((payment, idx) => {
                     const isNewest = idx === 0 && currentPage === 1 && allPayments.length > 0
                     
                     return (
                       <tr key={payment.id} className="hover:bg-gray-50 transition">
                         <td className="p-4">
-                          <p className="font-medium text-gray-900">{payment.user_name || 'Unknown'}</p>
-                          <p className="text-xs text-gray-400">ID: {payment.user_id}</p>
+                          <p className="font-medium text-text-primary">{payment.user_name || 'Unknown'}</p>
+                          <p className="text-xs text-text-muted">ID: {payment.user_id}</p>
                           {isNewest && (
-                            <span className="inline-block mt-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">🔥 Newest</span>
+                            <span className="inline-block mt-1 px-1.5 py-0.5 bg-success/10 text-success text-xs rounded-full">🔥 Newest</span>
                           )}
                         </td>
                         <td className="p-4">
-                          <div className="flex items-center gap-1 text-sm text-gray-600 mb-1">
+                          <div className="flex items-center gap-1 text-sm text-text-secondary mb-1">
                             <Mail className="w-3 h-3" />
                             <span className="truncate max-w-[150px]">{payment.user_email}</span>
                           </div>
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <div className="flex items-center gap-1 text-sm text-text-secondary">
                             <Phone className="w-3 h-3" />
                             <span>{payment.phone_number || 'No phone'}</span>
                           </div>
                         </td>
                         <td className="p-4">
-                          <span className="capitalize text-sm font-medium">{payment.plan_type}</span>
+                          <span className="capitalize text-sm font-medium text-text-primary">{payment.plan_type}</span>
                         </td>
                         <td className="p-4">
-                          <span className="font-bold text-green-600">{formatAmount(payment.amount)}</span>
+                          <span className="font-bold text-success">{formatAmount(payment.amount)}</span>
                         </td>
                         <td className="p-4">
                           {getStatusBadge(payment.status)}
                         </td>
                         <td className="p-4">
-                          <div className="flex items-center gap-1 text-sm text-gray-700">
+                          <div className="flex items-center gap-1 text-sm text-text-primary">
                             <Calendar className="w-3 h-3" />
                             <span className="font-mono">{formatRealDateTime(payment.created_at)}</span>
                           </div>
@@ -548,7 +551,7 @@ const PaymentHistory = () => {
                         <td className="p-4 text-center">
                           <button 
                             onClick={() => { setSelectedPayment(payment); setShowDetailsModal(true); }} 
-                            className="px-3 py-1.5 border rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-1 mx-auto"
+                            className="px-3 py-1.5 border border-border-light rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-1 mx-auto text-text-secondary transition"
                           >
                             <Eye className="w-4 h-4" /> Details
                           </button>
@@ -567,16 +570,16 @@ const PaymentHistory = () => {
               <button
                 onClick={() => handlePageChange(1)}
                 disabled={currentPage === 1}
-                className="p-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                className="p-2 border border-border-light rounded-lg disabled:opacity-50 hover:bg-gray-50 transition"
               >
                 ⟪
               </button>
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="p-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                className="p-2 border border-border-light rounded-lg disabled:opacity-50 hover:bg-gray-50 transition"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-5 h-5 text-text-muted" />
               </button>
               
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -596,8 +599,8 @@ const PaymentHistory = () => {
                     onClick={() => handlePageChange(pageNum)}
                     className={`w-10 h-10 rounded-lg font-medium transition ${
                       currentPage === pageNum
-                        ? 'bg-blue-600 text-white'
-                        : 'border text-gray-600 hover:bg-gray-50'
+                        ? 'bg-primary-600 text-white'
+                        : 'border border-border-light text-text-secondary hover:bg-gray-50'
                     }`}
                   >
                     {pageNum}
@@ -608,14 +611,14 @@ const PaymentHistory = () => {
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="p-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                className="p-2 border border-border-light rounded-lg disabled:opacity-50 hover:bg-gray-50 transition"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5 text-text-muted" />
               </button>
               <button
                 onClick={() => handlePageChange(totalPages)}
                 disabled={currentPage === totalPages}
-                className="p-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                className="p-2 border border-border-light rounded-lg disabled:opacity-50 hover:bg-gray-50 transition"
               >
                 ⟫
               </button>

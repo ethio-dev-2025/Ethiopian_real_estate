@@ -1,21 +1,6 @@
-// src/component/dashboard/common/StatsCard.jsx
+// src/components/common/StatsCard.jsx
 import React from 'react';
-import {
-  Card,
-  CardContent,
-  Typography,
-  Box,
-  Avatar,
-  LinearProgress,
-  Tooltip,
-  IconButton
-} from '@mui/material';
-import {
-  TrendingUp,
-  TrendingDown,
-  Info,
-  MoreVert
-} from '@mui/icons-material';
+import { TrendingUp, TrendingDown, Info, MoreVert } from 'lucide-react';
 
 const StatsCard = ({ 
   title, 
@@ -31,93 +16,82 @@ const StatsCard = ({
 }) => {
   const getTrendIcon = () => {
     if (!trend) return null;
-    return trend === 'up' ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />;
+    return trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />;
   };
 
   const getTrendColor = () => {
-    if (!trend) return 'text.secondary';
-    return trend === 'up' ? 'success.main' : 'error.main';
+    if (!trend) return 'text-text-muted';
+    return trend === 'up' ? 'text-success' : 'text-error';
   };
+
+  const getColorClasses = () => {
+    switch(color) {
+      case 'primary':
+        return { bg: 'bg-primary-100', text: 'text-primary-700' };
+      case 'secondary':
+        return { bg: 'bg-secondary-100', text: 'text-secondary-700' };
+      case 'success':
+        return { bg: 'bg-green-100', text: 'text-green-700' };
+      case 'warning':
+        return { bg: 'bg-yellow-100', text: 'text-yellow-700' };
+      default:
+        return { bg: 'bg-primary-100', text: 'text-primary-700' };
+    }
+  };
+
+  const colorClasses = getColorClasses();
 
   if (loading) {
     return (
-      <Card>
-        <CardContent>
-          <LinearProgress />
-          <Typography sx={{ mt: 2, textAlign: 'center' }}>Loading...</Typography>
-        </CardContent>
-      </Card>
+      <div className="bg-white rounded-2xl shadow-md border border-border-light p-6">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-24 mb-4"></div>
+          <div className="h-8 bg-gray-200 rounded w-32 mb-2"></div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card 
-      sx={{ 
-        height: '100%',
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        '&:hover': onClick ? {
-          transform: 'translateY(-4px)',
-          boxShadow: 4
-        } : {}
-      }}
+    <div 
+      className={`bg-white rounded-2xl shadow-md border border-border-light p-6 transition-all duration-200 ${onClick ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1' : ''}`}
       onClick={onClick}
     >
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              {title}
-            </Typography>
-            <Typography variant="h4" component="div" fontWeight="bold">
-              {typeof value === 'number' ? value.toLocaleString() : value}
-            </Typography>
-            
-            {(trend || trendValue) && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-                <Box sx={{ color: getTrendColor(), display: 'flex', alignItems: 'center' }}>
-                  {getTrendIcon()}
-                  <Typography variant="caption" sx={{ ml: 0.5 }}>
-                    {trendValue}
-                  </Typography>
-                </Box>
-                {subtext && (
-                  <Typography variant="caption" color="text.secondary">
-                    {subtext}
-                  </Typography>
-                )}
-              </Box>
-            )}
-          </Box>
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <p className="text-sm text-text-muted mb-1">{title}</p>
+          <p className="text-2xl font-bold text-text-primary">
+            {typeof value === 'number' ? value.toLocaleString() : value}
+          </p>
           
-          <Box>
-            <Avatar 
-              sx={{ 
-                bgcolor: `${color}.light`, 
-                color: `${color}.main`,
-                width: 48,
-                height: 48
-              }}
-            >
-              {icon}
-            </Avatar>
-          </Box>
-        </Box>
+          {(trend || trendValue) && (
+            <div className="flex items-center gap-1 mt-2">
+              <div className={`flex items-center ${getTrendColor()}`}>
+                {getTrendIcon()}
+                <span className="text-xs ml-0.5">{trendValue}</span>
+              </div>
+              {subtext && (
+                <span className="text-xs text-text-muted">{subtext}</span>
+              )}
+            </div>
+          )}
+        </div>
         
-        {actions && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-            <Tooltip title="More options">
-              <IconButton size="small" onClick={(e) => {
-                e.stopPropagation();
-                // Handle actions menu
-              }}>
-                <MoreVert fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        )}
-      </CardContent>
-    </Card>
+        <div className={`w-12 h-12 ${colorClasses.bg} rounded-xl flex items-center justify-center`}>
+          <div className={`w-6 h-6 ${colorClasses.text}`}>
+            {icon}
+          </div>
+        </div>
+      </div>
+      
+      {actions && (
+        <div className="flex justify-end mt-2">
+          <button className="p-1 text-text-muted hover:text-text-primary transition-colors">
+            <MoreVert className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -64,31 +64,31 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
 
   return (
     <div className="bg-white rounded-2xl shadow-xl border overflow-hidden">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+      <div className="bg-gradient-to-r from-primary-800 to-primary-900 p-6 text-white">
         <div className="flex items-center gap-3">
           <Upload className="w-8 h-8" />
           <div>
             <h2 className="text-2xl font-bold">Upload Required Documents</h2>
-            <p className="text-blue-100 mt-1">Please submit all required documents to activate your account</p>
+            <p className="text-primary-100 mt-1">Please submit all required documents to activate your account</p>
           </div>
         </div>
       </div>
       
       <div className="p-6 space-y-6">
         {/* Business License */}
-        <div className={`border-2 rounded-xl p-4 transition-all ${uploadedFiles.business_license ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
+        <div className={`border-2 rounded-xl p-4 transition-all ${uploadedFiles.business_license ? 'border-success bg-success/10' : 'border-gray-200 hover:border-primary-300'}`}>
           <div className="flex items-start gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${uploadedFiles.business_license ? 'bg-green-100' : 'bg-blue-100'}`}>
-              <FileText className={`w-6 h-6 ${uploadedFiles.business_license ? 'text-green-600' : 'text-blue-600'}`} />
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${uploadedFiles.business_license ? 'bg-success/20' : 'bg-primary-100'}`}>
+              <FileText className={`w-6 h-6 ${uploadedFiles.business_license ? 'text-success' : 'text-primary-700'}`} />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-lg">Business License</h3>
-                {uploadedFiles.business_license && <CheckCircle className="w-5 h-5 text-green-600" />}
+                {uploadedFiles.business_license && <CheckCircle className="w-5 h-5 text-success" />}
               </div>
               <p className="text-sm text-gray-500 mb-3">Valid business license or trade registration</p>
               {!uploadedFiles.business_license ? (
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition-colors">
+                <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary-700 text-white rounded-lg cursor-pointer hover:bg-primary-800 transition-colors">
                   <Upload className="w-4 h-4" />
                   Upload File
                   <input 
@@ -100,9 +100,9 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
                 </label>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600">{uploadedFiles.business_license.name}</span>
+                  <span className="text-sm text-success">{uploadedFiles.business_license.name}</span>
                   <button onClick={() => removeFile('business_license')} className="p-1 hover:bg-gray-200 rounded">
-                    <X className="w-4 h-4 text-red-500" />
+                    <X className="w-4 h-4 text-error" />
                   </button>
                 </div>
               )}
@@ -111,19 +111,19 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
         </div>
 
         {/* Tax Clearance Certificate */}
-        <div className={`border-2 rounded-xl p-4 transition-all ${uploadedFiles.tax_certificate ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
+        <div className={`border-2 rounded-xl p-4 transition-all ${uploadedFiles.tax_certificate ? 'border-success bg-success/10' : 'border-gray-200 hover:border-primary-300'}`}>
           <div className="flex items-start gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${uploadedFiles.tax_certificate ? 'bg-green-100' : 'bg-green-100'}`}>
-              <FileText className={`w-6 h-6 ${uploadedFiles.tax_certificate ? 'text-green-600' : 'text-green-600'}`} />
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${uploadedFiles.tax_certificate ? 'bg-success/20' : 'bg-primary-100'}`}>
+              <FileText className={`w-6 h-6 ${uploadedFiles.tax_certificate ? 'text-success' : 'text-primary-700'}`} />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-lg">Tax Clearance Certificate</h3>
-                {uploadedFiles.tax_certificate && <CheckCircle className="w-5 h-5 text-green-600" />}
+                {uploadedFiles.tax_certificate && <CheckCircle className="w-5 h-5 text-success" />}
               </div>
               <p className="text-sm text-gray-500 mb-3">Recent tax clearance certificate</p>
               {!uploadedFiles.tax_certificate ? (
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg cursor-pointer hover:bg-green-700 transition-colors">
+                <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary-700 text-white rounded-lg cursor-pointer hover:bg-primary-800 transition-colors">
                   <Upload className="w-4 h-4" />
                   Upload File
                   <input 
@@ -135,9 +135,9 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
                 </label>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600">{uploadedFiles.tax_certificate.name}</span>
+                  <span className="text-sm text-success">{uploadedFiles.tax_certificate.name}</span>
                   <button onClick={() => removeFile('tax_certificate')} className="p-1 hover:bg-gray-200 rounded">
-                    <X className="w-4 h-4 text-red-500" />
+                    <X className="w-4 h-4 text-error" />
                   </button>
                 </div>
               )}
@@ -146,19 +146,19 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
         </div>
 
         {/* Government ID */}
-        <div className={`border-2 rounded-xl p-4 transition-all ${uploadedFiles.government_id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
+        <div className={`border-2 rounded-xl p-4 transition-all ${uploadedFiles.government_id ? 'border-success bg-success/10' : 'border-gray-200 hover:border-primary-300'}`}>
           <div className="flex items-start gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${uploadedFiles.government_id ? 'bg-green-100' : 'bg-purple-100'}`}>
-              <Shield className={`w-6 h-6 ${uploadedFiles.government_id ? 'text-green-600' : 'text-purple-600'}`} />
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${uploadedFiles.government_id ? 'bg-success/20' : 'bg-primary-100'}`}>
+              <Shield className={`w-6 h-6 ${uploadedFiles.government_id ? 'text-success' : 'text-primary-700'}`} />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-lg">Government ID</h3>
-                {uploadedFiles.government_id && <CheckCircle className="w-5 h-5 text-green-600" />}
+                {uploadedFiles.government_id && <CheckCircle className="w-5 h-5 text-success" />}
               </div>
               <p className="text-sm text-gray-500 mb-3">Passport or national ID card</p>
               {!uploadedFiles.government_id ? (
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg cursor-pointer hover:bg-purple-700 transition-colors">
+                <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary-700 text-white rounded-lg cursor-pointer hover:bg-primary-800 transition-colors">
                   <Upload className="w-4 h-4" />
                   Upload File
                   <input 
@@ -170,9 +170,9 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
                 </label>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600">{uploadedFiles.government_id.name}</span>
+                  <span className="text-sm text-success">{uploadedFiles.government_id.name}</span>
                   <button onClick={() => removeFile('government_id')} className="p-1 hover:bg-gray-200 rounded">
-                    <X className="w-4 h-4 text-red-500" />
+                    <X className="w-4 h-4 text-error" />
                   </button>
                 </div>
               )}
@@ -181,19 +181,19 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
         </div>
 
         {/* Property Documents */}
-        <div className={`border-2 rounded-xl p-4 transition-all ${uploadedFiles.property_documents ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
+        <div className={`border-2 rounded-xl p-4 transition-all ${uploadedFiles.property_documents ? 'border-success bg-success/10' : 'border-gray-200 hover:border-primary-300'}`}>
           <div className="flex items-start gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${uploadedFiles.property_documents ? 'bg-green-100' : 'bg-orange-100'}`}>
-              <Home className={`w-6 h-6 ${uploadedFiles.property_documents ? 'text-green-600' : 'text-orange-600'}`} />
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${uploadedFiles.property_documents ? 'bg-success/20' : 'bg-primary-100'}`}>
+              <Home className={`w-6 h-6 ${uploadedFiles.property_documents ? 'text-success' : 'text-primary-700'}`} />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-lg">Property Documents</h3>
-                {uploadedFiles.property_documents && <CheckCircle className="w-5 h-5 text-green-600" />}
+                {uploadedFiles.property_documents && <CheckCircle className="w-5 h-5 text-success" />}
               </div>
               <p className="text-sm text-gray-500 mb-3">Property ownership proof or title deed</p>
               {!uploadedFiles.property_documents ? (
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg cursor-pointer hover:bg-orange-700 transition-colors">
+                <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary-700 text-white rounded-lg cursor-pointer hover:bg-primary-800 transition-colors">
                   <Upload className="w-4 h-4" />
                   Upload File
                   <input 
@@ -205,9 +205,9 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
                 </label>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600">{uploadedFiles.property_documents.name}</span>
+                  <span className="text-sm text-success">{uploadedFiles.property_documents.name}</span>
                   <button onClick={() => removeFile('property_documents')} className="p-1 hover:bg-gray-200 rounded">
-                    <X className="w-4 h-4 text-red-500" />
+                    <X className="w-4 h-4 text-error" />
                   </button>
                 </div>
               )}
@@ -226,7 +226,7 @@ const DocumentUpload = ({ onSuccess, onCancel }) => {
         <button 
           onClick={handleSubmit}
           disabled={!allUploaded || uploading}
-          className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+          className="px-6 py-2 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
         >
           {uploading ? <Loader className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
           {uploading ? 'Submitting...' : 'Submit Documents'}

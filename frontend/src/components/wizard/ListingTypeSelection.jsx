@@ -8,7 +8,7 @@ const ListingTypeSelection = ({ onSelect, onClose }) => {
       title: 'For Sale',
       description: 'List your property for sale',
       icon: Home,
-      color: 'blue',
+      color: 'primary',
       features: [
         'Sell property to buyers',
         'Set your asking price',
@@ -21,7 +21,7 @@ const ListingTypeSelection = ({ onSelect, onClose }) => {
       title: 'For Rent',
       description: 'List your property for rent',
       icon: Building2,
-      color: 'green',
+      color: 'secondary',
       features: [
         'Find qualified tenants',
         'Set monthly rent amount',
@@ -30,6 +30,21 @@ const ListingTypeSelection = ({ onSelect, onClose }) => {
       ]
     }
   ]
+
+  const colorClasses = {
+    primary: 'from-primary-700 to-primary-800',
+    secondary: 'from-secondary-500 to-secondary-600'
+  }
+
+  const textColorClasses = {
+    primary: 'text-primary-600',
+    secondary: 'text-secondary-500'
+  }
+
+  const dotColorClasses = {
+    primary: 'bg-primary-600',
+    secondary: 'bg-secondary-500'
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -48,10 +63,6 @@ const ListingTypeSelection = ({ onSelect, onClose }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {listingTypes.map((type) => {
               const Icon = type.icon
-              const colorClasses = {
-                blue: 'from-blue-600 to-blue-700',
-                green: 'from-green-600 to-green-700'
-              }
               
               return (
                 <button
@@ -68,12 +79,12 @@ const ListingTypeSelection = ({ onSelect, onClose }) => {
                   <ul className="space-y-2 mb-6">
                     {type.features.map((feature, idx) => (
                       <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
-                        <div className={`w-1.5 h-1.5 rounded-full bg-${type.color === 'blue' ? 'blue' : 'green'}-500`}></div>
+                        <div className={`w-1.5 h-1.5 rounded-full ${dotColorClasses[type.color]}`}></div>
                         {feature}
                       </li>
                     ))}
                   </ul>
-                  <div className={`flex items-center gap-2 text-${type.color}-600 font-semibold group-hover:gap-3 transition-all`}>
+                  <div className={`flex items-center gap-2 ${textColorClasses[type.color]} font-semibold group-hover:gap-3 transition-all`}>
                     Continue <ArrowRight className="w-4 h-4" />
                   </div>
                 </button>

@@ -86,9 +86,9 @@ async def get_all_properties(
                 "images": images[:3],
                 "cover_image": listing.cover_image,
                 "featured": listing.featured,
-                "latitude": listing.latitude,     # ADDED
-                "longitude": listing.longitude,   # ADDED
-                "listing_status": listing.listing_status,  # ADDED
+                "latitude": listing.latitude,
+                "longitude": listing.longitude,
+                "listing_status": listing.listing_status,
                 "created_at": listing.created_at.isoformat() if listing.created_at else None
             })
         
@@ -103,7 +103,7 @@ async def get_all_properties(
         return {"total": 0, "properties": [], "has_more": False}
 
 
-# ============ GET SINGLE PROPERTY - FIXED WITH LAT/LNG ============
+# ============ GET SINGLE PROPERTY ============
 @router.get("/properties/{property_id}")
 async def get_property_detail(
     property_id: int,
@@ -162,9 +162,9 @@ async def get_property_detail(
             "owner_name": owner.full_name or owner.username if owner else "Unknown",
             "views_count": listing.views_count,
             "featured": listing.featured,
-            "listing_status": listing.listing_status,  # ADDED
-            "latitude": listing.latitude,              # ADDED - IMPORTANT FOR MAP
-            "longitude": listing.longitude,            # ADDED - IMPORTANT FOR MAP
+            "listing_status": listing.listing_status,
+            "latitude": listing.latitude,
+            "longitude": listing.longitude,
             "created_at": listing.created_at.isoformat() if listing.created_at else None
         }
         
@@ -293,35 +293,75 @@ async def get_conversations(
         return []
 
 
-# ============ GET MESSAGE RECIPIENTS ============
+# ============ GET MESSAGE RECIPIENTS (FIXED - Only Admin + Users with Existing Conversations) ============
 @router.get("/users")
 async def get_buyer_message_recipients(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Get users that buyers can message:
+    - Admin users (always)
+    - Users they already have conversations with (sellers/landlords they've contacted)
+    - Does NOT show all sellers/landlords in the system
+    """
     try:
-        owner_ids = db.query(Listing.user_id).filter(
-            Listing.is_draft == False, 
-            Listing.status == 'active'
-        ).distinct()
-
-        recipients = db.query(User).filter(
+        # Get all admin users (excluding current user)
+        admin_users = db.query(User).filter(
             User.id != current_user.id,
             User.status == "active",
-            or_(
-                User.role_type == 'admin',
-                User.id.in_(owner_ids)
-            )
+            User.role_type == 'admin'
         ).order_by(User.full_name.asc()).all()
-
+        
+        # Get users that the buyer already has conversations with
+        existing_conversations = db.query(Conversation).filter(
+            or_(
+                Conversation.buyer_id == current_user.id,
+                Conversation.seller_id == current_user.id
+            )
+        ).all()
+        
+        # Extract unique user IDs from existing conversations
+        conversation_user_ids = set()
+        for conv in existing_conversations:
+            other_user_id = conv.seller_id if conv.buyer_id == current_user.id else conv.buyer_id
+            conversation_user_ids.add(other_user_id)
+        
+        # Get users from existing conversations
+        conversation_users = []
+        if conversation_user_ids:
+            conversation_users = db.query(User).filter(
+                User.id.in_(conversation_user_ids),
+                User.status == "active"
+            ).all()
+        
+        # Combine admin users and conversation users (no duplicates)
+        all_recipients = admin_users + conversation_users
+        
+        # Remove duplicates by user_id
+        unique_recipients = {}
+        for user in all_recipients:
+            if user.id not in unique_recipients:
+                unique_recipients[user.id] = user
+        
         result = []
-        for user in recipients:
+        for user in unique_recipients.values():
+            # Get the latest conversation with this user
             existing_conv = db.query(Conversation).filter(
                 or_(
                     and_(Conversation.buyer_id == current_user.id, Conversation.seller_id == user.id),
                     and_(Conversation.buyer_id == user.id, Conversation.seller_id == current_user.id)
                 )
             ).first()
+            
+            # Count active listings for this user (if they are a seller/landlord)
+            active_listing_count = 0
+            if user.role_type in ['seller', 'landlord', 'dual']:
+                active_listing_count = db.query(Listing).filter(
+                    Listing.user_id == user.id,
+                    Listing.is_draft == False,
+                    Listing.status == "active"
+                ).count()
             
             result.append({
                 "id": user.id,
@@ -332,12 +372,18 @@ async def get_buyer_message_recipients(
                 "email": user.email,
                 "last_message": existing_conv.last_message if existing_conv else None,
                 "last_message_at": existing_conv.last_message_time.isoformat() if existing_conv and existing_conv.last_message_time else None,
-                "unread_count": 0,
+                "unread_count": existing_conv.buyer_unread if existing_conv and existing_conv.buyer_id == current_user.id else (existing_conv.seller_unread if existing_conv else 0),
                 "is_online": False,
-                "conversation_id": existing_conv.id if existing_conv else None
+                "conversation_id": existing_conv.id if existing_conv else None,
+                "active_listing_count": active_listing_count
             })
-
+        
+        # Sort by last_message_at (most recent first)
+        result.sort(key=lambda x: x.get('last_message_at') or '', reverse=True)
+        
+        print(f"✅ Buyer message recipients: {len(result)} users (Admins + existing conversations only)")
         return result
+        
     except Exception as e:
         logger.error(f"Error getting message recipients: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -564,3 +610,6 @@ async def is_property_saved(
         
     except Exception as e:
         return {"success": False, "saved": False}
+
+
+print("✅ Buyer router loaded with FIXED recipient filtering - ONLY Admins + Existing Conversations!")

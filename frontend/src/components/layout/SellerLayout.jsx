@@ -1,3 +1,4 @@
+// src/components/layout/SellerLayout.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import SellerSidebar from './SellerSidebar';
@@ -7,10 +8,16 @@ import { useAuth } from '../../context/AuthContext';
 const SellerLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [daysRemaining, setDaysRemaining] = useState(0);
-  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [daysRemaining, setDaysRemaining] = useState(() => {
+    const saved = localStorage.getItem('seller_days_remaining');
+    return saved ? parseInt(saved) : 0;
+  });
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(() => {
+    const saved = localStorage.getItem('seller_has_active_subscription');
+    return saved === 'true';
+  });
   const [isExpiringSoon, setIsExpiringSoon] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, forceRefreshUser } = useAuth();
@@ -20,83 +27,97 @@ const SellerLayout = ({ children }) => {
     try {
       const end = new Date(endDateString);
       const now = new Date();
-      const diff = end - now;
-      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-      return days > 0 ? days : 0;
+      const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      return diff > 0 ? diff : 0;
     } catch (error) {
       console.error('Error calculating days:', error);
       return 0;
     }
   };
 
+  const updateDaysRemaining = (days, hasActive) => {
+    setDaysRemaining(days);
+    setHasActiveSubscription(hasActive);
+    setIsExpiringSoon(days > 0 && days <= 30);
+    
+    localStorage.setItem('seller_days_remaining', days.toString());
+    localStorage.setItem('seller_has_active_subscription', hasActive.toString());
+  };
+
+  useEffect(() => {
+    const handleImmediateUpdate = (event) => {
+      if (event.detail) {
+        console.log('📡 Layout received immediate update:', event.detail);
+        updateDaysRemaining(event.detail.daysRemaining, event.detail.hasActiveSubscription);
+      }
+    };
+    
+    window.addEventListener('subscription_immediate_update', handleImmediateUpdate);
+    
+    return () => {
+      window.removeEventListener('subscription_immediate_update', handleImmediateUpdate);
+    };
+  }, []);
+
   const refreshSubscriptionStatus = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+      if (!token) return;
       
-      // ALWAYS fetch from API first - most reliable source
       const response = await fetch('http://localhost:8000/api/activation/status', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 SellerLayout - API Status:', data);
+        console.log('📊 SellerLayout - API Status (background):', data);
         
-        const days = data.days_remaining || 0;
+        let days = data.days_remaining || 0;
+        
+        let currentUser = user;
+        if (!currentUser) {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            currentUser = JSON.parse(storedUser);
+          }
+        }
+        
+        if (currentUser?.subscription_end_date && days === 0) {
+          const calculatedDays = calculateDaysRemaining(currentUser.subscription_end_date);
+          if (calculatedDays > 0) {
+            days = calculatedDays;
+          }
+        }
+        
         const hasActive = data.can_create_listings === true && days > 0;
         
-        setDaysRemaining(days);
-        setHasActiveSubscription(hasActive);
-        setIsExpiringSoon(days > 0 && days <= 30);
-        setLoading(false);
-        return;
-      }
-      
-      // Fallback to user object - but only use real data
-      let currentUser = user;
-      if (!currentUser) {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          currentUser = JSON.parse(storedUser);
-        }
-      }
-      
-      if (currentUser) {
-        // Only use actual subscription_end_date, NO HARDCODED VALUES
-        let days = calculateDaysRemaining(currentUser.subscription_end_date);
-        const hasActive = (currentUser.has_active_subscription === true || 
-                          currentUser.can_create_listings === true) && days > 0;
+        updateDaysRemaining(days, hasActive);
         
-        console.log('📊 SellerLayout - User data:', {
-          subscription_end_date: currentUser.subscription_end_date,
-          daysRemaining: days,
-          hasActiveSubscription: hasActive
-        });
-        
-        setDaysRemaining(days);
-        setHasActiveSubscription(hasActive);
-        setIsExpiringSoon(days > 0 && days <= 30);
-      } else {
-        setDaysRemaining(0);
-        setHasActiveSubscription(false);
-        setIsExpiringSoon(false);
+        window.dispatchEvent(new CustomEvent('subscription_update', { 
+          detail: { daysRemaining: days, hasActiveSubscription: hasActive }
+        }));
       }
     } catch (error) {
       console.error('Error refreshing subscription status:', error);
-      setDaysRemaining(0);
-      setHasActiveSubscription(false);
-      setIsExpiringSoon(false);
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const currentUser = JSON.parse(storedUser);
+        if (currentUser?.subscription_end_date) {
+          const days = calculateDaysRemaining(currentUser.subscription_end_date);
+          const hasActive = (currentUser.has_active_subscription === true || 
+                            currentUser.can_create_listings === true) && days > 0;
+          updateDaysRemaining(days, hasActive);
+        }
+      } catch (e) {}
+    }
+    
     refreshSubscriptionStatus();
+    
     const interval = setInterval(refreshSubscriptionStatus, 30000);
     return () => clearInterval(interval);
   }, [user]);
@@ -136,14 +157,6 @@ const SellerLayout = ({ children }) => {
   };
 
   const getSubscriptionBadge = () => {
-    if (loading) {
-      return {
-        text: 'Loading...',
-        color: 'bg-gray-500',
-        icon: <Clock className="w-3 h-3 animate-spin" />
-      };
-    }
-    
     if (!hasActiveSubscription || daysRemaining === 0) {
       return {
         text: 'Inactive',

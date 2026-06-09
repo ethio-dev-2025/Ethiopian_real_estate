@@ -1,4 +1,3 @@
-# backend/app/routers/websocket.py
 from fastapi import WebSocket, WebSocketDisconnect, APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -37,9 +36,7 @@ class ConnectionManager:
         return False
     
     async def broadcast_unread_count(self, user_id: int, db: Session):
-        """Broadcast unread count to user"""
         try:
-            # Get total unread count
             conversations = db.query(Conversation).filter(
                 (Conversation.buyer_id == user_id) | (Conversation.seller_id == user_id)
             ).all()
@@ -63,7 +60,6 @@ manager = ConnectionManager()
 
 
 def verify_token(token: str):
-    """Verify JWT token"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload.get("sub")
@@ -74,24 +70,19 @@ def verify_token(token: str):
 
 @router.websocket("/ws/{token}")
 async def websocket_endpoint(websocket: WebSocket, token: str):
-    """WebSocket endpoint for real-time chat"""
     db = None
-    user = None
     user_id = None
     
     try:
-        # Accept connection
         await websocket.accept()
         print("🔌 WebSocket connection accepted")
         
-        # Verify token
         email = verify_token(token)
         if not email:
             print("❌ Invalid token")
             await websocket.close(code=1008)
             return
         
-        # Get user
         db = SessionLocal()
         user = db.query(User).filter(User.email == email).first()
         
@@ -103,20 +94,25 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         user_id = user.id
         print(f"✅ User authenticated: {user_id} - {user.email}")
         
-        # Register connection
         await manager.connect(user_id, websocket)
         
-        # Send confirmation and initial unread count
         await websocket.send_json({
             "type": "connection_established",
             "user_id": user_id,
             "message": "Connected"
         })
         
-        # Send initial unread count
         await manager.broadcast_unread_count(user_id, db)
         
-        # Keep connection alive and handle messages
+        # Broadcast online status
+        for uid, ws in manager.active_connections.items():
+            if uid != user_id:
+                await manager.send_personal_message({
+                    "type": "user_status",
+                    "user_id": user_id,
+                    "status": "online"
+                }, uid)
+        
         while True:
             try:
                 data = await websocket.receive_text()
@@ -128,38 +124,79 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 
                 elif msg_type == "read_receipt":
                     sender_id = message.get("sender_id")
+                    reader_id = message.get("reader_id", user_id)
+                    
+                    print(f"📖 READ RECEIPT: User {reader_id} read messages from {sender_id}")
+                    
                     if sender_id and db:
-                        # Mark messages as read
-                        db.query(Message).filter(
+                        # Get all unread messages from sender to reader
+                        unread_messages = db.query(Message).filter(
                             Message.sender_id == sender_id,
-                            Message.receiver_id == user_id,
+                            Message.receiver_id == reader_id,
                             Message.is_read == False
-                        ).update({"is_read": True, "status": "read"})
+                        ).all()
+                        
+                        print(f"   Found {len(unread_messages)} unread messages")
+                        
+                        # Mark all as read
+                        for msg in unread_messages:
+                            msg.is_read = True
+                            msg.status = "read"
+                            msg.read_at = datetime.utcnow()
+                            print(f"   ✅ Marked message {msg.id} as READ")
+                        
                         db.commit()
                         
-                        # Update conversation unread
+                        # Update conversation unread count
                         conversation = db.query(Conversation).filter(
-                            ((Conversation.buyer_id == user_id) & (Conversation.seller_id == sender_id)) |
-                            ((Conversation.buyer_id == sender_id) & (Conversation.seller_id == user_id))
+                            ((Conversation.buyer_id == reader_id) & (Conversation.seller_id == sender_id)) |
+                            ((Conversation.buyer_id == sender_id) & (Conversation.seller_id == reader_id))
                         ).first()
                         
                         if conversation:
-                            if conversation.buyer_id == user_id:
+                            if conversation.buyer_id == reader_id:
                                 conversation.buyer_unread = 0
                             else:
                                 conversation.seller_unread = 0
                             db.commit()
                         
-                        # Send read receipt
+                        # Send read receipt to sender
                         await manager.send_personal_message({
                             "type": "messages_read",
-                            "reader_id": user_id,
+                            "reader_id": reader_id,
                             "sender_id": sender_id,
                             "read_at": datetime.utcnow().isoformat()
                         }, sender_id)
                         
-                        # Update unread count for user
-                        await manager.broadcast_unread_count(user_id, db)
+                        # Also update reader's own UI
+                        await manager.send_personal_message({
+                            "type": "messages_read",
+                            "reader_id": reader_id,
+                            "sender_id": sender_id,
+                            "read_at": datetime.utcnow().isoformat()
+                        }, reader_id)
+                        
+                        # Update unread counts
+                        await manager.broadcast_unread_count(reader_id, db)
+                        await manager.broadcast_unread_count(sender_id, db)
+                        
+                        print(f"   ✅ Sent read receipt to sender {sender_id}")
+                
+                elif msg_type == "message_delivered":
+                    message_id = message.get("message_id")
+                    sender_id = message.get("sender_id")
+                    
+                    if message_id and db:
+                        db.query(Message).filter(Message.id == message_id).update({
+                            "status": "delivered"
+                        })
+                        db.commit()
+                        
+                        await manager.send_personal_message({
+                            "type": "message_delivered",
+                            "message_id": message_id,
+                            "status": "delivered"
+                        }, sender_id)
                 
                 elif msg_type == "typing":
                     receiver_id = message.get("receiver_id")
@@ -170,32 +207,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                             "sender_id": user_id,
                             "is_typing": is_typing
                         }, receiver_id)
-                
-                elif msg_type == "mark_read":
-                    other_user_id = message.get("other_user_id")
-                    if other_user_id and db:
-                        # Mark conversation as read
-                        conversation = db.query(Conversation).filter(
-                            ((Conversation.buyer_id == user_id) & (Conversation.seller_id == other_user_id)) |
-                            ((Conversation.buyer_id == other_user_id) & (Conversation.seller_id == user_id))
-                        ).first()
-                        
-                        if conversation:
-                            if conversation.buyer_id == user_id:
-                                conversation.buyer_unread = 0
-                            else:
-                                conversation.seller_unread = 0
-                            db.commit()
-                            
-                            # Notify other user
-                            await manager.send_personal_message({
-                                "type": "conversation_read",
-                                "user_id": user_id,
-                                "other_user_id": other_user_id
-                            }, other_user_id)
-                            
-                            # Update unread count
-                            await manager.broadcast_unread_count(user_id, db)
                 
             except WebSocketDisconnect:
                 print(f"WebSocket disconnected for user {user_id}")
@@ -212,10 +223,17 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         print(f"WebSocket error: {e}")
     finally:
         if user_id:
+            for uid, ws in manager.active_connections.items():
+                if uid != user_id:
+                    await manager.send_personal_message({
+                        "type": "user_status",
+                        "user_id": user_id,
+                        "status": "offline"
+                    }, uid)
             manager.disconnect(user_id)
         if db:
             db.close()
         print(f"Cleaned up connection for user {user_id}")
 
 
-print("✅ WebSocket router loaded with unread tracking!")
+print("✅ WebSocket router loaded with REAL-TIME read receipts!")

@@ -63,7 +63,8 @@ const BuyerDashboard = () => {
       title: 'Start Exploring',
       description: 'Browse thousands of properties',
       icon: Search,
-      gradient: 'from-blue-500 to-blue-600',
+      bgColor: 'bg-blue-600',
+      gradient: 'from-blue-600 to-blue-800',
       action: () => navigate('/dashboard/buyer/properties'),
       stat: `${savedCount} saved properties`
     },
@@ -71,7 +72,8 @@ const BuyerDashboard = () => {
       title: 'Your Favorites',
       description: 'Properties you\'ve saved',
       icon: Heart,
-      gradient: 'from-rose-500 to-rose-600',
+      bgColor: 'bg-rose-500',
+      gradient: 'from-rose-500 to-rose-700',
       action: () => navigate('/dashboard/buyer/saved'),
       stat: `${savedCount} saved`
     },
@@ -79,40 +81,94 @@ const BuyerDashboard = () => {
       title: 'Messages',
       description: 'Chat with property owners',
       icon: MessageCircle,
-      gradient: 'from-emerald-500 to-emerald-600',
+      bgColor: 'bg-amber-500',
+      gradient: 'from-amber-500 to-amber-700',
       action: () => navigate('/dashboard/buyer/messages'),
-      stat: unreadCount > 0 ? `${unreadCount} unread` : 'Start chatting'
+      stat: unreadCount > 0 ? `${unreadCount} unread messages` : 'Start chatting'
     }
   ];
 
   return (
-    <div>
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-        {quickActions.map((action, index) => {
-          const Icon = action.icon;
-          return (
-            <div
-              key={index}
-              onClick={action.action}
-              className={`bg-gradient-to-r ${action.gradient} rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-lg active:scale-98`}
-            >
-              <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-base sm:text-lg md:text-xl font-bold truncate">{action.title}</h3>
-                  <p className="text-white/80 text-xs sm:text-sm mt-1 line-clamp-2">{action.description}</p>
-                  <p className="text-xs sm:text-sm font-medium mt-2 sm:mt-3 text-white/90 truncate">{action.stat}</p>
-                  <div className="flex items-center gap-1 mt-3 sm:mt-4 text-xs sm:text-sm font-medium text-white/80">
-                    Get Started <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+    <div className="w-full">
+      {/* Welcome Section */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-600 text-sm mt-1">Welcome back, {user?.full_name?.split(' ')[0] || user?.username || 'Buyer'}!</p>
+        <p className="text-gray-400 text-xs mt-0.5">Find your dream property today</p>
       </div>
+
+      {/* Quick Actions Grid - All 3 cards will be visible */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {/* Start Exploring Card */}
+        <div
+          onClick={quickActions[0].action}
+          className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-6 text-white cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-98 min-h-[180px] flex flex-col justify-between shadow-lg"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
+              <Search className="w-7 h-7" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold">Start Exploring</h3>
+              <p className="text-white/80 text-sm mt-1">Browse thousands of properties</p>
+            </div>
+          </div>
+          <div className="mt-4 pt-2">
+            <p className="text-sm font-medium text-white/90">{quickActions[0].stat}</p>
+            <div className="flex items-center gap-1 mt-2 text-sm font-medium text-white/80 group">
+              Get Started <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+        </div>
+
+        {/* Your Favorites Card */}
+        <div
+          onClick={quickActions[1].action}
+          className="bg-gradient-to-br from-rose-500 to-rose-700 rounded-2xl p-6 text-white cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-98 min-h-[180px] flex flex-col justify-between shadow-lg"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
+              <Heart className="w-7 h-7" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold">Your Favorites</h3>
+              <p className="text-white/80 text-sm mt-1">Properties you've saved</p>
+            </div>
+          </div>
+          <div className="mt-4 pt-2">
+            <p className="text-sm font-medium text-white/90">{quickActions[1].stat}</p>
+            <div className="flex items-center gap-1 mt-2 text-sm font-medium text-white/80 group">
+              Get Started <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+        </div>
+
+        {/* Messages Card - Now using AMBER color */}
+        <div
+          onClick={quickActions[2].action}
+          className="bg-gradient-to-br from-amber-500 to-amber-700 rounded-2xl p-6 text-white cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-98 min-h-[180px] flex flex-col justify-between shadow-lg"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
+              <MessageCircle className="w-7 h-7" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold">Messages</h3>
+              <p className="text-white/80 text-sm mt-1">Chat with property owners</p>
+            </div>
+          </div>
+          <div className="mt-4 pt-2">
+            <p className="text-sm font-medium text-white/90">{quickActions[2].stat}</p>
+            <div className="flex items-center gap-1 mt-2 text-sm font-medium text-white/80 group">
+              Get Started <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+        
+      
     </div>
   );
 };

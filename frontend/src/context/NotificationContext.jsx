@@ -44,7 +44,17 @@ export const NotificationProvider = ({ children }) => {
       console.log('New user notifications disabled, skipping...');
       return;
     }
-    toast.success(message)
+    toast.success(message, {
+      style: {
+        background: '#10b981',
+        color: '#ffffff',
+        borderRadius: '12px',
+      },
+      iconTheme: {
+        primary: '#ffffff',
+        secondary: '#10b981',
+      },
+    });
     setNotifications(prev => [{ id: Date.now(), message, type: 'success', timestamp: new Date() }, ...prev].slice(0, 50))
   }, [shouldShowNotification])
 
@@ -57,7 +67,17 @@ export const NotificationProvider = ({ children }) => {
       console.log('New user notifications disabled, skipping...');
       return;
     }
-    toast.error(message)
+    toast.error(message, {
+      style: {
+        background: '#ef4444',
+        color: '#ffffff',
+        borderRadius: '12px',
+      },
+      iconTheme: {
+        primary: '#ffffff',
+        secondary: '#ef4444',
+      },
+    });
     setNotifications(prev => [{ id: Date.now(), message, type: 'error', timestamp: new Date() }, ...prev].slice(0, 50))
   }, [shouldShowNotification])
 
@@ -70,7 +90,17 @@ export const NotificationProvider = ({ children }) => {
       console.log('New user notifications disabled, skipping...');
       return;
     }
-    toast(message)
+    toast(message, {
+      style: {
+        background: '#3b82f6',
+        color: '#ffffff',
+        borderRadius: '12px',
+      },
+      iconTheme: {
+        primary: '#ffffff',
+        secondary: '#3b82f6',
+      },
+    });
     setNotifications(prev => [{ id: Date.now(), message, type: 'info', timestamp: new Date() }, ...prev].slice(0, 50))
   }, [shouldShowNotification])
 

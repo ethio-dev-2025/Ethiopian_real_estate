@@ -1,10 +1,12 @@
+# backend/app/routers/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from jose import JWTError, jwt as jose_jwt
 import bcrypt
-from pydantic import BaseModel, EmailStr
+import re
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 import requests
 import secrets
@@ -26,18 +28,136 @@ router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ============ PYDANTIC MODELS ============
+# ============ EMAIL VALIDATION FUNCTIONS ============
+def is_gmail_email(email: str) -> bool:
+    """Validate that email is a Gmail address"""
+    if not email:
+        return False
+    
+    email_lower = email.lower().strip()
+    allowed_domains = ['gmail.com', 'googlemail.com']
+    
+    for domain in allowed_domains:
+        if email_lower.endswith(f'@{domain}'):
+            return True
+    return False
+
+def validate_email_format(email: str) -> bool:
+    """Validate email format using regex"""
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(email_pattern, email) is not None
+
+def normalize_gmail(email: str) -> str:
+    """Normalize Gmail address by removing dots and +aliases"""
+    if not email:
+        return email
+    
+    email_lower = email.lower().strip()
+    
+    is_gmail = False
+    domain = None
+    
+    for d in ['gmail.com', 'googlemail.com']:
+        if email_lower.endswith(f'@{d}'):
+            is_gmail = True
+            domain = d
+            break
+    
+    if is_gmail:
+        local_part = email_lower.split('@')[0]
+        local_part = local_part.replace('.', '')
+        if '+' in local_part:
+            local_part = local_part.split('+')[0]
+        return f"{local_part}@{domain}"
+    
+    return email_lower
+
+def normalize_buyer_email(username: str) -> str:
+    """Generate a unique email for buyer accounts"""
+    return f"{username.lower().strip()}@buyer.estatehub.com"
+
+# ============ PHONE NUMBER VALIDATION FUNCTIONS ============
+def validate_ethiopian_phone(phone: str) -> bool:
+    """Validate Ethiopian phone numbers"""
+    if not phone:
+        return False
+    
+    cleaned = re.sub(r'[\s\-\(\)]', '', phone)
+    
+    patterns = [
+        r'^09\d{8}$',
+        r'^07\d{8}$',
+        r'^2519\d{8}$',
+        r'^\+2519\d{8}$',
+    ]
+    
+    for pattern in patterns:
+        if re.match(pattern, cleaned):
+            return True
+    return False
+
+def normalize_ethiopian_phone(phone: str) -> str:
+    """Normalize phone number to 09xxxxxxxx format"""
+    if not phone:
+        return ""
+    
+    cleaned = re.sub(r'[\s\-\(\)]', '', phone)
+    
+    if cleaned.startswith('+2519'):
+        cleaned = '0' + cleaned[4:]
+    elif cleaned.startswith('2519'):
+        cleaned = '0' + cleaned[3:]
+    
+    return cleaned
+
+# ============ PYDANTIC MODELS WITH ROLE-BASED VALIDATION ============
 class UserCreate(BaseModel):
-    email: EmailStr
+    email: Optional[str] = None  # Made optional for buyers
     username: str
     password: str
     full_name: str
     phone: Optional[str] = None
     role_type: Optional[str] = "user"
+    
+    @field_validator('email')
+    def validate_email(cls, v, info):
+        """Validate email based on role type"""
+        role_type = info.data.get('role_type', 'user')
+        
+        # For buyers, email is optional - no validation needed
+        if role_type == 'buyer':
+            return v if v else None
+        
+        # For sellers, landlords, dual - Gmail is required
+        if not v:
+            raise ValueError('Email is required for sellers/landlords')
+        
+        if not validate_email_format(v):
+            raise ValueError('Invalid email format')
+        
+        if not is_gmail_email(v):
+            raise ValueError('Email must be a Gmail address (username@gmail.com)')
+        
+        return v.lower().strip()
+    
+    @field_validator('username')
+    def validate_username(cls, v):
+        if not v or len(v) < 3:
+            raise ValueError('Username must be at least 3 characters')
+        if not re.match(r'^[a-zA-Z0-9_]+$', v):
+            raise ValueError('Username can only contain letters, numbers, and underscores')
+        return v.lower().strip()
+    
+    @field_validator('phone')
+    def validate_phone(cls, v):
+        if v and v.strip():
+            if not validate_ethiopian_phone(v):
+                raise ValueError('Please enter a valid Ethiopian phone number (e.g., 0912345678)')
+        return v
 
 class UserResponse(BaseModel):
     id: int
-    email: str
+    email: Optional[str]
     username: str
     full_name: Optional[str]
     phone: Optional[str]
@@ -65,16 +185,10 @@ class GoogleAuthRequest(BaseModel):
     role_type: Optional[str] = "dual"
 
 # ============ HELPER FUNCTIONS ============
-def is_test_user(email: str) -> bool:
-    # Return False to disable auto-activation for all users
-    return False
-
 def get_password_hash(password: str) -> str:
-    """Hash a password using bcrypt"""
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against a hashed password"""
     try:
         result = pwd_context.verify(plain_password, hashed_password)
         print(f"🔐 Password verification: {'SUCCESS' if result else 'FAILED'}")
@@ -132,20 +246,58 @@ async def get_current_buyer_user(current_user: User = Depends(get_current_user))
         raise HTTPException(status_code=403, detail="Buyer access required")
     return current_user
 
-# ============ REGISTER ENDPOINT ============
+# ============ REGISTER ENDPOINT - WITH ROLE-BASED EMAIL VALIDATION ============
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     try:
-        existing_user = db.query(User).filter(
-            (User.email == user_data.email) | (User.username == user_data.username)
-        ).first()
-        
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email or username already registered")
-        
-        hashed_password = get_password_hash(user_data.password)
-        
         user_role = user_data.role_type if user_data.role_type else "user"
+        
+        # Handle email based on role
+        if user_role == 'buyer':
+            # For buyers: generate email from username if not provided
+            if user_data.email:
+                normalized_email = user_data.email.lower().strip()
+            else:
+                normalized_email = normalize_buyer_email(user_data.username)
+        else:
+            # For sellers/landlords/dual: normalize Gmail
+            if not user_data.email:
+                raise HTTPException(status_code=400, detail="Email is required for sellers/landlords")
+            normalized_email = normalize_gmail(user_data.email)
+        
+        # Normalize phone if provided
+        phone_normalized = None
+        if user_data.phone and user_data.phone.strip():
+            phone_normalized = normalize_ethiopian_phone(user_data.phone)
+        
+        # CHECK IF EMAIL ALREADY EXISTS
+        existing_email = db.query(User).filter(User.email == normalized_email).first()
+        if existing_email:
+            raise HTTPException(
+                status_code=400, 
+                detail="Email already registered. Please use a different email or login."
+            )
+        
+        # CHECK IF USERNAME ALREADY EXISTS
+        username_normalized = user_data.username.lower().strip()
+        existing_username = db.query(User).filter(User.username == username_normalized).first()
+        if existing_username:
+            raise HTTPException(
+                status_code=400, 
+                detail="Username already taken. Please choose another username."
+            )
+        
+        # CHECK IF PHONE NUMBER ALREADY EXISTS
+        if phone_normalized:
+            existing_phone = db.query(User).filter(User.phone == phone_normalized).first()
+            if existing_phone:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Phone number already registered. Please use a different phone number or login."
+                )
+        
+        # Hash password
+        hashed_password = get_password_hash(user_data.password)
         
         # Buyers get activated immediately, sellers/landlords need approval
         if user_role == 'buyer':
@@ -155,7 +307,6 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             payment_approved = True
             is_verified = True
         else:
-            # SELLERS, LANDLORDS, DUAL - MUST be approved by admin
             user_status = "pending"
             is_activated = False
             can_create_listings = False
@@ -163,11 +314,11 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             is_verified = False
         
         db_user = User(
-            email=user_data.email,
-            username=user_data.username,
+            email=normalized_email,
+            username=username_normalized,
             full_name=user_data.full_name,
             hashed_password=hashed_password,
-            phone=user_data.phone or "",
+            phone=phone_normalized or "",
             role_type=user_role,
             status=user_status,
             is_active=True,
@@ -216,22 +367,112 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+# ============ CHECK EMAIL AVAILABILITY ENDPOINT (Role-based) ============
+@router.get("/check-email")
+async def check_email_availability(
+    email: str,
+    role_type: str = "dual",
+    db: Session = Depends(get_db)
+):
+    """Check if email is available for registration (Gmail only for sellers)"""
+    if not email:
+        return {"available": False, "valid_format": False, "valid_domain": False, "message": "Email is required"}
+    
+    # For buyers, any email format is acceptable or no email needed
+    if role_type == 'buyer':
+        return {"available": True, "valid_format": True, "valid_domain": True, "message": "Email is available"}
+    
+    # For sellers/landlords/dual - must be Gmail
+    if not validate_email_format(email):
+        return {"available": False, "valid_format": False, "valid_domain": False, "message": "Invalid email format"}
+    
+    if not is_gmail_email(email):
+        return {
+            "available": False, 
+            "valid_format": True, 
+            "valid_domain": False, 
+            "message": "Only Gmail addresses are allowed (username@gmail.com)"
+        }
+    
+    normalized_email = normalize_gmail(email)
+    existing = db.query(User).filter(User.email == normalized_email).first()
+    
+    return {
+        "available": existing is None,
+        "valid_format": True,
+        "valid_domain": True,
+        "message": "Email is available" if not existing else "Email already registered"
+    }
+
+# ============ CHECK PHONE AVAILABILITY ENDPOINT ============
+@router.get("/check-phone")
+async def check_phone_availability(
+    phone: str,
+    db: Session = Depends(get_db)
+):
+    """Check if phone number is available for registration"""
+    if not phone:
+        return {"available": False, "valid_format": False, "message": "Phone number is required"}
+    
+    if not validate_ethiopian_phone(phone):
+        return {
+            "available": False, 
+            "valid_format": False, 
+            "message": "Invalid Ethiopian phone number. Please use format: 0912345678 or 251912345678"
+        }
+    
+    normalized_phone = normalize_ethiopian_phone(phone)
+    existing = db.query(User).filter(User.phone == normalized_phone).first()
+    
+    return {
+        "available": existing is None,
+        "valid_format": True,
+        "message": "Phone number is available" if not existing else "Phone number already registered"
+    }
+
+# ============ CHECK USERNAME AVAILABILITY ENDPOINT ============
+@router.get("/check-username")
+async def check_username_availability(
+    username: str,
+    db: Session = Depends(get_db)
+):
+    """Check if username is available for registration"""
+    if not username or len(username) < 3:
+        return {
+            "available": False, 
+            "valid_format": False, 
+            "message": "Username must be at least 3 characters"
+        }
+    
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return {
+            "available": False, 
+            "valid_format": False, 
+            "message": "Username can only contain letters, numbers, and underscores"
+        }
+    
+    existing = db.query(User).filter(User.username == username.lower().strip()).first()
+    return {
+        "available": existing is None,
+        "valid_format": True,
+        "message": "Username is available" if not existing else "Username already taken"
+    }
+
 # ============ LOGIN ENDPOINT - WITH SUSPENSION CHECK ============
 @router.post("/login")
 async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     try:
         print(f"🔐 Login attempt for: {login_data.email}")
         
-        user = db.query(User).filter(User.email == login_data.email).first()
+        user = db.query(User).filter(User.email == login_data.email.lower().strip()).first()
         
         if not user:
-            user = db.query(User).filter(User.username == login_data.email).first()
+            user = db.query(User).filter(User.username == login_data.email.lower().strip()).first()
         
         if not user:
             print(f"❌ User not found: {login_data.email}")
-            return {"success": False, "error": "Invalid email/username or password"}
+            return {"success": False, "error": "Invalid username or password"}
         
-        # ========== CHECK IF USER IS SUSPENDED ==========
         if user.status == "suspended":
             print(f"🚫 User {user.email} is SUSPENDED - login blocked")
             return {"success": False, "error": "Your account has been suspended. Please contact support."}
@@ -240,12 +481,11 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
         
         if not password_valid:
             print(f"❌ Invalid password for user: {user.email}")
-            return {"success": False, "error": "Invalid email/username or password"}
+            return {"success": False, "error": "Invalid username or password"}
         
         print(f"✅ Login successful for: {user.email}")
         
         user.last_login = datetime.utcnow()
-        
         db.commit()
         db.refresh(user)
         
@@ -290,7 +530,6 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
 # ============ GET CURRENT USER (ME) ENDPOINT ============
 @router.get("/me")
 async def get_current_user_endpoint(current_user: User = Depends(get_current_user)):
-    """Get current user information"""
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -323,7 +562,6 @@ async def get_current_user_endpoint(current_user: User = Depends(get_current_use
 # ============ FORCE REFRESH USER ENDPOINT ============
 @router.get("/force-refresh")
 async def force_refresh_user(current_user: User = Depends(get_current_user)):
-    """Force refresh user data - returns complete user info"""
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -359,7 +597,6 @@ async def google_auth(
     auth_data: GoogleAuthRequest,
     db: Session = Depends(get_db)
 ):
-    """Authenticate user with Google OAuth"""
     try:
         print(f"🔐 Google auth request received")
         
@@ -399,12 +636,12 @@ async def google_auth(
         if not email:
             return {"success": False, "message": "Email not provided by Google"}
         
-        user_role = "dual"
-        
-        user = db.query(User).filter(User.email == email).first()
+        user_role = auth_data.role_type if auth_data.role_type else "dual"
+        normalized_email = normalize_gmail(email)
+        user = db.query(User).filter(User.email == normalized_email).first()
         
         if not user:
-            username = email.split('@')[0]
+            username = email.split('@')[0].replace('.', '')
             base_username = username
             counter = 1
             while db.query(User).filter(User.username == username).first():
@@ -415,18 +652,18 @@ async def google_auth(
             hashed_password = get_password_hash(random_password)
             
             user = User(
-                email=email,
+                email=normalized_email,
                 username=username,
                 full_name=full_name,
                 hashed_password=hashed_password,
                 phone="",
-                role_type="dual",
-                status="pending",
+                role_type=user_role,
+                status="pending" if user_role != "buyer" else "active",
                 is_active=True,
-                is_verified=False,
-                is_activated=False,
-                can_create_listings=False,
-                payment_approved=False,
+                is_verified=False if user_role != "buyer" else True,
+                is_activated=False if user_role != "buyer" else True,
+                can_create_listings=False if user_role != "buyer" else True,
+                payment_approved=False if user_role != "buyer" else True,
                 avatar_url=picture,
                 seller_enabled=False,
                 seller_approved=False,
@@ -439,17 +676,8 @@ async def google_auth(
             db.commit()
             db.refresh(user)
             
-            print(f"✅ New DUAL user created via Google: {email}")
+            print(f"✅ New user created via Google: {email} (Role: {user_role})")
         else:
-            if user.role_type == 'buyer':
-                user.role_type = 'dual'
-                user.seller_enabled = True
-                user.seller_approved = True
-                user.landlord_enabled = True
-                user.landlord_approved = True
-                db.commit()
-                print(f"✅ Updated buyer to DUAL: {email}")
-            
             if picture and not user.avatar_url:
                 user.avatar_url = picture
                 db.commit()
@@ -467,7 +695,7 @@ async def google_auth(
                 "username": user.username,
                 "full_name": user.full_name or user.username,
                 "phone": user.phone,
-                "role_type": "dual",
+                "role_type": user.role_type,
                 "is_activated": user.is_activated,
                 "is_verified": user.is_verified,
                 "status": user.status,
@@ -597,7 +825,6 @@ async def debug_user(
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
-    """Debug endpoint to check user data (admin only)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return {"error": "User not found"}
@@ -615,4 +842,4 @@ async def debug_user(
         "status": user.status
     }
 
-print("✅ Auth router loaded successfully with suspension check!")
+print("✅ Auth router loaded successfully with role-based validation!")

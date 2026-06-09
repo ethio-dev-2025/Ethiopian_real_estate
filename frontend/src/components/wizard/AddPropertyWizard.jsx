@@ -4,7 +4,7 @@ import {
   ChevronRight, ChevronLeft, Sparkles, Eye, X, Star, CheckCircle,
   Wifi, Wind, Thermometer, Coffee, Dumbbell, Tv, 
   Microwave, Refrigerator, Car, Activity, Lock, 
-  TreePine, Heart, Zap, Building2,  // Make sure Building2 is here
+  TreePine, Heart, Zap, Building2,
   Sofa, Phone, Mail, Loader, Droplet, Calendar, Save
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -154,7 +154,6 @@ const AddPropertyWizard = ({ onSuccess }) => {
       const token = localStorage.getItem('access_token')
       const uploadedImageUrls = []
       
-      // Upload images
       for (const img of uploadedImages) {
         if (img.file) {
           const formDataImg = new FormData()
@@ -173,7 +172,6 @@ const AddPropertyWizard = ({ onSuccess }) => {
         }
       }
       
-      // CRITICAL: listing_type MUST be 'rent'
       const propertyData = {
         title: formData.title,
         property_type: formData.property_type,
@@ -208,7 +206,6 @@ const AddPropertyWizard = ({ onSuccess }) => {
       
       if (response.ok && data.success) {
         toast.success('Rental property added successfully!')
-        // IMPORTANT: Call onSuccess to trigger navigation and refresh
         if (onSuccess) {
           onSuccess()
         }
@@ -234,9 +231,9 @@ const AddPropertyWizard = ({ onSuccess }) => {
             <p className="text-gray-500 mt-1">Fill in the details to list your rental property</p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-semibold text-green-600">{Math.round(progress)}% Complete</p>
+            <p className="text-sm font-semibold text-primary-700">{Math.round(progress)}% Complete</p>
             <div className="w-32 h-2 bg-gray-200 rounded-full mt-1 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-green-600 to-teal-600 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+              <div className="h-full bg-gradient-to-r from-primary-700 to-primary-800 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
             </div>
           </div>
         </div>
@@ -244,14 +241,14 @@ const AddPropertyWizard = ({ onSuccess }) => {
         <div className="flex gap-2 mt-6">
           {['Basic Info', 'Location', 'Amenities', 'Photos'].map((label, idx) => (
             <div key={idx} className="flex-1">
-              <div className={`h-1 rounded-full transition-all ${step > idx ? 'bg-green-600' : 'bg-gray-200'}`} />
+              <div className={`h-1 rounded-full transition-all ${step > idx ? 'bg-primary-700' : 'bg-gray-200'}`} />
               <div className="flex items-center gap-2 mt-2">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                  step > idx ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'
+                  step > idx ? 'bg-primary-700 text-white' : 'bg-gray-200 text-gray-500'
                 }`}>
                   {idx + 1}
                 </div>
-                <p className={`text-xs font-medium ${step > idx ? 'text-green-600' : 'text-gray-400'}`}>
+                <p className={`text-xs font-medium ${step > idx ? 'text-primary-700' : 'text-gray-400'}`}>
                   {label}
                 </p>
               </div>
@@ -270,7 +267,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
             className="bg-white rounded-2xl shadow-lg border p-8"
           >
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <Home className="w-5 h-5 text-green-600" />
+              <Home className="w-5 h-5 text-primary-700" />
               Basic Information
             </h2>
             
@@ -282,7 +279,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
                   value={formData.title}
                   onChange={handleChange}
                   placeholder="e.g., Cozy Studio in Bole"
-                  className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-green-500"
+                  className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                 />
               </div>
 
@@ -293,7 +290,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
                     name="property_type"
                     value={formData.property_type}
                     onChange={handleChange}
-                    className="w-full p-4 border rounded-xl"
+                    className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600"
                   >
                     {propertyTypes.map(type => (
                       <option key={type.value} value={type.value}>{type.label}</option>
@@ -310,7 +307,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
                       value={formData.rent}
                       onChange={handleChange}
                       placeholder="Enter rent amount"
-                      className="w-full pl-12 pr-4 py-4 border rounded-xl focus:ring-2 focus:ring-green-500"
+                      className="w-full pl-12 pr-4 py-4 border rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                     />
                   </div>
                 </div>
@@ -370,7 +367,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
             className="bg-white rounded-2xl shadow-lg border p-8"
           >
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-green-600" />
+              <MapPin className="w-5 h-5 text-primary-700" />
               Location
             </h2>
             
@@ -382,7 +379,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
                   value={formData.address}
                   onChange={handleChange}
                   placeholder="Street address"
-                  className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-green-500"
+                  className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                 />
               </div>
 
@@ -421,7 +418,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
             className="bg-white rounded-2xl shadow-lg border p-8"
           >
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-green-600" />
+              <Sparkles className="w-5 h-5 text-primary-700" />
               Amenities
             </h2>
             
@@ -435,13 +432,13 @@ const AddPropertyWizard = ({ onSuccess }) => {
                     onClick={() => handleAmenityToggle(amenity.name)}
                     className={`p-3 border-2 rounded-xl flex items-center gap-3 transition-all ${
                       isSelected
-                        ? 'border-green-500 bg-green-50 text-green-700'
+                        ? 'border-primary-600 bg-primary-50 text-primary-700'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isSelected ? 'text-green-600' : 'text-gray-400'}`} />
+                    <Icon className={`w-5 h-5 ${isSelected ? 'text-primary-700' : 'text-gray-400'}`} />
                     <span className="text-sm flex-1 text-left">{amenity.name}</span>
-                    {isSelected && <CheckCircle className="w-4 h-4 text-green-600" />}
+                    {isSelected && <CheckCircle className="w-4 h-4 text-primary-700" />}
                   </button>
                 )
               })}
@@ -458,7 +455,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
             className="bg-white rounded-2xl shadow-lg border p-8"
           >
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <Camera className="w-5 h-5 text-green-600" />
+              <Camera className="w-5 h-5 text-primary-700" />
               Photos & Description
             </h2>
             
@@ -467,7 +464,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
                 <label className="block text-sm font-medium mb-2">Photos *</label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer hover:border-green-500"
+                  className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer hover:border-primary-500 transition-all"
                 >
                   <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-600">Click to upload photos</p>
@@ -486,12 +483,23 @@ const AddPropertyWizard = ({ onSuccess }) => {
                     {uploadedImages.map((img, idx) => (
                       <div key={img.id} className="relative group">
                         <img src={img.preview} className="w-full h-24 object-cover rounded-lg" />
-                        <button
-                          onClick={() => removeImage(img.id)}
-                          className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                        <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => setAsCover(idx)}
+                            className={`p-1 rounded-full transition ${coverImageIndex === idx ? 'bg-secondary-500' : 'bg-black bg-opacity-50 hover:bg-opacity-75'}`}
+                          >
+                            <Star className="w-3 h-3 text-white" />
+                          </button>
+                          <button
+                            onClick={() => removeImage(img.id)}
+                            className="p-1 bg-error text-white rounded-full"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {coverImageIndex === idx && (
+                          <div className="absolute top-0 left-0 bg-secondary-500 text-white text-[10px] px-1 rounded-tl-lg rounded-br-lg">Cover</div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -506,7 +514,7 @@ const AddPropertyWizard = ({ onSuccess }) => {
                   value={formData.description}
                   onChange={handleChange}
                   placeholder="Describe your property..."
-                  className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-green-500"
+                  className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                 />
               </div>
             </div>
@@ -523,11 +531,11 @@ const AddPropertyWizard = ({ onSuccess }) => {
         
         <div className="flex gap-3 ml-auto">
           {step < 4 ? (
-            <button onClick={nextStep} className="px-8 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg flex items-center gap-2">
+            <button onClick={nextStep} className="px-8 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg flex items-center gap-2">
               Continue <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={handleSubmit} disabled={loading} className="px-8 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg flex items-center gap-2 disabled:opacity-50">
+            <button onClick={handleSubmit} disabled={loading} className="px-8 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg flex items-center gap-2 disabled:opacity-50">
               {loading ? <Loader className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
               {loading ? 'Adding...' : 'Add Property'}
             </button>

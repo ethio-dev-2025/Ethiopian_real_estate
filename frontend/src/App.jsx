@@ -5,6 +5,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { PresenceProvider } from './context/PresenceContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -12,8 +13,7 @@ import AppRoutes from './routes/AppRoutes';
 
 const API_URL = 'http://localhost:8000';
 
-// Payment Success Handler Component - FIXED
-// Payment Success Handler Component - This handles return from Chapa
+// Payment Success Handler Component
 const PaymentSuccessHandler = ({ children }) => {
   const { refreshUser, forceRefreshUser } = useAuth();
   const navigate = useNavigate();
@@ -27,7 +27,6 @@ const PaymentSuccessHandler = ({ children }) => {
 
       console.log('🔍 Checking payment params:', { status, tx_ref, plan });
 
-      // Only process if we're on the payment success page or subscription page with success param
       if ((status === 'success' || window.location.pathname.includes('/payment/success')) && tx_ref) {
         console.log('✅ Payment success detected! Verifying...');
         
@@ -48,16 +47,13 @@ const PaymentSuccessHandler = ({ children }) => {
           if (data.success && data.activated) {
             console.log('🎉 Payment verified! Refreshing user data...');
             
-            // Force refresh user data
             await forceRefreshUser();
             await new Promise(resolve => setTimeout(resolve, 1000));
             await forceRefreshUser();
             
-            // Show success message
             const { toast } = await import('react-hot-toast');
             toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Your account is now activated.');
             
-            // Navigate to success page or dashboard
             if (window.location.pathname !== '/payment/success') {
               navigate('/payment/success?tx_ref=' + tx_ref);
             }
@@ -93,30 +89,32 @@ function App() {
         <LanguageProvider>
           <AuthProvider>
             <SocketProvider>
-              <ThemeProvider>
-                <NotificationProvider>
-                  <Toaster 
-                    position="top-right"
-                    toastOptions={{
-                      success: {
-                        duration: 3000,
-                        style: {
-                          background: '#4caf50',
-                          color: 'white',
+              <PresenceProvider>
+                <ThemeProvider>
+                  <NotificationProvider>
+                    <Toaster 
+                      position="top-right"
+                      toastOptions={{
+                        success: {
+                          duration: 3000,
+                          style: {
+                            background: '#4caf50',
+                            color: 'white',
+                          },
                         },
-                      },
-                      error: {
-                        duration: 4000,
-                        style: {
-                          background: '#f44336',
-                          color: 'white',
+                        error: {
+                          duration: 4000,
+                          style: {
+                            background: '#f44336',
+                            color: 'white',
+                          },
                         },
-                      },
-                    }}
-                  />
-                  <AppContent />
-                </NotificationProvider>
-              </ThemeProvider>
+                      }}
+                    />
+                    <AppContent />
+                  </NotificationProvider>
+                </ThemeProvider>
+              </PresenceProvider>
             </SocketProvider>
           </AuthProvider>
         </LanguageProvider>

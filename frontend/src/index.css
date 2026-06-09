@@ -1,12 +1,58 @@
-/* src/index.css */
+/* src/index.css - COMPLETE FILE WITH OPTION 1 COLORS */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ========== CUSTOM CSS VARIABLES ========== */
+/* ========== BRAND COLOR VARIABLES - OPTION 1 ========== */
 :root {
-  --primary-color: #3b82f6;
-  --secondary-color: #8b5cf6;
+  /* Primary Colors - Deep Blue */
+  --primary-50: #eff6ff;
+  --primary-100: #dbeafe;
+  --primary-200: #bfdbfe;
+  --primary-300: #93c5fd;
+  --primary-400: #60a5fa;
+  --primary-500: #3b82f6;
+  --primary-600: #2563eb;
+  --primary-700: #1d4ed8;
+  --primary-800: #1e40af;
+  --primary-900: #1e3a8a;
+  --primary-950: #172554;
+  
+  /* Secondary Colors - Amber */
+  --secondary-50: #fffbeb;
+  --secondary-100: #fef3c7;
+  --secondary-200: #fde68a;
+  --secondary-300: #fcd34d;
+  --secondary-400: #fbbf24;
+  --secondary-500: #f59e0b;
+  --secondary-600: #d97706;
+  --secondary-700: #b45309;
+  --secondary-800: #92400e;
+  --secondary-900: #78350f;
+  
+  /* Surface Colors */
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  
+  /* Text Colors */
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  
+  /* Border Colors */
+  --border-light: #e2e8f0;
+  --border-default: #cbd5e1;
+  
+  /* Status Colors */
+  --success: #10b981;
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  
+  /* Legacy variables (for backward compatibility) */
+  --primary-color: #1e3a8a;
+  --secondary-color: #f59e0b;
   --success-color: #10b981;
   --warning-color: #f59e0b;
   --danger-color: #ef4444;
@@ -47,7 +93,7 @@ body {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f3f4f6;
+  background-color: var(--background);
   overflow-x: hidden;
 }
 
@@ -231,14 +277,22 @@ body {
 
 /* ========== UTILITY CLASSES ========== */
 .text-gradient {
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
+  background: linear-gradient(135deg, var(--primary-800), var(--secondary-500), var(--primary-600));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .bg-gradient-primary {
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(135deg, var(--primary-800) 0%, var(--primary-600) 100%);
+}
+
+.bg-gradient-secondary {
+  background: linear-gradient(135deg, var(--secondary-500) 0%, var(--secondary-600) 100%);
+}
+
+.bg-gradient-hero {
+  background: linear-gradient(135deg, var(--primary-800) 0%, var(--primary-900) 100%);
 }
 
 .bg-gradient-success {
@@ -257,14 +311,102 @@ body {
   background: linear-gradient(135deg, #1f2937, #111827);
 }
 
+/* Button Classes */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-800) 0%, var(--primary-700) 100%);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-800) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, var(--secondary-500) 0%, var(--secondary-600) 100%);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(135deg, var(--secondary-600) 0%, var(--secondary-700) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.btn-outline {
+  border: 2px solid var(--primary-800);
+  color: var(--primary-800);
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+  background: transparent;
+}
+
+.btn-outline:hover {
+  background: var(--primary-50);
+  transform: translateY(-1px);
+}
+
 /* Card Hover Effects */
 .card-hover {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--border-light);
+  background: var(--surface);
 }
 
 .card-hover:hover {
   transform: translateY(-4px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+  border-color: var(--secondary-500);
+}
+
+/* Badge Classes */
+.badge-featured {
+  background: linear-gradient(135deg, var(--secondary-500) 0%, var(--secondary-600) 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-sold {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-rented {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 /* Responsive Container */
@@ -491,7 +633,7 @@ body {
 
 /* ========== CARD RESPONSIVE ========== */
 .card {
-  background: white;
+  background: var(--surface);
   border-radius: 0.75rem;
   padding: 1rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -754,4 +896,182 @@ select {
 
 .animate-slideIn {
   animation: slideIn 0.3s ease-out;
+}
+
+/* ========== FIXED DROPDOWN POSITIONING FOR MOBILE ========== */
+/* Ensure dropdowns don't overflow the viewport */
+.fixed-dropdown {
+  position: fixed !important;
+  z-index: 9999 !important;
+}
+
+/* Ensure selects on mobile are touch-friendly */
+@media (max-width: 640px) {
+  select, 
+  .custom-select-trigger {
+    min-height: 48px;
+    font-size: 16px !important;
+  }
+  
+  /* Better dropdown option styling for mobile */
+  .dropdown-option {
+    padding: 12px 16px !important;
+    min-height: 48px;
+  }
+}
+
+/* Prevent horizontal scroll on mobile */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Ensure containers don't overflow */
+.container, .container-fluid {
+  overflow-x: hidden;
+}
+
+/* Fix for filter panel on mobile */
+@media (max-width: 768px) {
+  .filter-panel {
+    max-height: 70vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Better spacing for filter buttons */
+  .filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .filter-buttons button {
+    flex: 1;
+    min-width: calc(33% - 8px);
+  }
+}
+
+/* ========== FIXED DROPDOWN PORTAL STYLES ========== */
+/* Ensure portal dropdowns are above everything */
+.portal-dropdown {
+  position: fixed !important;
+  z-index: 99999 !important;
+}
+
+/* Ensure body doesn't scroll when dropdown is open on mobile */
+body.dropdown-open {
+  overflow: hidden;
+}
+
+/* Better select styling for mobile */
+@media (max-width: 640px) {
+  select {
+    font-size: 16px !important;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 36px !important;
+  }
+  
+  /* Prevent body scroll when dropdown is open */
+  .no-scroll {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* Ensure dropdown options are readable on mobile */
+.portal-dropdown-option {
+  padding: 12px 16px !important;
+  min-height: 48px;
+  font-size: 16px !important;
+}
+
+/* ========== CRITICAL DROPDOWN FIXES ========== */
+
+/* Ensure dropdowns are not clipped by any parent container */
+.overflow-visible {
+  overflow: visible !important;
+}
+
+/* Remove any overflow restrictions on filter containers */
+.bg-white.rounded-xl.shadow-lg.p-4.mb-5 {
+  overflow: visible !important;
+}
+
+/* Ensure body doesn't scroll when dropdown is open */
+body.dropdown-open {
+  overflow: hidden !important;
+}
+
+/* Portal dropdown styles - these are critical */
+.portal-dropdown-fixed {
+  position: fixed !important;
+  z-index: 99999 !important;
+}
+
+/* Ensure all modal/dialog containers don't clip dropdowns */
+[role="dialog"], 
+.modal-content,
+.fixed.inset-0,
+.z-50 {
+  overflow: visible !important;
+}
+
+/* Fix for mobile select dropdowns */
+@media (max-width: 768px) {
+  .custom-select-portal {
+    max-width: calc(100vw - 32px) !important;
+    left: 16px !important;
+    right: 16px !important;
+  }
+}
+
+/* ========== OPTION 1 GRADIENT UTILITIES ========== */
+.bg-gradient-primary {
+  background: linear-gradient(135deg, var(--primary-800) 0%, var(--primary-600) 100%);
+}
+
+.bg-gradient-secondary {
+  background: linear-gradient(135deg, var(--secondary-500) 0%, var(--secondary-600) 100%);
+}
+
+.bg-gradient-hero {
+  background: linear-gradient(135deg, var(--primary-800) 0%, var(--primary-900) 100%);
+}
+
+/* Link styles */
+.link-primary {
+  color: var(--primary-800);
+  transition: color 0.2s ease;
+}
+
+.link-primary:hover {
+  color: var(--primary-600);
+}
+
+.link-secondary {
+  color: var(--secondary-500);
+  transition: color 0.2s ease;
+}
+
+.link-secondary:hover {
+  color: var(--secondary-600);
+}
+
+/* Focus ring styles */
+.focus-ring-primary {
+  focus: ring-2 ring-primary-500 ring-offset-2;
+}
+
+/* Selection color */
+::selection {
+  background: var(--primary-800);
+  color: white;
 }

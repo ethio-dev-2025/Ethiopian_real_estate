@@ -38,7 +38,6 @@ const useSubscription = () => {
         return;
       }
 
-      // ALWAYS fetch from API first (most reliable source)
       const response = await fetch(`${API_URL}/api/activation/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -49,7 +48,6 @@ const useSubscription = () => {
         
         let daysRemaining = data.days_remaining || 0;
         
-        // If API didn't return days_remaining but has end date, calculate it
         if (daysRemaining === 0 && data.subscription_end_date) {
           daysRemaining = calculateDaysRemaining(data.subscription_end_date);
         }
@@ -69,7 +67,6 @@ const useSubscription = () => {
         return;
       }
       
-      // Fallback to user object - but only use real data
       if (user) {
         let daysRemaining = 0;
         const endDate = user.subscription_end_date;
@@ -117,7 +114,6 @@ const useSubscription = () => {
   useEffect(() => {
     fetchSubscription();
     
-    // Refresh every 10 seconds
     const interval = setInterval(() => {
       fetchSubscription();
     }, 10000);

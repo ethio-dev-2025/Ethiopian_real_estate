@@ -1,10 +1,11 @@
+// src/components/layout/SellerSidebar.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
-  LayoutDashboard, PlusCircle, List, Building2, MessageSquare,
+  LayoutDashboard, PlusCircle, List, MessageSquare,
   Shield, CreditCard, Settings, LogOut, Menu, X, ChevronRight, Camera,
-  User, Lock, ChevronDown
+  User, Lock, ChevronDown, Home
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../../context/LanguageContext'
@@ -21,6 +22,10 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const [uploading, setUploading] = useState(false);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
   const [liveStatus, setLiveStatus] = useState(null);
+  const [daysRemaining, setDaysRemaining] = useState(() => {
+    const saved = localStorage.getItem('seller_days_remaining');
+    return saved ? parseInt(saved) : 0;
+  });
   const settingsButtonRef = useRef(null);
   const settingsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -30,11 +35,42 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
 
   const { t } = useLanguage()
 
-  // Settings dropdown menu items - Only Profile and Security
   const settingsMenuItems = [
     { id: 'profile', labelKey: 'profile_information', label: 'Profile Information', icon: User, tab: 'profile' },
     { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' }
   ];
+
+  const updateDaysRemaining = (days) => {
+    setDaysRemaining(days);
+    localStorage.setItem('seller_days_remaining', days.toString());
+    
+    if (liveStatus) {
+      setLiveStatus(prev => ({
+        ...prev,
+        days_remaining: days,
+        can_create_listings: days > 0
+      }));
+    }
+    
+    window.dispatchEvent(new CustomEvent('subscription_immediate_update', { 
+      detail: { 
+        daysRemaining: days, 
+        hasActiveSubscription: days > 0 
+      }
+    }));
+  };
+
+  const calculateDaysRemaining = (endDateString) => {
+    if (!endDateString) return 0;
+    try {
+      const end = new Date(endDateString);
+      const now = new Date();
+      const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      return diff > 0 ? diff : 0;
+    } catch (error) {
+      return 0;
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -52,6 +88,21 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   useEffect(() => {
     setIsSettingsDropdownOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const handleSubscriptionUpdate = (event) => {
+      if (event.detail) {
+        console.log('📡 Sidebar received subscription update:', event.detail);
+        updateDaysRemaining(event.detail.daysRemaining);
+      }
+    };
+    
+    window.addEventListener('subscription_update', handleSubscriptionUpdate);
+    
+    return () => {
+      window.removeEventListener('subscription_update', handleSubscriptionUpdate);
+    };
+  }, [liveStatus]);
 
   useEffect(() => {
     const handleUnreadUpdate = (event) => {
@@ -108,6 +159,10 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
         const statusData = await response.json();
         console.log('📊 Sidebar - Live Status:', statusData);
         setLiveStatus(statusData);
+        
+        const apiDays = statusData.days_remaining || 0;
+        updateDaysRemaining(apiDays);
+        localStorage.setItem('seller_has_active_subscription', (statusData.can_create_listings === true && apiDays > 0).toString());
       }
     } catch (error) {
       console.error('Error fetching activation status:', error);
@@ -117,14 +172,27 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   useEffect(() => {
     isMountedRef.current = true;
     
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const currentUser = JSON.parse(storedUser);
+        if (currentUser?.subscription_end_date) {
+          const days = calculateDaysRemaining(currentUser.subscription_end_date);
+          if (days > 0) {
+            updateDaysRemaining(days);
+          }
+        }
+      } catch (e) {}
+    }
+    
     const timer = setTimeout(() => {
       fetchUnreadCount();
       fetchLiveActivationStatus();
-    }, 1000);
+    }, 500);
     
     intervalRef.current = setInterval(() => {
       fetchLiveActivationStatus();
-    }, 10000);
+    }, 30000);
     
     return () => {
       clearTimeout(timer);
@@ -183,21 +251,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     if (role === 'landlord') return 'Landlord';
     return 'Seller';
   };
-
-  const getDaysRemaining = () => {
-    if (user?.subscription_end_date) {
-      const end = new Date(user.subscription_end_date);
-      const now = new Date();
-      const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-      return diff > 0 ? diff : 0;
-    }
-    if (liveStatus?.days_remaining !== undefined) {
-      return liveStatus.days_remaining > 0 ? liveStatus.days_remaining : 0;
-    }
-    return 0;
-  };
-
-  const daysRemaining = getDaysRemaining();
 
   const getUserStatus = () => {
     if (liveStatus) {
@@ -345,15 +398,19 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
         ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}
       `}>
         <div className="flex flex-col h-full">
+          {/* Logo Section - Professional: Icon Only When Collapsed, Icon + Text When Expanded */}
           <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigation('/dashboard')}>
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
-                  <Building2 className="w-5 h-5 text-white" />
-                </div>
+                {/* Logo Image - Professional Design */}
+                <img 
+                  src="/assets/images/image.png" 
+                  alt="BetFinder" 
+                  className="w-10 h-10 object-contain rounded-lg shadow-md"
+                />
                 {sidebarOpen && (
                   <div className="overflow-hidden">
-                    <span className="text-xl font-bold tracking-tight block">EstateHub</span>
+                    <span className="text-xl font-bold tracking-tight block">BetFinder</span>
                     <p className="text-xs text-slate-400">Seller Portal</p>
                   </div>
                 )}
@@ -369,6 +426,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
             </div>
           </div>
 
+          {/* Navigation Menu - Same as before */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1 mt-4">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -406,6 +464,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
               );
             })}
 
+            {/* Settings Dropdown */}
             <div className="relative">
               <button
                 ref={settingsButtonRef}
@@ -454,6 +513,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
             </div>
           </nav>
 
+          {/* User Profile Section */}
           <div className="p-4 pt-0 pb-5 mt-auto">
             <div className={`flex items-center ${sidebarOpen ? 'gap-3' : 'flex-col gap-2'}`}>
               <div className="relative group">
@@ -510,6 +570,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
             </div>
           </div>
           
+          {/* Logout Button */}
           <div className="p-4 border-t border-white/10">
             <button 
               onClick={handleLogout} 

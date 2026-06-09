@@ -47,7 +47,6 @@ const LoginPage = () => {
   }
 
   const handleGoogleSuccess = async (credentialResponse) => {
-    // Prevent multiple processing
     if (isProcessingRef.current || isLoggingIn || googleProcessedRef.current) return
     
     isProcessingRef.current = true
@@ -76,13 +75,10 @@ const LoginPage = () => {
       if (response.ok && data.success) {
         const userRole = data.user.role_type || 'dual'
         
-        // Mark as processed to prevent duplicate
         googleProcessedRef.current = true
         
-        // Clear any existing data first
         localStorage.clear()
         
-        // Set new auth data
         localStorage.setItem('access_token', data.access_token)
         localStorage.setItem('user', JSON.stringify(data.user))
         localStorage.setItem('user_role', userRole)
@@ -93,7 +89,6 @@ const LoginPage = () => {
         toast.dismiss(loadingToast)
         toast.success(`Welcome, ${data.user.full_name || data.user.username}!`)
         
-        // Force hard redirect to prevent any additional API calls
         redirectToDashboard(userRole)
       } else {
         toast.dismiss(loadingToast)
@@ -151,10 +146,8 @@ const LoginPage = () => {
       
       const userRole = data.user.role_type
       
-      // Clear existing data
       localStorage.clear()
       
-      // Set new auth data
       localStorage.setItem('access_token', data.access_token)
       localStorage.setItem('user', JSON.stringify(data.user))
       localStorage.setItem('user_role', userRole)
@@ -165,7 +158,6 @@ const LoginPage = () => {
       toast.dismiss(loadingToast)
       toast.success(`Welcome back, ${data.user.full_name || data.user.username}!`)
       
-      // Force hard redirect
       redirectToDashboard(userRole)
       
     } catch (err) {
@@ -184,38 +176,38 @@ const LoginPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background to-gray-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-          <div className="bg-white p-6 text-center border-b border-gray-100">
-            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-3">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-border-light">
+          <div className="bg-gradient-to-r from-primary-800 to-primary-900 p-6 text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
               <Building2 className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
-            <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
+            <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
+            <p className="text-primary-100 text-sm mt-1">Sign in to your account</p>
           </div>
 
           <div className="p-6">
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-500" />
+                <AlertCircle className="w-4 h-4 text-error" />
                 <p className="text-sm text-red-600">{error}</p>
               </div>
             )}
 
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Email or Username
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                   <input
-                    type="email"
+                    type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
-                    placeholder="Enter your email"
+                    className="w-full pl-10 pr-4 py-3 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
+                    placeholder="Enter your email or username"
                     autoComplete="email"
                     autoFocus
                     disabled={isLoggingIn}
@@ -224,16 +216,16 @@ const LoginPage = () => {
               </div>
 
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-text-primary mb-1">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
+                    className="w-full pl-10 pr-10 py-3 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                     placeholder="Enter your password"
                     autoComplete="current-password"
                     disabled={isLoggingIn}
@@ -241,7 +233,7 @@ const LoginPage = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -249,7 +241,7 @@ const LoginPage = () => {
               </div>
 
               <div className="flex justify-end mb-6">
-                <Link to="/forgot-password" className="text-sm text-gray-600 hover:text-gray-900">
+                <Link to="/forgot-password" className="text-sm text-secondary-600 hover:text-secondary-700 transition-colors">
                   Forgot Password?
                 </Link>
               </div>
@@ -257,7 +249,7 @@ const LoginPage = () => {
               <button
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:from-primary-800 hover:to-primary-900 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
               >
                 {isLoggingIn ? (
                   <>
@@ -275,10 +267,10 @@ const LoginPage = () => {
 
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
+                <div className="w-full border-t border-border-light"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-3 bg-white text-gray-500">Or continue with</span>
+                <span className="px-3 bg-white text-text-muted">Or continue with</span>
               </div>
             </div>
 
@@ -294,13 +286,26 @@ const LoginPage = () => {
             </div>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-text-secondary">
                 Don't have an account?{' '}
-                <Link to="/register" className="text-gray-900 hover:text-gray-700 font-semibold">
+                <Link to="/register" className="text-secondary-600 hover:text-secondary-700 font-semibold transition-colors">
                   Sign Up
                 </Link>
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Footer Security Badges */}
+        <div className="mt-6 flex justify-center gap-6">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <Shield className="w-3 h-3" /> Secure
+          </div>
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <Shield className="w-3 h-3" /> Fast
+          </div>
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <Shield className="w-3 h-3" /> Private
           </div>
         </div>
       </div>

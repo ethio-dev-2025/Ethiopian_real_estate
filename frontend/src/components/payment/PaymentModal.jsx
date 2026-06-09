@@ -14,7 +14,7 @@ const PaymentModal = ({ planType, amount, onClose, onSuccess }) => {
     
     const firstName = user?.full_name?.split(' ')[0] || user?.username || 'Customer'
     const lastName = user?.full_name?.split(' ')[1] || 'User'
-    const phoneNumber = "0911111111"  // Test phone number
+    const phoneNumber = "0911111111"
     
     try {
       const response = await fetch(`${API_URL}/payments/initialize`, {
@@ -67,10 +67,10 @@ const PaymentModal = ({ planType, amount, onClose, onSuccess }) => {
         <div className="p-6">
           <div className="text-center mb-6">
             <p className="text-gray-600">{plan?.name}</p>
-            <p className="text-3xl font-bold text-blue-600">${plan?.price}<span className="text-sm">/month</span></p>
+            <p className="text-3xl font-bold text-primary-700">${plan?.price}<span className="text-sm">/month</span></p>
           </div>
           
-          <div className="bg-yellow-50 p-3 rounded-lg mb-6 text-sm text-yellow-800">
+          <div className="bg-secondary-50 p-3 rounded-lg mb-6 text-sm text-secondary-800 border border-secondary-200">
             💳 Test Card: <strong>4242 4242 4242 4242</strong> | Exp: 12/25 | CVV: 123
             <br />
             📱 Test Phone: <strong>0911111111</strong>
@@ -79,7 +79,7 @@ const PaymentModal = ({ planType, amount, onClose, onSuccess }) => {
           <button
             onClick={handlePayment}
             disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <Loader className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
             {loading ? 'Processing...' : `Pay $${plan?.price}`}

@@ -101,7 +101,6 @@ const PropertiesPage = () => {
       if (data.success !== false) {
         let listings = data.listings || []
         
-        // Filter out sold/rented properties from main listings
         listings = listings.filter(p => p.listing_status !== 'sold' && p.listing_status !== 'rented')
         
         if (propertyType !== 'all') {
@@ -179,7 +178,7 @@ const PropertiesPage = () => {
       <Header />
 
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 pt-6 pb-6">
+      <div className="bg-gradient-to-r from-primary-800 to-primary-900 pt-6 pb-6">
         <div className="px-4 max-w-7xl mx-auto">
           <h1 className="text-xl font-bold text-white text-center mb-4">
             Browse Properties
@@ -196,7 +195,7 @@ const PropertiesPage = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && fetchProperties()}
-                  className="w-full pl-9 pr-3 py-2 rounded-lg text-gray-900 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-9 pr-3 py-2 rounded-lg text-gray-900 text-sm outline-none focus:ring-2 focus:ring-primary-600"
                 />
               </div>
               <button
@@ -208,7 +207,7 @@ const PropertiesPage = () => {
               </button>
               <button
                 onClick={fetchProperties}
-                className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                className="px-5 py-2 bg-primary-700 text-white rounded-lg text-sm font-medium hover:bg-primary-800 transition"
               >
                 Search
               </button>
@@ -224,7 +223,7 @@ const PropertiesPage = () => {
         {soldRentedListings.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-4">
-              <Award className="w-5 h-5 text-yellow-500" />
+              <Award className="w-5 h-5 text-secondary-500" />
               <h2 className="text-lg font-bold text-gray-900">Recently Sold & Rented</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -241,7 +240,7 @@ const PropertiesPage = () => {
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
                     <div className={`absolute top-1 right-1 px-1.5 py-0.5 rounded text-xs font-bold text-white ${
-                      property.listing_status === 'sold' ? 'bg-red-600' : 'bg-purple-600'
+                      property.listing_status === 'sold' ? 'bg-error' : 'bg-purple-600'
                     }`}>
                       {property.listing_status === 'sold' ? 'SOLD' : 'RENTED'}
                     </div>
@@ -249,7 +248,7 @@ const PropertiesPage = () => {
                   <div className="p-2">
                     <h3 className="font-semibold text-xs text-gray-900 line-clamp-1">{property.title}</h3>
                     <p className="text-gray-500 text-xs">{property.city}</p>
-                    <p className="text-xs font-bold text-green-600 mt-1">
+                    <p className="text-xs font-bold text-success mt-1">
                       {property.listing_status === 'sold' ? 'Sold' : 'Rented'}
                     </p>
                   </div>
@@ -262,7 +261,7 @@ const PropertiesPage = () => {
         {/* FILTERS SECTION */}
         <div className={`bg-white rounded-xl shadow-sm border p-4 mb-6 transition-all duration-300 ${showFilters ? 'block' : 'hidden lg:block'}`}>
           
-          {/* Mobile: Toggle button inside filters area */}
+          {/* Mobile toggle button */}
           <div className="flex justify-between items-center lg:hidden mb-4 pb-3 border-b">
             <h3 className="font-semibold text-gray-900">Filter Properties</h3>
             <button onClick={() => setShowFilters(false)} className="text-gray-400">
@@ -277,7 +276,7 @@ const PropertiesPage = () => {
               <select 
                 value={listingType} 
                 onChange={(e) => setListingType(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               >
                 <option value="all">All Properties</option>
                 <option value="sale">For Sale</option>
@@ -290,7 +289,7 @@ const PropertiesPage = () => {
               <select 
                 value={propertyType} 
                 onChange={(e) => setPropertyType(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600"
               >
                 {propertyTypeOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -303,7 +302,7 @@ const PropertiesPage = () => {
               <select 
                 value={priceRange} 
                 onChange={(e) => setPriceRange(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600"
               >
                 {priceRanges.map(range => (
                   <option key={range.value} value={range.value}>{range.label}</option>
@@ -316,7 +315,7 @@ const PropertiesPage = () => {
               <select 
                 value={bedrooms} 
                 onChange={(e) => setBedrooms(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600"
               >
                 {bedroomOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -329,7 +328,7 @@ const PropertiesPage = () => {
               <select 
                 value={bathrooms} 
                 onChange={(e) => setBathrooms(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600"
               >
                 {bathroomOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -344,7 +343,7 @@ const PropertiesPage = () => {
               <select 
                 value={city} 
                 onChange={(e) => setCity(e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600"
               >
                 {cities.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
@@ -354,7 +353,7 @@ const PropertiesPage = () => {
               <select 
                 value={sortBy} 
                 onChange={(e) => setSortBy(e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600"
               >
                 {sortOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -364,7 +363,7 @@ const PropertiesPage = () => {
               {hasActiveFilters && (
                 <button 
                   onClick={resetFilters}
-                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition"
+                  className="px-3 py-2 text-sm text-error hover:bg-red-50 rounded-lg transition"
                 >
                   Clear All Filters
                 </button>
@@ -373,7 +372,7 @@ const PropertiesPage = () => {
             
             <button 
               onClick={fetchProperties}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition w-full sm:w-auto"
+              className="px-4 py-2 bg-primary-700 text-white rounded-lg text-sm font-medium hover:bg-primary-800 transition w-full sm:w-auto"
             >
               Apply Filters
             </button>
@@ -389,7 +388,7 @@ const PropertiesPage = () => {
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-lg transition ${
-                viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 shadow'
+                viewMode === 'grid' ? 'bg-primary-700 text-white' : 'bg-white text-gray-600 shadow'
               }`}
             >
               <Grid3x3 className="w-4 h-4" />
@@ -397,7 +396,7 @@ const PropertiesPage = () => {
             <button
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-lg transition ${
-                viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 shadow'
+                viewMode === 'list' ? 'bg-primary-700 text-white' : 'bg-white text-gray-600 shadow'
               }`}
             >
               <List className="w-4 h-4" />
@@ -408,7 +407,7 @@ const PropertiesPage = () => {
         {/* Loading State */}
         {loading && (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
             <p className="mt-2 text-gray-500">Loading properties...</p>
           </div>
         )}
@@ -418,13 +417,13 @@ const PropertiesPage = () => {
           <div className="text-center py-12 bg-white rounded-xl shadow-sm">
             <Home className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">No properties found</p>
-            <button onClick={resetFilters} className="mt-3 text-sm text-blue-600 hover:underline">
+            <button onClick={resetFilters} className="mt-3 text-sm text-primary-700 hover:underline">
               Clear filters
             </button>
           </div>
         )}
         
-        {/* Grid View - WITH LARGER BOLD VIEW DETAILS BUTTON */}
+        {/* Grid View */}
         {!loading && properties.length > 0 && viewMode === 'grid' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {properties.map(property => (
@@ -440,7 +439,7 @@ const PropertiesPage = () => {
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                  <div className="absolute top-2 right-2 px-2 py-1 rounded-md text-xs font-semibold text-white bg-blue-600">
+                  <div className="absolute top-2 right-2 px-2 py-1 rounded-md text-xs font-semibold text-white bg-primary-700">
                     {property.listing_type === 'sale' ? 'For Sale' : 'For Rent'}
                   </div>
                 </div>
@@ -450,12 +449,11 @@ const PropertiesPage = () => {
                     <MapPin className="w-3 h-3" />
                     <span>{property.city || 'Addis Ababa'}</span>
                   </div>
-                  <div className="text-xl font-bold text-blue-600 mb-3">
+                  <div className="text-xl font-bold text-primary-700 mb-3">
                     {formatPrice(property.price, property.listing_type)}
                   </div>
                   
-                  {/* UPDATED: Larger and Bold View Details Button */}
-                  <button className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold text-base hover:shadow-lg transition transform hover:scale-105 flex items-center justify-center gap-2">
+                  <button className="w-full py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-bold text-base hover:shadow-lg transition transform hover:scale-105 flex items-center justify-center gap-2">
                     View Details <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -464,7 +462,7 @@ const PropertiesPage = () => {
           </div>
         )}
         
-        {/* List View - WITH LARGER BOLD VIEW DETAILS BUTTON */}
+        {/* List View */}
         {!loading && properties.length > 0 && viewMode === 'list' && (
           <div className="space-y-3">
             {properties.map(property => (
@@ -488,18 +486,17 @@ const PropertiesPage = () => {
                         <MapPin className="w-3 h-3 flex-shrink-0" />
                         <span className="truncate">{property.city || 'Addis Ababa'}</span>
                       </div>
-                      <p className="text-lg font-bold text-blue-600 mt-2">
+                      <p className="text-lg font-bold text-primary-700 mt-2">
                         {formatPrice(property.price, property.listing_type)}
                       </p>
                     </div>
                     <div className="text-right">
                       <span className={`inline-block px-2 py-1 rounded-lg text-xs font-semibold ${
-                        property.listing_type === 'sale' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                        property.listing_type === 'sale' ? 'bg-success/10 text-success' : 'bg-primary-100 text-primary-700'
                       }`}>
                         {property.listing_type === 'sale' ? 'Sale' : 'Rent'}
                       </span>
-                      {/* UPDATED: Larger and Bold View Details Button for List View */}
-                      <button className="mt-2 w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold text-sm hover:shadow-lg transition transform hover:scale-105 flex items-center justify-center gap-2">
+                      <button className="mt-2 w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-bold text-sm hover:shadow-lg transition transform hover:scale-105 flex items-center justify-center gap-2">
                         View Details <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>

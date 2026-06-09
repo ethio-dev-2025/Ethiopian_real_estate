@@ -1,3 +1,4 @@
+// src/components/dashboard/admin/Propertylisting.jsx
 import React, { useState, useEffect } from 'react'
 import { CheckCircle, XCircle, Clock, Eye, Home, MapPin, DollarSign } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -70,7 +71,7 @@ const Propertylisting = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     )
   }
@@ -78,8 +79,8 @@ const Propertylisting = () => {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Property Approval Queue</h1>
-        <p className="text-gray-500">Review and approve property listings</p>
+        <h1 className="text-2xl font-bold text-text-primary">Property Approval Queue</h1>
+        <p className="text-text-muted">Review and approve property listings</p>
       </div>
 
       {/* Tabs */}
@@ -90,8 +91,8 @@ const Propertylisting = () => {
             onClick={() => setActiveTab(tab.id)}
             className={`px-6 py-2 rounded-lg font-medium transition ${
               activeTab === tab.id
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-text-muted hover:text-text-primary'
             }`}
           >
             {tab.label} ({tab.count})
@@ -101,45 +102,50 @@ const Propertylisting = () => {
 
       {/* Properties List */}
       {properties.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border p-12 text-center">
-          <Home className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">No pending properties</h3>
-          <p className="text-gray-500">All property requests have been processed</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-border-light p-12 text-center">
+          <Home className="w-16 h-16 text-text-muted mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-text-primary mb-2">No pending properties</h3>
+          <p className="text-text-muted">All property requests have been processed</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {properties.map((property) => (
-            <div key={property.id} className="bg-white rounded-2xl shadow-sm border p-6 hover:shadow-md transition">
+            <div key={property.id} className="bg-white rounded-2xl shadow-sm border border-border-light p-6 hover:shadow-md transition">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-lg">{property.title}</h3>
+                    <h3 className="font-semibold text-lg text-text-primary">{property.title}</h3>
                     {property.status === 'pending' && (
-                      <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs flex items-center gap-1">
+                      <span className="px-2 py-1 bg-warning/10 text-warning rounded-full text-xs flex items-center gap-1">
                         <Clock className="w-3 h-3" /> Pending
                       </span>
                     )}
                     {property.status === 'approved' && (
-                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs flex items-center gap-1">
+                      <span className="px-2 py-1 bg-success/10 text-success rounded-full text-xs flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" /> Approved
+                      </span>
+                    )}
+                    {property.status === 'rejected' && (
+                      <span className="px-2 py-1 bg-error/10 text-error rounded-full text-xs flex items-center gap-1">
+                        <XCircle className="w-3 h-3" /> Rejected
                       </span>
                     )}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-3">
                     <div>
-                      <p className="text-gray-500">Owner</p>
-                      <p className="font-medium">{property.user_name}</p>
+                      <p className="text-text-muted">Owner</p>
+                      <p className="font-medium text-text-primary">{property.user_name}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Price</p>
-                      <p className="font-medium text-green-600">ETB {property.price?.toLocaleString()}</p>
+                      <p className="text-text-muted">Price</p>
+                      <p className="font-medium text-success">ETB {property.price?.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Type</p>
-                      <p className="font-medium capitalize">{property.listing_type}</p>
+                      <p className="text-text-muted">Type</p>
+                      <p className="font-medium capitalize text-text-primary">{property.listing_type}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <div className="flex items-center gap-2 text-sm text-text-muted">
                     <MapPin className="w-4 h-4" />
                     <span>{property.address}, {property.city}</span>
                   </div>
@@ -147,7 +153,7 @@ const Propertylisting = () => {
                     <div className="flex gap-2 mt-4">
                       <button
                         onClick={() => handleApprove(property.id)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1"
+                        className="px-4 py-2 bg-success text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1"
                       >
                         <CheckCircle className="w-4 h-4" /> Approve Property
                       </button>

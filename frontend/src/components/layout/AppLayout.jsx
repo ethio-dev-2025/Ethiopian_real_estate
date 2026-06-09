@@ -1,3 +1,4 @@
+// src/components/layout/AppLayout.jsx
 import React, { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import AppSidebar from './AppSidebar'
@@ -9,7 +10,7 @@ const AppLayout = ({ children }) => {
   console.log('AppLayout - User:', user)
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-background">
       <AppSidebar 
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen}

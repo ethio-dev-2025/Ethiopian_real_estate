@@ -1,4 +1,3 @@
-// src/pages/PaymentSuccessPage.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Loader, XCircle, Download, Receipt, Calendar, CreditCard, Home, PlusCircle } from 'lucide-react';
@@ -17,7 +16,7 @@ const PaymentSuccessPage = () => {
   const tx_ref = searchParams.get('tx_ref');
   const status = searchParams.get('status');
 
- useEffect(() => {
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const tx_ref = urlParams.get('tx_ref');
     const status = urlParams.get('status');
@@ -25,14 +24,13 @@ const PaymentSuccessPage = () => {
     console.log('📦 PaymentSuccessPage params:', { tx_ref, status });
     
     if (tx_ref) {
-        verifyPayment(tx_ref);
+      verifyPayment(tx_ref);
     } else {
-        setError('No payment reference found');
-        setLoading(false);
+      setError('No payment reference found');
+      setLoading(false);
     }
-}, []);
+  }, []);
 
-  // Countdown timer for auto-redirect
   useEffect(() => {
     if (!loading && !error && paymentData) {
       const timer = setInterval(() => {
@@ -60,7 +58,6 @@ const PaymentSuccessPage = () => {
         return;
       }
       
-      // GET request to verify endpoint
       const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${tx_ref}`, {
         method: 'GET',
         headers: {
@@ -73,7 +70,6 @@ const PaymentSuccessPage = () => {
       console.log('📦 Verification response:', data);
       
       if (data.success && data.activated) {
-        // Refresh user data
         const userResponse = await fetch(`${API_URL}/api/auth/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -87,7 +83,6 @@ const PaymentSuccessPage = () => {
           console.log('✅ User data refreshed:', freshUser);
         }
         
-        // Get user from localStorage
         const userStr = localStorage.getItem('user');
         const user = userStr ? JSON.parse(userStr) : {};
         
@@ -138,13 +133,13 @@ const PaymentSuccessPage = () => {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Payment Receipt - EstateHub</title>
+        <title>Payment Receipt - BetFinder</title>
         <meta charset="UTF-8">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; padding: 40px; }
           .receipt { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); overflow: hidden; }
-          .header { background: linear-gradient(135deg, #10b981, #059669); padding: 30px; text-align: center; color: white; }
+          .header { background: linear-gradient(135deg, #1e3a8a, #0f766e); padding: 30px; text-align: center; color: white; }
           .logo { font-size: 48px; margin-bottom: 10px; }
           .title { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
           .subtitle { opacity: 0.9; font-size: 14px; }
@@ -165,7 +160,7 @@ const PaymentSuccessPage = () => {
           <div class="header">
             <div class="logo">🏠</div>
             <div class="title">Payment Receipt</div>
-            <div class="subtitle">EstateHub Real Estate</div>
+            <div class="subtitle">BetFinder Real Estate</div>
           </div>
           <div class="content">
             <div class="success-badge">✅ ${paymentData.renewed ? 'Subscription Renewed' : 'Payment Successful'}</div>
@@ -182,7 +177,7 @@ const PaymentSuccessPage = () => {
           </div>
           <div class="footer">
             <p>This is a computer-generated receipt. No signature is required.</p>
-            <p>© 2024 EstateHub Real Estate. All rights reserved.</p>
+            <p>© 2024 BetFinder Real Estate. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -206,7 +201,7 @@ const PaymentSuccessPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Loader className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+          <Loader className="w-16 h-16 text-primary-700 animate-spin mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900">Verifying Payment</h2>
           <p className="text-gray-500 mt-2">Please wait while we confirm your payment...</p>
         </div>
@@ -226,7 +221,7 @@ const PaymentSuccessPage = () => {
           <div className="flex gap-4">
             <button 
               onClick={() => navigate('/dashboard/subscription')} 
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              className="flex-1 px-4 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 transition"
             >
               Try Again
             </button>
@@ -246,29 +241,27 @@ const PaymentSuccessPage = () => {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-md mx-auto">
         <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-center text-white">
+          {/* Header - Changed from green to primary */}
+          <div className="bg-gradient-to-r from-primary-800 to-primary-900 p-6 text-center text-white">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
               <CheckCircle className="w-8 h-8" />
             </div>
             <h1 className="text-2xl font-bold">{paymentData?.renewed ? 'Subscription Renewed!' : 'Payment Successful!'}</h1>
-            <p className="text-green-100 mt-1">
+            <p className="text-primary-100 mt-1">
               {paymentData?.renewed ? 'Your subscription has been renewed' : 'Your subscription is now active'}
             </p>
           </div>
           
-          {/* Content */}
           <div className="p-6">
-            {/* Receipt */}
             <div className="border border-gray-200 rounded-xl overflow-hidden mb-6">
               <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="font-semibold flex items-center gap-2">
-                  <Receipt className="w-4 h-4 text-blue-600" />
+                  <Receipt className="w-4 h-4 text-primary-700" />
                   Payment Receipt
                 </h3>
                 <button 
                   onClick={handleDownloadReceipt}
-                  className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                  className="flex items-center gap-1 text-sm text-secondary-600 hover:text-secondary-700"
                 >
                   <Download className="w-4 h-4" />
                   Download
@@ -290,35 +283,33 @@ const PaymentSuccessPage = () => {
                 {paymentData?.subscription_end_date && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Valid Until</span>
-                    <span className="font-medium text-green-600">{formatDate(paymentData?.subscription_end_date)}</span>
+                    <span className="font-medium text-success">{formatDate(paymentData?.subscription_end_date)}</span>
                   </div>
                 )}
                 <div className="border-t pt-3 mt-2">
                   <div className="flex justify-between">
                     <span className="font-bold">Total Paid</span>
-                    <span className="font-bold text-green-600">{formatAmount(paymentData?.amount)}</span>
+                    <span className="font-bold text-success">{formatAmount(paymentData?.amount)}</span>
                   </div>
                 </div>
               </div>
             </div>
             
-            {/* Auto-redirect */}
             <p className="text-center text-sm text-gray-500 mb-4">
-              Redirecting to dashboard in <span className="font-bold text-blue-600">{countdown}</span> seconds...
+              Redirecting to dashboard in <span className="font-bold text-primary-700">{countdown}</span> seconds...
             </p>
             
-            {/* Buttons */}
             <div className="flex gap-3">
               <button
                 onClick={() => navigate('/dashboard')}
-                className="flex-1 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:shadow-lg transition flex items-center justify-center gap-2"
+                className="flex-1 py-2 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-medium hover:shadow-lg transition flex items-center justify-center gap-2"
               >
                 <Home className="w-4 h-4" />
                 Dashboard
               </button>
               <button
                 onClick={() => navigate('/dashboard/create-listing')}
-                className="flex-1 py-2 border-2 border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition flex items-center justify-center gap-2"
+                className="flex-1 py-2 border-2 border-primary-700 text-primary-700 rounded-lg font-medium hover:bg-primary-50 transition flex items-center justify-center gap-2"
               >
                 <PlusCircle className="w-4 h-4" />
                 Create Listing

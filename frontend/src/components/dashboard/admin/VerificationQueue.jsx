@@ -1,3 +1,4 @@
+// src/components/dashboard/admin/VerificationQueue.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   CheckCircle, XCircle, Clock, Eye, RefreshCw, UserCheck, 
@@ -29,13 +30,10 @@ const VerificationQueue = () => {
   const [imageErrors, setImageErrors] = useState({})
   const [processingId, setProcessingId] = useState(null)
   
-  // Refs to prevent unnecessary re-renders and loops
   const isFetchingRef = useRef(false)
   const initialLoadDoneRef = useRef(false)
 
-  // ========== MARK QUEUE AS VIEWED WHEN PAGE LOADS ==========
   useEffect(() => {
-    // When the verification queue page loads, mark it as viewed to clear the sidebar badge
     const markAsViewed = async () => {
       try {
         const token = localStorage.getItem('access_token')
@@ -46,11 +44,9 @@ const VerificationQueue = () => {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         
-        // Update localStorage to reflect that queue was viewed
         const now = Date.now()
         localStorage.setItem('lastQueueViewTime', now.toString())
         
-        // Dispatch event to update sidebar
         window.dispatchEvent(new StorageEvent('storage', {
           key: 'lastQueueViewTime',
           newValue: now.toString()
@@ -65,7 +61,6 @@ const VerificationQueue = () => {
     markAsViewed()
   }, [])
 
-  // Prevent body scroll when modals are open
   useEffect(() => {
     if (showDocumentModal || showPhotoModal || selectedRequest || showRejectModal) {
       document.body.style.overflow = 'hidden'
@@ -78,7 +73,6 @@ const VerificationQueue = () => {
   }, [showDocumentModal, showPhotoModal, selectedRequest, showRejectModal])
 
   const fetchAllRequests = useCallback(async (silent = false) => {
-    // Prevent multiple simultaneous fetches
     if (isFetchingRef.current) {
       console.log('⏳ Fetch already in progress, skipping...')
       return
@@ -112,11 +106,10 @@ const VerificationQueue = () => {
         const allData = await allRequestsResponse.json()
         let allRequests = Array.isArray(allData) ? allData : []
         
-        // Ensure NEWEST first (already sorted by backend, but double-check)
         allRequests = allRequests.sort((a, b) => {
           const dateA = new Date(a.created_at)
           const dateB = new Date(b.created_at)
-          return dateB - dateA // Newest first
+          return dateB - dateA
         })
         
         const pending = allRequests.filter(req => {
@@ -165,7 +158,6 @@ const VerificationQueue = () => {
     }
   }, [])
 
-  // Initial load only - no interval to prevent auto-refresh
   useEffect(() => {
     if (!initialLoadDoneRef.current) {
       initialLoadDoneRef.current = true
@@ -267,18 +259,18 @@ const VerificationQueue = () => {
     const statusLower = status?.toLowerCase() || ''
     
     if (statusLower === 'documents_pending' || statusLower === 'pending') {
-      return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Pending Review</span>
+      return <span className="px-2 py-1 bg-warning/10 text-warning rounded-full text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Pending Review</span>
     }
     if (statusLower === 'documents_approved' || statusLower === 'approved') {
-      return <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Docs Approved</span>
+      return <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Docs Approved</span>
     }
     if (statusLower === 'fully_activated') {
-      return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Fully Active</span>
+      return <span className="px-2 py-1 bg-success/10 text-success rounded-full text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />Fully Active</span>
     }
     if (statusLower === 'rejected') {
-      return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Rejected</span>
+      return <span className="px-2 py-1 bg-error/10 text-error rounded-full text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Rejected</span>
     }
-    return <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">{status}</span>
+    return <span className="px-2 py-1 bg-gray-100 text-text-muted rounded-full text-xs">{status}</span>
   }
 
   const getCurrentRequests = () => {
@@ -288,7 +280,6 @@ const VerificationQueue = () => {
     else if (activeTab === 'rejected') requests = [...rejectedRequests]
     else if (activeTab === 'all') requests = [...pendingRequests, ...approvedRequests, ...rejectedRequests]
     
-    // Sort by created_at descending (newest first)
     return requests.sort((a, b) => {
       const dateA = new Date(a.created_at)
       const dateB = new Date(b.created_at)
@@ -305,11 +296,11 @@ const VerificationQueue = () => {
   )
 
   const documentItems = [
-    { key: 'business_license', label: 'Business License', icon: '📋', color: 'text-green-600', bgColor: 'bg-green-50' },
-    { key: 'ownership_document', label: 'Ownership Document', icon: '📄', color: 'text-blue-600', bgColor: 'bg-blue-50' },
-    { key: 'title_deed', label: 'Title Deed', icon: '🏠', color: 'text-purple-600', bgColor: 'bg-purple-50' },
-    { key: 'tax_clearance', label: 'Tax Clearance', icon: '💰', color: 'text-orange-600', bgColor: 'bg-orange-50' },
-    { key: 'government_id', label: 'Government ID', icon: '🆔', color: 'text-red-600', bgColor: 'bg-red-50' },
+    { key: 'business_license', label: 'Business License', icon: '📋', color: 'text-success', bgColor: 'bg-success/10' },
+    { key: 'ownership_document', label: 'Ownership Document', icon: '📄', color: 'text-primary-600', bgColor: 'bg-primary-50' },
+    { key: 'title_deed', label: 'Title Deed', icon: '🏠', color: 'text-secondary-600', bgColor: 'bg-secondary-50' },
+    { key: 'tax_clearance', label: 'Tax Clearance', icon: '💰', color: 'text-warning', bgColor: 'bg-warning/10' },
+    { key: 'government_id', label: 'Government ID', icon: '🆔', color: 'text-error', bgColor: 'bg-error/10' },
   ]
 
   const parsePropertyPhotos = (photos) => {
@@ -324,7 +315,6 @@ const VerificationQueue = () => {
     }
   }
 
-  // ========== DOCUMENT MODAL ==========
   const DocumentModal = () => {
     const [docLoading, setDocLoading] = useState(true)
     const isImage = selectedDocument?.url?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)
@@ -334,20 +324,20 @@ const VerificationQueue = () => {
     
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => { setShowDocumentModal(false); setSelectedDocument(null); setDocLoading(true) }}>
-        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 relative z-[101]" onClick={(e) => e.stopPropagation()}>
-          <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" />
+        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-border-light relative z-[101]" onClick={(e) => e.stopPropagation()}>
+          <div className="sticky top-0 bg-white border-b border-border-light p-4 flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary-600" />
               {selectedDocument?.name || 'Document Viewer'}
             </h3>
             <div className="flex gap-2">
-              <a href={selectedDocument?.url} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" title="Open in new tab">
+              <a href={selectedDocument?.url} target="_blank" rel="noopener noreferrer" className="p-2 text-text-muted hover:bg-gray-100 rounded-lg transition" title="Open in new tab">
                 <ExternalLink className="w-4 h-4" />
               </a>
-              <a href={selectedDocument?.url} download className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" title="Download">
+              <a href={selectedDocument?.url} download className="p-2 text-text-muted hover:bg-gray-100 rounded-lg transition" title="Download">
                 <Download className="w-4 h-4" />
               </a>
-              <button onClick={() => { setShowDocumentModal(false); setSelectedDocument(null); setDocLoading(true) }} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+              <button onClick={() => { setShowDocumentModal(false); setSelectedDocument(null); setDocLoading(true) }} className="p-2 text-text-muted hover:bg-gray-100 rounded-lg transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -355,7 +345,7 @@ const VerificationQueue = () => {
           <div className="flex-1 overflow-y-auto p-6 bg-gray-100 flex items-center justify-center min-h-[60vh]">
             {docLoading && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
               </div>
             )}
             {isImage ? (
@@ -378,9 +368,9 @@ const VerificationQueue = () => {
               />
             ) : (
               <div className="text-center">
-                <File className="w-20 h-20 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">Preview not available for this file type</p>
-                <a href={selectedDocument?.url} download className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                <File className="w-20 h-20 text-text-muted mx-auto mb-4" />
+                <p className="text-text-muted mb-4">Preview not available for this file type</p>
+                <a href={selectedDocument?.url} download className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition">
                   <Download className="w-4 h-4" /> Download File
                 </a>
               </div>
@@ -391,7 +381,6 @@ const VerificationQueue = () => {
     )
   }
 
-  // ========== PHOTO MODAL ==========
   const PhotoModal = () => {
     const currentUrl = currentPhotoList[currentPhotoIndex]
     const [imgLoading, setImgLoading] = useState(true)
@@ -461,7 +450,6 @@ const VerificationQueue = () => {
     )
   }
 
-  // ========== REQUEST DETAIL MODAL ==========
   const RequestDetailModal = ({ request, onClose }) => {
     const photos = parsePropertyPhotos(request.property_photos)
     const isApproved = request.status?.toLowerCase() === 'documents_approved' || request.status?.toLowerCase() === 'approved'
@@ -470,62 +458,62 @@ const VerificationQueue = () => {
     
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
-        <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 relative" onClick={(e) => e.stopPropagation()}>
-          <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center z-10">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-blue-600" />
+        <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-border-light relative" onClick={(e) => e.stopPropagation()}>
+          <div className="sticky top-0 bg-white border-b border-border-light p-4 flex justify-between items-center z-10">
+            <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-primary-600" />
               Document Verification Request
-              {isFullyActivated && <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">Fully Active</span>}
-              {isApproved && <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">Docs Approved</span>}
-              {isRejected && <span className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">Rejected</span>}
+              {isFullyActivated && <span className="ml-2 px-2 py-1 bg-success/10 text-success rounded-full text-xs">Fully Active</span>}
+              {isApproved && <span className="ml-2 px-2 py-1 bg-primary-100 text-primary-700 rounded-full text-xs">Docs Approved</span>}
+              {isRejected && <span className="ml-2 px-2 py-1 bg-error/10 text-error rounded-full text-xs">Rejected</span>}
             </h2>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-text-muted" />
             </button>
           </div>
           
           <div className="p-6 space-y-6">
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-2">
-                <User className="w-4 h-4 text-blue-600" />
+            <div className="border-b border-border-light pb-4">
+              <h3 className="font-semibold text-text-primary text-lg mb-3 flex items-center gap-2">
+                <User className="w-4 h-4 text-primary-600" />
                 Personal Information
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-sm text-gray-500">Full Name</p><p className="font-medium text-gray-900">{request.full_name}</p></div>
-                <div><p className="text-sm text-gray-500">Email</p><p className="font-medium text-gray-900">{request.email}</p></div>
-                <div><p className="text-sm text-gray-500">Phone</p><p className="font-medium text-gray-900">{request.phone_number}</p></div>
-                <div><p className="text-sm text-gray-500">Submitted</p><p className="font-medium text-gray-900">{request.created_at ? new Date(request.created_at).toLocaleString() : 'N/A'}</p></div>
+                <div><p className="text-sm text-text-muted">Full Name</p><p className="font-medium text-text-primary">{request.full_name}</p></div>
+                <div><p className="text-sm text-text-muted">Email</p><p className="font-medium text-text-primary">{request.email}</p></div>
+                <div><p className="text-sm text-text-muted">Phone</p><p className="font-medium text-text-primary">{request.phone_number}</p></div>
+                <div><p className="text-sm text-text-muted">Submitted</p><p className="font-medium text-text-primary">{request.created_at ? new Date(request.created_at).toLocaleString() : 'N/A'}</p></div>
               </div>
             </div>
             
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-2">
-                <Home className="w-4 h-4 text-blue-600" />
+            <div className="border-b border-border-light pb-4">
+              <h3 className="font-semibold text-text-primary text-lg mb-3 flex items-center gap-2">
+                <Home className="w-4 h-4 text-primary-600" />
                 Property Information
               </h3>
               <div className="space-y-2">
-                <div><p className="text-sm text-gray-500">Property Address</p><p className="font-medium text-gray-900">{request.property_address}</p></div>
-                <div><p className="text-sm text-gray-500">Property Type</p><p className="font-medium text-gray-900 capitalize">{request.property_type}</p></div>
+                <div><p className="text-sm text-text-muted">Property Address</p><p className="font-medium text-text-primary">{request.property_address}</p></div>
+                <div><p className="text-sm text-text-muted">Property Type</p><p className="font-medium text-text-primary capitalize">{request.property_type}</p></div>
               </div>
             </div>
             
             {(request.business_name || request.experience_years > 0 || request.reason_for_activation) && (
-              <div className="border-b border-gray-200 pb-4">
-                <h3 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-blue-600" />
+              <div className="border-b border-border-light pb-4">
+                <h3 className="font-semibold text-text-primary text-lg mb-3 flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-primary-600" />
                   Business Information
                 </h3>
                 <div className="space-y-2">
-                  {request.business_name && <div><p className="text-sm text-gray-500">Business Name</p><p className="font-medium text-gray-900">{request.business_name}</p></div>}
-                  {request.experience_years > 0 && <div><p className="text-sm text-gray-500">Years of Experience</p><p className="font-medium text-gray-900">{request.experience_years} years</p></div>}
-                  {request.reason_for_activation && <div><p className="text-sm text-gray-500">Reason for Activation</p><p className="font-medium text-gray-900">{request.reason_for_activation}</p></div>}
+                  {request.business_name && <div><p className="text-sm text-text-muted">Business Name</p><p className="font-medium text-text-primary">{request.business_name}</p></div>}
+                  {request.experience_years > 0 && <div><p className="text-sm text-text-muted">Years of Experience</p><p className="font-medium text-text-primary">{request.experience_years} years</p></div>}
+                  {request.reason_for_activation && <div><p className="text-sm text-text-muted">Reason for Activation</p><p className="font-medium text-text-primary">{request.reason_for_activation}</p></div>}
                 </div>
               </div>
             )}
             
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
+            <div className="border-b border-border-light pb-4">
+              <h3 className="font-semibold text-text-primary text-lg mb-3 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary-600" />
                 Uploaded Documents
               </h3>
               <div className="grid grid-cols-1 gap-3">
@@ -533,17 +521,17 @@ const VerificationQueue = () => {
                   const docValue = request[doc.key]
                   if (docValue) {
                     return (
-                      <div key={doc.key} className={`${doc.bgColor} rounded-lg p-3 border border-gray-200`}>
-                        <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <div key={doc.key} className={`${doc.bgColor} rounded-lg p-3 border border-border-light`}>
+                        <p className="text-sm font-medium text-text-primary mb-2 flex items-center gap-2">
                           <span>{doc.icon}</span> {doc.label}
                         </p>
                         <button 
                           onClick={() => handleViewDocument(docValue, doc.label)} 
-                          className="flex items-center gap-2 w-full p-2 bg-white rounded-lg hover:bg-gray-50 transition border border-gray-200"
+                          className="flex items-center gap-2 w-full p-2 bg-white rounded-lg hover:bg-gray-50 transition border border-border-light"
                         >
                           <FileText className={`w-5 h-5 ${doc.color}`} />
-                          <span className="flex-1 text-left text-sm truncate text-gray-600">{docValue.split('/').pop()}</span>
-                          <Eye className="w-4 h-4 text-gray-400" />
+                          <span className="flex-1 text-left text-sm truncate text-text-secondary">{docValue.split('/').pop()}</span>
+                          <Eye className="w-4 h-4 text-text-muted" />
                         </button>
                       </div>
                     )
@@ -552,14 +540,14 @@ const VerificationQueue = () => {
                 })}
               </div>
               {!documentItems.some(doc => request[doc.key]) && (
-                <p className="text-gray-500 text-sm text-center py-4">No documents uploaded</p>
+                <p className="text-text-muted text-sm text-center py-4">No documents uploaded</p>
               )}
             </div>
             
             {photos && photos.length > 0 && (
-              <div className="border-b border-gray-200 pb-4">
-                <h3 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-blue-600" />
+              <div className="border-b border-border-light pb-4">
+                <h3 className="font-semibold text-text-primary text-lg mb-3 flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-primary-600" />
                   Property Photos ({photos.length})
                 </h3>
                 <div className="grid grid-cols-3 gap-3">
@@ -570,7 +558,7 @@ const VerificationQueue = () => {
                       <button
                         key={idx}
                         onClick={() => handleViewPhoto(photo, idx, photos)}
-                        className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-blue-500 transition bg-gray-100"
+                        className="relative group aspect-square rounded-lg overflow-hidden border-2 border-border-light hover:border-primary-500 transition bg-gray-100"
                       >
                         {!hasError && photoUrl ? (
                           <img 
@@ -580,7 +568,7 @@ const VerificationQueue = () => {
                             onError={() => handleImageError(`photo_${request.id}_${idx}`)}
                           />
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                          <div className="w-full h-full flex flex-col items-center justify-center text-text-muted">
                             <Camera className="w-6 h-6 mb-1" />
                             <p className="text-xs">No Image</p>
                           </div>
@@ -596,29 +584,29 @@ const VerificationQueue = () => {
             )}
             
             <div>
-              <h3 className="font-semibold text-gray-900 text-lg mb-3">Status</h3>
+              <h3 className="font-semibold text-text-primary text-lg mb-3">Status</h3>
               <div className="flex items-center gap-2 mb-4">{getStatusBadge(request.status)}</div>
               {request.reviewed_at && (
-                <p className="text-xs text-gray-500 mt-2">Reviewed on: {new Date(request.reviewed_at).toLocaleString()}</p>
+                <p className="text-xs text-text-muted mt-2">Reviewed on: {new Date(request.reviewed_at).toLocaleString()}</p>
               )}
               {request.rejection_reason && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-3">
-                  <p className="text-sm text-red-600"><strong>Rejection Reason:</strong> {request.rejection_reason}</p>
+                <div className="bg-error/10 border border-error/20 rounded-lg p-4 mt-3">
+                  <p className="text-sm text-error"><strong>Rejection Reason:</strong> {request.rejection_reason}</p>
                 </div>
               )}
               {request.plan_type && request.payment_amount && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-3">
-                  <p className="text-sm text-green-600"><strong>Plan:</strong> {request.plan_type} | <strong>Amount:</strong> ETB {request.payment_amount}</p>
+                <div className="bg-success/10 border border-success/20 rounded-lg p-4 mt-3">
+                  <p className="text-sm text-success"><strong>Plan:</strong> {request.plan_type} | <strong>Amount:</strong> ETB {request.payment_amount}</p>
                 </div>
               )}
             </div>
             
             {(request.status?.toLowerCase() === 'documents_pending' || request.status?.toLowerCase() === 'pending') && (
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <div className="flex gap-3 pt-4 border-t border-border-light">
                 <button 
                   onClick={() => handleApprove(request.id)} 
                   disabled={processingId === request.id}
-                  className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-success text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 transition disabled:opacity-50"
                 >
                   {processingId === request.id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
                   Approve Documents
@@ -626,7 +614,7 @@ const VerificationQueue = () => {
                 <button 
                   onClick={() => { setSelectedRequest(request); setShowRejectModal(true); onClose() }} 
                   disabled={processingId === request.id}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-error text-white rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center gap-2 transition disabled:opacity-50"
                 >
                   <XCircle className="w-4 h-4" />
                   Reject
@@ -639,7 +627,6 @@ const VerificationQueue = () => {
     )
   }
 
-  // ========== REJECT MODAL ==========
   const RejectModal = () => {
     const [localReason, setLocalReason] = useState('')
     
@@ -657,14 +644,14 @@ const VerificationQueue = () => {
     
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-gray-200 shadow-xl">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Request</h3>
-          <p className="text-gray-600 mb-4">Please provide a reason for rejection:</p>
+        <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-border-light shadow-xl">
+          <h3 className="text-xl font-bold text-text-primary mb-4">Reject Request</h3>
+          <p className="text-text-secondary mb-4">Please provide a reason for rejection:</p>
           <textarea 
             value={localReason}
             onChange={(e) => setLocalReason(e.target.value)}
             rows="4"
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            className="w-full p-3 bg-gray-50 border border-border-light rounded-lg text-text-primary placeholder-text-muted focus:ring-2 focus:ring-error focus:border-error"
             placeholder="Type your rejection reason here..."
             autoFocus
           />
@@ -674,14 +661,14 @@ const VerificationQueue = () => {
                 setShowRejectModal(false)
                 setLocalReason('')
               }} 
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+              className="flex-1 px-4 py-2 border border-border-light rounded-lg text-text-secondary hover:bg-gray-50 transition"
             >
               Cancel
             </button>
             <button 
               onClick={handleConfirmReject} 
               disabled={processingId === selectedRequest?.id}
-              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-error text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
             >
               {processingId === selectedRequest?.id ? 'Processing...' : 'Confirm Reject'}
             </button>
@@ -691,15 +678,13 @@ const VerificationQueue = () => {
     )
   }
 
-  // Manual refresh handler
   const handleRefresh = () => {
     fetchAllRequests(false)
   }
 
-  // Loading skeleton
   if (loading && pendingRequests.length === 0 && approvedRequests.length === 0 && rejectedRequests.length === 0) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="p-6 bg-background min-h-screen">
         <div className="mb-6">
           <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
           <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
@@ -709,7 +694,7 @@ const VerificationQueue = () => {
             <div key={i} className="h-10 bg-gray-200 rounded-lg w-24 animate-pulse"></div>
           ))}
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-border-light shadow-sm overflow-hidden">
           <div className="divide-y divide-gray-200">
             {[1, 2, 3].map(i => (
               <div key={i} className="p-6">
@@ -730,18 +715,18 @@ const VerificationQueue = () => {
 
   if (error && pendingRequests.length === 0 && approvedRequests.length === 0 && rejectedRequests.length === 0) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="p-6 bg-background min-h-screen">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Verification Queue</h1>
-          <p className="text-gray-500 mt-1">Review and manage document verification requests</p>
+          <h1 className="text-2xl font-bold text-text-primary">Verification Queue</h1>
+          <p className="text-text-muted mt-1">Review and manage document verification requests</p>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-12 text-center">
-          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-red-700 mb-2">Error Loading Data</h3>
-          <p className="text-red-600 mb-4">{error}</p>
+        <div className="bg-error/10 border border-error/20 rounded-2xl p-12 text-center">
+          <AlertCircle className="w-16 h-16 text-error mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-error mb-2">Error Loading Data</h3>
+          <p className="text-error mb-4">{error}</p>
           <button 
             onClick={handleRefresh} 
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+            className="px-4 py-2 bg-error text-white rounded-lg hover:bg-red-700 transition"
           >
             Try Again
           </button>
@@ -751,7 +736,7 @@ const VerificationQueue = () => {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-background min-h-screen">
       <DocumentModal />
       <PhotoModal />
       {selectedRequest && !showRejectModal && <RequestDetailModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
@@ -760,68 +745,68 @@ const VerificationQueue = () => {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Verification Queue</h1>
-            <p className="text-gray-500 mt-1">Review and manage document verification requests from users</p>
+            <h1 className="text-2xl font-bold text-text-primary">Verification Queue</h1>
+            <p className="text-text-muted mt-1">Review and manage document verification requests from users</p>
           </div>
           
           <div className="flex gap-3">
-            <div className="bg-white rounded-lg px-3 py-2 text-center shadow-sm border border-gray-200">
-              <p className="text-xs text-gray-500">Pending</p>
-              <p className="text-xl font-bold text-yellow-600">{pendingRequests.length}</p>
+            <div className="bg-white rounded-lg px-3 py-2 text-center shadow-sm border border-border-light">
+              <p className="text-xs text-text-muted">Pending</p>
+              <p className="text-xl font-bold text-warning">{pendingRequests.length}</p>
             </div>
-            <div className="bg-white rounded-lg px-3 py-2 text-center shadow-sm border border-gray-200">
-              <p className="text-xs text-gray-500">Approved</p>
-              <p className="text-xl font-bold text-green-600">{approvedRequests.length}</p>
+            <div className="bg-white rounded-lg px-3 py-2 text-center shadow-sm border border-border-light">
+              <p className="text-xs text-text-muted">Approved</p>
+              <p className="text-xl font-bold text-success">{approvedRequests.length}</p>
             </div>
-            <div className="bg-white rounded-lg px-3 py-2 text-center shadow-sm border border-gray-200">
-              <p className="text-xs text-gray-500">Rejected</p>
-              <p className="text-xl font-bold text-red-600">{rejectedRequests.length}</p>
+            <div className="bg-white rounded-lg px-3 py-2 text-center shadow-sm border border-border-light">
+              <p className="text-xs text-text-muted">Rejected</p>
+              <p className="text-xl font-bold text-error">{rejectedRequests.length}</p>
             </div>
           </div>
         </div>
       </div>
 
       <div className="mb-6 relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted w-5 h-5" />
         <input 
           type="text" 
           placeholder="Search by name, email, or phone..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
-          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+          className="w-full pl-10 pr-4 py-2 bg-white border border-border-light rounded-lg text-text-primary placeholder-text-muted focus:ring-2 focus:ring-primary-500 focus:border-primary-500" 
         />
       </div>
 
-      <div className="flex gap-2 mb-6 border-b border-gray-200">
+      <div className="flex gap-2 mb-6 border-b border-border-light">
         <button 
           onClick={() => setActiveTab('pending')} 
-          className={`px-4 py-2 font-medium transition flex items-center gap-2 ${activeTab === 'pending' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 font-medium transition flex items-center gap-2 ${activeTab === 'pending' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-text-muted hover:text-text-primary'}`}
         >
           <Clock className="w-4 h-4" />
           Pending
           {pendingRequests.length > 0 && (
-            <span className="px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full animate-pulse ml-1">
+            <span className="px-1.5 py-0.5 bg-error text-white text-xs rounded-full animate-pulse ml-1">
               {pendingRequests.length}
             </span>
           )}
         </button>
         <button 
           onClick={() => setActiveTab('approved')} 
-          className={`px-4 py-2 font-medium transition flex items-center gap-2 ${activeTab === 'approved' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 font-medium transition flex items-center gap-2 ${activeTab === 'approved' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-text-muted hover:text-text-primary'}`}
         >
           <CheckCircle className="w-4 h-4" />
           Approved ({approvedRequests.length})
         </button>
         <button 
           onClick={() => setActiveTab('rejected')} 
-          className={`px-4 py-2 font-medium transition flex items-center gap-2 ${activeTab === 'rejected' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 font-medium transition flex items-center gap-2 ${activeTab === 'rejected' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-text-muted hover:text-text-primary'}`}
         >
           <XCircle className="w-4 h-4" />
           Rejected ({rejectedRequests.length})
         </button>
         <button 
           onClick={() => setActiveTab('all')} 
-          className={`px-4 py-2 font-medium transition flex items-center gap-2 ${activeTab === 'all' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 font-medium transition flex items-center gap-2 ${activeTab === 'all' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-text-muted hover:text-text-primary'}`}
         >
           <List className="w-4 h-4" />
           All ({pendingRequests.length + approvedRequests.length + rejectedRequests.length})
@@ -832,7 +817,7 @@ const VerificationQueue = () => {
         <button 
           onClick={handleRefresh} 
           disabled={loading}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50 text-gray-600 transition"
+          className="px-3 py-2 text-sm border border-border-light rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50 text-text-secondary transition"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> 
           {loading ? 'Loading...' : 'Refresh'}
@@ -840,35 +825,35 @@ const VerificationQueue = () => {
       </div>
 
       {filteredRequests.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
+        <div className="bg-white rounded-xl border border-border-light shadow-sm p-12 text-center">
           {activeTab === 'pending' ? (
             <>
-              <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">No Pending Requests</h3>
-              <p className="text-gray-500">All document verification requests have been processed!</p>
+              <CheckCircle className="w-16 h-16 text-success mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-text-primary mb-2">No Pending Requests</h3>
+              <p className="text-text-muted">All document verification requests have been processed!</p>
             </>
           ) : activeTab === 'approved' ? (
             <>
-              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">No Approved Requests</h3>
-              <p className="text-gray-500">No document requests have been approved yet.</p>
+              <CheckCircle className="w-16 h-16 text-success mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-text-primary mb-2">No Approved Requests</h3>
+              <p className="text-text-muted">No document requests have been approved yet.</p>
             </>
           ) : activeTab === 'rejected' ? (
             <>
-              <XCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">No Rejected Requests</h3>
-              <p className="text-gray-500">No document requests have been rejected.</p>
+              <XCircle className="w-16 h-16 text-text-muted mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-text-primary mb-2">No Rejected Requests</h3>
+              <p className="text-text-muted">No document requests have been rejected.</p>
             </>
           ) : (
             <>
-              <List className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">No Requests</h3>
-              <p className="text-gray-500">No document verification requests found.</p>
+              <List className="w-16 h-16 text-text-muted mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-text-primary mb-2">No Requests</h3>
+              <p className="text-text-muted">No document verification requests found.</p>
             </>
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-border-light shadow-sm overflow-hidden">
           <div className="divide-y divide-gray-200">
             {filteredRequests.map((req) => {
               const photos = parsePropertyPhotos(req.property_photos)
@@ -878,54 +863,54 @@ const VerificationQueue = () => {
               const isRejected = req.status?.toLowerCase() === 'rejected'
               
               return (
-                <div key={req.id} className={`p-6 hover:bg-gray-50 transition ${isFullyActivated ? 'border-l-4 border-l-green-500' : isApproved ? 'border-l-4 border-l-blue-500' : isRejected ? 'border-l-4 border-l-red-500' : ''}`}>
+                <div key={req.id} className={`p-6 hover:bg-gray-50 transition ${isFullyActivated ? 'border-l-4 border-l-success' : isApproved ? 'border-l-4 border-l-primary-500' : isRejected ? 'border-l-4 border-l-error' : ''}`}>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h3 className="font-semibold text-lg text-gray-900">{req.full_name}</h3>
+                        <h3 className="font-semibold text-lg text-text-primary">{req.full_name}</h3>
                         {getStatusBadge(req.status)}
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <span className="text-xs text-text-muted flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {req.created_at ? new Date(req.created_at).toLocaleDateString() : 'N/A'}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-3">
-                        <div><p className="text-gray-500">Email</p><p className="font-medium text-gray-700">{req.email}</p></div>
-                        <div><p className="text-gray-500">Phone</p><p className="font-medium text-gray-700">{req.phone_number}</p></div>
-                        <div><p className="text-gray-500">Property Type</p><p className="font-medium text-gray-700 capitalize">{req.property_type}</p></div>
+                        <div><p className="text-text-muted">Email</p><p className="font-medium text-text-primary">{req.email}</p></div>
+                        <div><p className="text-text-muted">Phone</p><p className="font-medium text-text-primary">{req.phone_number}</p></div>
+                        <div><p className="text-text-muted">Property Type</p><p className="font-medium text-text-primary capitalize">{req.property_type}</p></div>
                       </div>
                       {req.property_address && (
-                        <p className="text-sm text-gray-600 mb-2">{req.property_address}</p>
+                        <p className="text-sm text-text-secondary mb-2">{req.property_address}</p>
                       )}
                       
                       <div className="flex flex-wrap gap-2 mt-3">
                         {req.business_license && (
-                          <button onClick={() => handleViewDocument(req.business_license, 'Business License')} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-green-200 transition">
+                          <button onClick={() => handleViewDocument(req.business_license, 'Business License')} className="text-xs bg-success/10 text-success px-2 py-1 rounded-full flex items-center gap-1 hover:bg-success/20 transition">
                             📋 Business License
                           </button>
                         )}
                         {req.ownership_document && (
-                          <button onClick={() => handleViewDocument(req.ownership_document, 'Ownership Document')} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-blue-200 transition">
+                          <button onClick={() => handleViewDocument(req.ownership_document, 'Ownership Document')} className="text-xs bg-primary-50 text-primary-600 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-primary-100 transition">
                             📄 Ownership Document
                           </button>
                         )}
                         {req.title_deed && (
-                          <button onClick={() => handleViewDocument(req.title_deed, 'Title Deed')} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 transition">
+                          <button onClick={() => handleViewDocument(req.title_deed, 'Title Deed')} className="text-xs bg-secondary-50 text-secondary-600 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-secondary-100 transition">
                             🏠 Title Deed
                           </button>
                         )}
                         {req.tax_clearance && (
-                          <button onClick={() => handleViewDocument(req.tax_clearance, 'Tax Clearance')} className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-orange-200 transition">
+                          <button onClick={() => handleViewDocument(req.tax_clearance, 'Tax Clearance')} className="text-xs bg-warning/10 text-warning px-2 py-1 rounded-full flex items-center gap-1 hover:bg-warning/20 transition">
                             💰 Tax Clearance
                           </button>
                         )}
                         {req.government_id && (
-                          <button onClick={() => handleViewDocument(req.government_id, 'Government ID')} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-red-200 transition">
+                          <button onClick={() => handleViewDocument(req.government_id, 'Government ID')} className="text-xs bg-error/10 text-error px-2 py-1 rounded-full flex items-center gap-1 hover:bg-error/20 transition">
                             🆔 Government ID
                           </button>
                         )}
                         {photoCount > 0 && (
-                          <button onClick={() => photos[0] && handleViewPhoto(photos[0], 0, photos)} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200 transition">
+                          <button onClick={() => photos[0] && handleViewPhoto(photos[0], 0, photos)} className="text-xs bg-secondary-50 text-secondary-600 px-2 py-1 rounded-full flex items-center gap-1 hover:bg-secondary-100 transition">
                             <Camera className="w-3 h-3" /> {photoCount} Photo{photoCount !== 1 ? 's' : ''}
                           </button>
                         )}
@@ -935,7 +920,7 @@ const VerificationQueue = () => {
                     <div className="flex gap-2 ml-4">
                       <button 
                         onClick={() => setSelectedRequest(req)} 
-                        className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-1 text-gray-600 transition"
+                        className="px-4 py-2 border border-border-light rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-1 text-text-secondary transition"
                       >
                         <Eye className="w-4 h-4" /> View Details
                       </button>
@@ -944,7 +929,7 @@ const VerificationQueue = () => {
                           <button 
                             onClick={() => handleApprove(req.id)} 
                             disabled={processingId === req.id}
-                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center gap-1 transition disabled:opacity-50"
+                            className="px-4 py-2 bg-success text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1 transition disabled:opacity-50"
                           >
                             {processingId === req.id ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircle className="w-4 h-4" />}
                             Approve
@@ -952,7 +937,7 @@ const VerificationQueue = () => {
                           <button 
                             onClick={() => { setSelectedRequest(req); setShowRejectModal(true) }} 
                             disabled={processingId === req.id}
-                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-1 transition disabled:opacity-50"
+                            className="px-4 py-2 bg-error text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-1 transition disabled:opacity-50"
                           >
                             <XCircle className="w-4 h-4" />
                             Reject

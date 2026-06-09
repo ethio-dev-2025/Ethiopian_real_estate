@@ -17,62 +17,55 @@ const SellerSubscription = () => {
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
 
- // In SellerSubscription.jsx, update the checkPaymentSuccess function
-useEffect(() => {
-  const checkPaymentSuccess = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const status = urlParams.get('status');
-    const tx_ref = urlParams.get('tx_ref');
+  useEffect(() => {
+    const checkPaymentSuccess = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const status = urlParams.get('status');
+      const tx_ref = urlParams.get('tx_ref');
 
-    if (status === 'success' && tx_ref && !verifyingPayment) {
-      setVerifyingPayment(true);
-      console.log('💰 Payment success detected in subscription page!');
-      
-      try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${tx_ref}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+      if (status === 'success' && tx_ref && !verifyingPayment) {
+        setVerifyingPayment(true);
+        console.log('💰 Payment success detected in subscription page!');
         
-        const data = await response.json();
-        console.log('📦 Verification result:', data);
-        
-        if (data.success && data.activated) {
-          toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Your account is now activated.');
+        try {
+          const token = localStorage.getItem('access_token');
+          const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${tx_ref}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
           
-          // Force multiple refreshes to ensure all data is updated
-          await forceRefreshSubscription();
-          await forceRefreshUser();
+          const data = await response.json();
+          console.log('📦 Verification result:', data);
           
-          // Wait a bit for database to update
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Fetch updated status
-          await fetchActivationStatus();
-          await fetchSubscriptionInfo();
-          
-          // Force refresh user again
-          await forceRefreshUser();
-          
-          // Clear URL parameters
-          window.history.replaceState({}, document.title, '/dashboard/subscription');
-          
-          // Reload page to ensure all components get fresh data
-          window.location.reload();
-        } else {
-          toast.error(data.message || 'Payment verification failed');
+          if (data.success && data.activated) {
+            toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Your account is now activated.');
+            
+            await forceRefreshSubscription();
+            await forceRefreshUser();
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await fetchActivationStatus();
+            await fetchSubscriptionInfo();
+            
+            await forceRefreshUser();
+            
+            window.history.replaceState({}, document.title, '/dashboard/subscription');
+            
+            window.location.reload();
+          } else {
+            toast.error(data.message || 'Payment verification failed');
+          }
+        } catch (error) {
+          console.error('Verification error:', error);
+          toast.error('Failed to verify payment. Please contact support.');
+        } finally {
+          setVerifyingPayment(false);
         }
-      } catch (error) {
-        console.error('Verification error:', error);
-        toast.error('Failed to verify payment. Please contact support.');
-      } finally {
-        setVerifyingPayment(false);
       }
-    }
-  };
-  
-  checkPaymentSuccess();
-}, [forceRefreshSubscription, forceRefreshUser]);
+    };
+    
+    checkPaymentSuccess();
+  }, [forceRefreshSubscription, forceRefreshUser]);
 
   useEffect(() => {
     fetchActivationStatus();
@@ -112,23 +105,19 @@ useEffect(() => {
     }
   };
 
-  // Calculate days remaining from user object or subscription info
   const getDaysRemaining = () => {
-    // First check user object
     if (user?.subscription_end_date) {
       const end = new Date(user.subscription_end_date);
       const now = new Date();
       const diff = end - now;
       return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
     }
-    // Then check subscriptionInfo
     if (subscriptionInfo?.subscription_end_date) {
       const end = new Date(subscriptionInfo.subscription_end_date);
       const now = new Date();
       const diff = end - now;
       return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
     }
-    // Check from activationStatus
     if (activationStatus?.days_remaining > 0) {
       return activationStatus.days_remaining;
     }
@@ -139,7 +128,6 @@ useEffect(() => {
   const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 30;
   const isExpired = daysRemaining <= 0;
   
-  // Check if user has active subscription from multiple sources
   const hasActiveSubscription = 
     user?.has_active_subscription === true ||
     user?.can_create_listings === true ||
@@ -148,26 +136,23 @@ useEffect(() => {
     daysRemaining > 0 ||
     activationStatus?.status === 'fully_activated';
 
-  // Show loading while verifying payment
   if (verifyingPayment) {
     return (
       <div className="text-center py-12">
         <div className="bg-blue-50 rounded-2xl p-8 max-w-md mx-auto">
-          <Loader className="w-16 h-16 text-blue-500 mx-auto mb-4 animate-spin" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Verifying Payment</h2>
-          <p className="text-gray-600">Please wait while we confirm your payment...</p>
+          <Loader className="w-16 h-16 text-primary-600 mx-auto mb-4 animate-spin" />
+          <h2 className="text-2xl font-bold text-text-primary mb-2">Verifying Payment</h2>
+          <p className="text-text-secondary">Please wait while we confirm your payment...</p>
         </div>
       </div>
     );
   }
 
-  // ============ IF USER HAS ACTIVE SUBSCRIPTION - SHOW ONLY BANNER ============
   if (hasActiveSubscription && daysRemaining > 0) {
     return (
       <div className="max-w-2xl mx-auto">
-        {/* Active Subscription Banner - Only this section */}
         <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-center">
-          <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
+          <CheckCircle className="w-12 h-12 text-success mx-auto mb-3" />
           <h2 className="text-2xl font-bold text-green-700 mb-2">Subscription Active!</h2>
           <p className="text-green-600">Your account is fully activated and ready to use.</p>
         </div>
@@ -185,11 +170,10 @@ useEffect(() => {
     );
   }
 
-  // ============ SHOW PLANS FOR SUBSCRIPTION ============
   const plans = [
-    { id: 'seller', name: 'Seller Plan', price: 894, monthlyPrice: 149, icon: Shield, bgColor: 'from-blue-500 to-blue-600', description: 'Perfect for selling properties', features: ['Up to 10 active listings', 'Professional property photos', 'Virtual tour integration', '6 months subscription'] },
-    { id: 'landlord', name: 'Landlord Plan', price: 1194, monthlyPrice: 199, icon: Home, bgColor: 'from-green-500 to-green-600', description: 'Ideal for rental properties', features: ['Up to 20 rental listings', 'Tenant management system', 'Rent collection tools', '6 months subscription'] },
-    { id: 'dual', name: 'Dual Plan', price: 1788, monthlyPrice: 298, icon: Crown, bgColor: 'from-purple-500 to-purple-600', description: 'Complete solution for professionals', features: ['Unlimited listings', 'Advanced analytics', 'Dedicated account manager', '6 months subscription'] }
+    { id: 'seller', name: 'Seller Plan', price: 894, monthlyPrice: 149, icon: Shield, bgColor: 'from-primary-600 to-primary-700', description: 'Perfect for selling properties', features: ['Up to 10 active listings', 'Professional property photos', 'Virtual tour integration', '6 months subscription'] },
+    { id: 'landlord', name: 'Landlord Plan', price: 1194, monthlyPrice: 199, icon: Home, bgColor: 'from-success to-green-600', description: 'Ideal for rental properties', features: ['Up to 20 rental listings', 'Tenant management system', 'Rent collection tools', '6 months subscription'] },
+    { id: 'dual', name: 'Dual Plan', price: 1788, monthlyPrice: 298, icon: Crown, bgColor: 'from-secondary-500 to-secondary-600', description: 'Complete solution for professionals', features: ['Unlimited listings', 'Advanced analytics', 'Dedicated account manager', '6 months subscription'] }
   ];
 
   return (
@@ -204,8 +188,8 @@ useEffect(() => {
         user={user}
       />
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Subscription Plans</h1>
-        <p className="text-gray-500 mt-1">Choose a 6-month plan to activate your account</p>
+        <h1 className="text-2xl font-bold text-text-primary">Subscription Plans</h1>
+        <p className="text-text-muted mt-1">Choose a 6-month plan to activate your account</p>
         {activationStatus?.status === 'documents_approved' && (
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
             <CheckCircle className="w-4 h-4" /> Documents Approved!
@@ -216,7 +200,7 @@ useEffect(() => {
         {plans.map((plan) => {
           const Icon = plan.icon;
           return (
-            <div key={plan.id} className="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition">
+            <div key={plan.id} className="bg-white rounded-xl shadow-sm border border-border-light overflow-hidden hover:shadow-md transition">
               <div className={`bg-gradient-to-r ${plan.bgColor} p-6 text-white`}>
                 <Icon className="w-10 h-10 mb-3" />
                 <h3 className="text-xl font-bold">{plan.name}</h3>
@@ -227,14 +211,14 @@ useEffect(() => {
               <div className="p-6">
                 <ul className="space-y-2 mb-6">
                   {plan.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
-                      <CheckCircle className="w-4 h-4 text-green-500" /> {feature}
+                    <li key={idx} className="flex items-center gap-2 text-sm text-text-secondary">
+                      <CheckCircle className="w-4 h-4 text-success" /> {feature}
                     </li>
                   ))}
                 </ul>
                 <button
                   onClick={() => { setSelectedPlan(plan.id); setShowPaymentModal(true); }}
-                  className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
                 >
                   <CreditCard className="w-4 h-4" /> Subscribe for 6 Months
                 </button>
@@ -307,9 +291,9 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-md w-full">
-        <div className="sticky top-0 bg-white border-b p-5 flex justify-between items-center">
+        <div className="sticky top-0 bg-white border-b border-border-light p-5 flex justify-between items-center">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-blue-600" /> Complete Payment
+            <CreditCard className="w-5 h-5 text-primary-600" /> Complete Payment
           </h2>
           <button 
             onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }} 
@@ -319,9 +303,9 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
           </button>
         </div>
         <div className="p-6 space-y-6">
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4">
-            <h3 className="font-semibold text-gray-900 mb-2">{selectedPlanData?.name}</h3>
-            <p className="text-2xl font-bold text-blue-600">
+          <div className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-4">
+            <h3 className="font-semibold text-text-primary mb-2">{selectedPlanData?.name}</h3>
+            <p className="text-2xl font-bold text-primary-600">
               ETB {amount?.toLocaleString()}<span className="text-sm">/6 months</span>
             </p>
           </div>
@@ -331,7 +315,7 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
           <button 
             onClick={redirectToChapa} 
             disabled={loading} 
-            className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {loading ? <Loader className="w-5 h-5 animate-spin" /> : <><Wallet className="w-5 h-5" /> Pay with Chapa / Telebirr</>}
           </button>
@@ -341,4 +325,4 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
   );
 };
 
-export default SellerSubscription;
+export default SellerSubscription

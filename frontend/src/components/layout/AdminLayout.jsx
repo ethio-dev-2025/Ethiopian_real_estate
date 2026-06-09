@@ -18,7 +18,6 @@ const AdminLayout = ({ children }) => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      // Auto-close sidebar on mobile, auto-open on desktop
       if (mobile) {
         setSidebarOpen(false);
       } else {
@@ -32,7 +31,6 @@ const AdminLayout = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    // Close sidebar on mobile when route changes
     if (isMobile) {
       setSidebarOpen(false);
     }
@@ -65,7 +63,7 @@ const AdminLayout = ({ children }) => {
     if (path === '/admin' || path === '/admin/dashboard') return 'Dashboard';
     if (path.includes('/users')) return 'User Management';
     if (path.includes('/verification-queue')) return 'Verification Queue';
-    if (path.includes('/payment-approvals')) return 'Payment History'; // Changed from 'Payment Approvals' to 'Payment History'
+    if (path.includes('/payment-approvals')) return 'Payment History';
     if (path.includes('/reports')) return 'Reports & Analytics';
     if (path.includes('/messages')) return 'Admin Messages';
     if (path.includes('/settings')) return 'Settings';
@@ -79,7 +77,7 @@ const AdminLayout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-background">
       <AdminSidebar 
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen} 
@@ -87,14 +85,12 @@ const AdminLayout = ({ children }) => {
         isMobile={isMobile}
       />
       
-      {/* Main Content */}
       <div className={`transition-all duration-300 ease-in-out
         ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}
       `}>
         {/* Mobile Header */}
         <header className="sticky top-0 z-20 bg-white shadow-sm lg:shadow-none">
           <div className="flex items-center justify-between px-4 py-3 lg:px-6 lg:py-4">
-            {/* Mobile Menu Button */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -102,30 +98,26 @@ const AdminLayout = ({ children }) => {
               <Menu className="w-5 h-5 text-gray-700" />
             </button>
             
-            {/* Page Title - Hidden on mobile (shown in header) */}
             <div className="flex-1 lg:flex-none">
               <h1 className="text-lg font-bold text-gray-900 lg:text-xl lg:hidden">
                 {getPageTitle()}
               </h1>
             </div>
             
-            {/* Desktop Title */}
             <div className="hidden lg:block flex-1">
               <h1 className="text-2xl font-bold text-gray-900">{getPageTitle()}</h1>
-              <p className="text-sm text-gray-500">Welcome back, {getUserName()}</p>
+              <p className="text-sm text-text-muted">Welcome back, {getUserName()}</p>
             </div>
             
-            {/* Notifications */}
             <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
               <Bell className="w-5 h-5 text-gray-600" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                <span className="absolute top-1 right-1 w-2 h-2 bg-secondary-500 rounded-full animate-pulse"></span>
               )}
             </button>
           </div>
         </header>
         
-        {/* Main Content Area */}
         <main className="p-4 sm:p-6 lg:p-8">
           {children}
         </main>

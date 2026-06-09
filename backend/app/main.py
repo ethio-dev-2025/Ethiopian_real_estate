@@ -10,7 +10,7 @@ from .routers import (
 )
 from .database import init_db
 from .config import settings
-
+from .routers import contact_messages
 # In backend/app/main.py
 from app.routers import admin_notifications
 
@@ -65,6 +65,7 @@ app.include_router(admin_notifications.router, prefix="/api/admin", tags=["admin
 app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])  # ADD THIS LINE
 # Add this line with your other routers
 app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])
+app.include_router(contact_messages.router, prefix="/api/contact", tags=["contact"])
 
 
 # ============ HEALTH ENDPOINTS ============

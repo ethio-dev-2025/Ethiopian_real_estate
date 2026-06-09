@@ -186,10 +186,10 @@ const PropertyDetailPage = () => {
         </div>
         <p className="text-gray-600 mb-6 text-center">Please create a buyer account to contact the owner</p>
         <div className="space-y-3">
-          <button onClick={() => handleAuthChoice('register')} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2">
+          <button onClick={() => handleAuthChoice('register')} className="w-full py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold flex items-center justify-center gap-2">
             <UserPlus className="w-5 h-5" /> Create Buyer Account
           </button>
-          <button onClick={() => handleAuthChoice('login')} className="w-full py-3 border-2 border-blue-600 text-blue-600 rounded-xl font-semibold flex items-center justify-center gap-2">
+          <button onClick={() => handleAuthChoice('login')} className="w-full py-3 border-2 border-primary-700 text-primary-700 rounded-xl font-semibold flex items-center justify-center gap-2">
             <LogIn className="w-5 h-5" /> Login to Buyer Account
           </button>
         </div>
@@ -197,7 +197,6 @@ const PropertyDetailPage = () => {
     </div>
   );
 
-  // Image Gallery Modal
   const ImageGalleryModal = () => {
     if (!showAllImages) return null;
     
@@ -241,9 +240,9 @@ const PropertyDetailPage = () => {
       <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="flex flex-col items-center justify-center h-96">
-          <AlertCircle className="w-16 h-16 text-red-400 mb-4" />
+          <AlertCircle className="w-16 h-16 text-error mb-4" />
           <p className="text-gray-500 text-lg">{error}</p>
-          <button onClick={() => navigate('/')} className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+          <button onClick={() => navigate('/')} className="mt-4 px-6 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 transition">
             Go Home
           </button>
         </div>
@@ -265,25 +264,21 @@ const PropertyDetailPage = () => {
       {showAuthModal && <AuthModal />}
       <ImageGalleryModal />
 
-      {/* Main Container with 150px padding at the top */}
       <div className="max-w-7xl mx-auto px-4 pt-[150px] pb-8">
         
-        {/* Back Button */}
         <button 
           onClick={() => navigate(-1)} 
-          className="mb-6 flex items-center gap-2 text-gray-600 hover:text-blue-600 transition"
+          className="mb-6 flex items-center gap-2 text-gray-600 hover:text-primary-700 transition"
         >
           <ArrowLeft className="w-5 h-5" /> Back
         </button>
 
-        {/* Two Column Layout with 150px gap - MATCHING FULL HEIGHT */}
         <div className="flex flex-col lg:flex-row gap-[150px]">
           
-          {/* LEFT COLUMN - Image Gallery FULL HEIGHT */}
+          {/* LEFT COLUMN - Image Gallery */}
           <div className="w-full lg:w-1/2">
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden h-full flex flex-col">
               
-              {/* Main Image - FULL HEIGHT */}
               <div className="relative w-full bg-gradient-to-br from-gray-800 to-gray-900 flex-1 min-h-[500px]">
                 {mainImage ? (
                   <img 
@@ -301,18 +296,17 @@ const PropertyDetailPage = () => {
                   </div>
                 )}
                 
-                {/* Badges */}
                 <div className="absolute top-4 left-4 flex gap-2 z-10">
-                  <span className={`px-3 py-1.5 text-sm font-semibold rounded-xl shadow-lg text-white ${property?.listing_type === 'sale' ? 'bg-gradient-to-r from-green-500 to-green-600' : 'bg-gradient-to-r from-blue-500 to-blue-600'}`}>
+                  <span className={`px-3 py-1.5 text-sm font-semibold rounded-xl shadow-lg text-white ${property?.listing_type === 'sale' ? 'bg-gradient-to-r from-success to-green-700' : 'bg-gradient-to-r from-primary-600 to-primary-800'}`}>
                     {property?.listing_type === 'sale' ? 'For Sale' : 'For Rent'}
                   </span>
                   {property?.featured && (
-                    <span className="px-3 py-1.5 text-sm font-semibold rounded-xl shadow-lg bg-gradient-to-r from-yellow-500 to-orange-500 text-white flex items-center gap-1">
+                    <span className="px-3 py-1.5 text-sm font-semibold rounded-xl shadow-lg bg-gradient-to-r from-secondary-500 to-orange-600 text-white flex items-center gap-1">
                       <Star className="w-4 h-4" /> Featured
                     </span>
                   )}
                   {isSold && (
-                    <span className="px-3 py-1.5 text-sm font-semibold rounded-xl shadow-lg bg-red-600 text-white">
+                    <span className="px-3 py-1.5 text-sm font-semibold rounded-xl shadow-lg bg-error text-white">
                       SOLD
                     </span>
                   )}
@@ -323,7 +317,6 @@ const PropertyDetailPage = () => {
                   )}
                 </div>
                 
-                {/* Navigation Arrows for images */}
                 {images.length > 1 && (
                   <>
                     <button 
@@ -341,7 +334,6 @@ const PropertyDetailPage = () => {
                   </>
                 )}
                 
-                {/* Image Counter and View All Button */}
                 {images.length > 0 && (
                   <div className="absolute bottom-4 right-4 flex gap-2 z-10">
                     <div className="px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full text-white text-xs">
@@ -359,7 +351,6 @@ const PropertyDetailPage = () => {
                 )}
               </div>
               
-              {/* Thumbnails */}
               {images.length > 1 && (
                 <div className="flex gap-2 p-3 overflow-x-auto bg-gray-100 border-t scrollbar-thin scrollbar-thumb-gray-400">
                   {images.map((img, idx) => (
@@ -367,7 +358,7 @@ const PropertyDetailPage = () => {
                       key={idx} 
                       onClick={() => setSelectedImage(idx)} 
                       className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
-                        selectedImage === idx ? 'border-blue-500 shadow-md ring-2 ring-blue-200' : 'border-transparent opacity-70 hover:opacity-100'
+                        selectedImage === idx ? 'border-primary-600 shadow-md ring-2 ring-primary-200' : 'border-transparent opacity-70 hover:opacity-100'
                       }`}
                     >
                       <img 
@@ -383,43 +374,39 @@ const PropertyDetailPage = () => {
             </div>
           </div>
 
-          {/* RIGHT COLUMN - Property Info (50% width, matching height) */}
+          {/* RIGHT COLUMN - Property Info */}
           <div className="w-full lg:w-1/2">
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden h-full flex flex-col">
               <div className="p-5 space-y-4 flex-1 overflow-y-auto">
                 
-                {/* Title */}
                 <h1 className="text-2xl font-bold text-gray-900">{property?.title || 'Loading...'}</h1>
                 
-                {/* Location */}
                 <div className="flex items-center gap-1 text-gray-500">
-                  <MapPin className="w-4 h-4 text-red-500" />
+                  <MapPin className="w-4 h-4 text-error" />
                   <span className="text-sm">{property?.address || 'Loading...'}, {property?.city || ''}</span>
                 </div>
                 
-                {/* Price */}
                 <div className="flex items-baseline gap-2">
-                  <p className="text-2xl font-bold text-blue-600">{formatPrice(property?.price, property?.listing_type)}</p>
+                  <p className="text-2xl font-bold text-primary-700">{formatPrice(property?.price, property?.listing_type)}</p>
                   {property?.listing_type === 'rent' && (
                     <span className="text-sm text-gray-500">/month</span>
                   )}
                 </div>
 
-                {/* Property Type Badge */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
                   <Building2 className="w-4 h-4 text-gray-500" />
                   <span className="text-sm text-gray-600 capitalize">{property?.property_type || 'Property'}</span>
                 </div>
 
-                {/* Key Features Grid - 4 columns */}
+                {/* Key Features Grid */}
                 <div className="grid grid-cols-4 gap-2">
-                  <div className="text-center p-2 bg-blue-50 rounded-lg">
-                    <Bed className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+                  <div className="text-center p-2 bg-primary-50 rounded-lg">
+                    <Bed className="w-4 h-4 text-primary-700 mx-auto mb-1" />
                     <p className="text-lg font-bold text-gray-900">{property?.bedrooms || 0}</p>
                     <p className="text-[10px] text-gray-500">Beds</p>
                   </div>
-                  <div className="text-center p-2 bg-green-50 rounded-lg">
-                    <Bath className="w-4 h-4 text-green-600 mx-auto mb-1" />
+                  <div className="text-center p-2 bg-success/10 rounded-lg">
+                    <Bath className="w-4 h-4 text-success mx-auto mb-1" />
                     <p className="text-lg font-bold text-gray-900">{property?.bathrooms || 0}</p>
                     <p className="text-[10px] text-gray-500">Baths</p>
                   </div>
@@ -428,17 +415,17 @@ const PropertyDetailPage = () => {
                     <p className="text-lg font-bold text-gray-900">{property?.sqft?.toLocaleString() || 0}</p>
                     <p className="text-[10px] text-gray-500">Sq Ft</p>
                   </div>
-                  <div className="text-center p-2 bg-orange-50 rounded-lg">
-                    <Calendar className="w-4 h-4 text-orange-600 mx-auto mb-1" />
+                  <div className="text-center p-2 bg-secondary-50 rounded-lg">
+                    <Calendar className="w-4 h-4 text-secondary-600 mx-auto mb-1" />
                     <p className="text-lg font-bold text-gray-900">{property?.year_built || 'N/A'}</p>
                     <p className="text-[10px] text-gray-500">Year</p>
                   </div>
                 </div>
 
-                {/* Description - Compact */}
+                {/* Description */}
                 <div className="border-t pt-3">
                   <h3 className="font-semibold text-gray-900 text-sm mb-1 flex items-center gap-2">
-                    <FileText className="w-3.5 h-3.5 text-blue-600" />
+                    <FileText className="w-3.5 h-3.5 text-primary-600" />
                     Description
                   </h3>
                   <p className="text-gray-600 text-xs leading-relaxed">
@@ -448,18 +435,18 @@ const PropertyDetailPage = () => {
                   {shouldTruncate && (
                     <button 
                       onClick={() => setShowFullDescription(!showFullDescription)}
-                      className="text-blue-600 text-[10px] mt-1 hover:underline"
+                      className="text-primary-600 text-[10px] mt-1 hover:underline"
                     >
                       {showFullDescription ? 'Show less' : 'Read more'}
                     </button>
                   )}
                 </div>
 
-                {/* Amenities - Compact */}
+                {/* Amenities */}
                 {property?.amenities && property.amenities.length > 0 && (
                   <div className="border-t pt-3">
                     <h3 className="font-semibold text-gray-900 text-sm mb-2 flex items-center gap-2">
-                      <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                      <CheckCircle className="w-3.5 h-3.5 text-success" />
                       Amenities
                     </h3>
                     <div className="flex flex-wrap gap-1.5">
@@ -476,10 +463,10 @@ const PropertyDetailPage = () => {
                   </div>
                 )}
 
-                {/* Location Details - Compact */}
+                {/* Location Details */}
                 <div className="border-t pt-3">
                   <h3 className="font-semibold text-gray-900 text-sm mb-1 flex items-center gap-2">
-                    <MapPin className="w-3.5 h-3.5 text-red-500" />
+                    <MapPin className="w-3.5 h-3.5 text-error" />
                     Location Details
                   </h3>
                   <div className="bg-gray-50 rounded-lg p-2 space-y-1">
@@ -491,11 +478,11 @@ const PropertyDetailPage = () => {
                   </div>
                 </div>
 
-                {/* Contact Information - Compact */}
+                {/* Contact Information */}
                 {property?.phone_number && (
                   <div className="border-t pt-3">
                     <h3 className="font-semibold text-gray-900 text-sm mb-1 flex items-center gap-2">
-                      <Phone className="w-3.5 h-3.5 text-green-600" />
+                      <Phone className="w-3.5 h-3.5 text-success" />
                       Contact
                     </h3>
                     <div className="space-y-1">
@@ -513,7 +500,7 @@ const PropertyDetailPage = () => {
                     <button 
                       onClick={handleContactClick} 
                       disabled={openingChat}
-                      className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:shadow-lg transition flex items-center justify-center gap-2"
+                      className="w-full py-2.5 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold text-sm hover:shadow-lg transition flex items-center justify-center gap-2"
                     >
                       {openingChat ? (
                         <>
@@ -533,7 +520,7 @@ const PropertyDetailPage = () => {
                 {/* Sold/Rented Message */}
                 {(isSold || isRented) && (
                   <div className="pt-2 text-center p-3 bg-red-50 rounded-xl">
-                    <p className="text-red-600 font-semibold text-sm">
+                    <p className="text-error font-semibold text-sm">
                       {isSold ? 'Property SOLD' : 'Property RENTED'}
                     </p>
                   </div>

@@ -1,12 +1,10 @@
+// src/components/layout/AdminSidebar.jsx
 import React, { useState, useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { 
-  Building2, LayoutDashboard, Users, FileCheck, 
+  LayoutDashboard, Users, FileCheck, 
   CreditCard, MessageCircle, Settings, LogOut,
-  Menu, X, BarChart3, User, Activity, Bell, 
-  Home, Shield, DollarSign, ChevronDown, ChevronUp,
-  UserCog, Building, TrendingUp, Key, Monitor,
-  Globe, Wallet, Lock, Bell as BellIcon, ChevronRight
+  Menu, X, BarChart3, User, ChevronDown, ChevronUp, UserCog, Building
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
@@ -23,11 +21,8 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
   const [adminMessagesUnreadCount, setAdminMessagesUnreadCount] = useState(0)
   const [profileImage, setProfileImage] = useState(null)
   const [imageError, setImageError] = useState(false)
-  
-  // Settings dropdown state
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  // Load profile image from user
   useEffect(() => {
     if (user?.avatar_url) {
       let imageUrl = user.avatar_url
@@ -40,7 +35,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     }
   }, [user?.avatar_url])
 
-  // Listen for profile picture updates
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'user') {
@@ -64,7 +58,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     
     window.addEventListener('storage', handleStorageChange)
     
-    // Also listen for custom event
     const handleUserUpdated = (event) => {
       if (event.detail?.avatar_url) {
         let imageUrl = event.detail.avatar_url
@@ -83,22 +76,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     }
   }, [refreshUser])
 
-  // Listen for storage events
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'user') {
-        console.log('User data changed in storage, refreshing...');
-        if (refreshUser) {
-          refreshUser();
-        }
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [refreshUser]);
-
-  // Listener for admin messages unread updates
   useEffect(() => {
     const handleUnreadUpdate = (event) => {
       if (event.detail?.count !== undefined) {
@@ -215,7 +192,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
     }
   }, [])
 
-  // Auto-expand settings if any route is active
   useEffect(() => {
     const isSettingsActive = location.pathname.startsWith('/admin/settings') || 
                              location.pathname.startsWith('/admin/company-settings')
@@ -271,14 +247,18 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
       )}
       
       <aside className={`fixed left-0 top-0 h-full bg-gradient-to-b from-gray-900 to-gray-800 text-white transition-all duration-300 z-40 shadow-xl flex flex-col ${sidebarOpen ? 'w-64' : 'w-20'} ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}`}>
-        {/* Logo */}
+        {/* Logo Section - Professional */}
         <div className="p-5 border-b border-gray-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/admin')}>
-              <Building2 className="w-8 h-8 text-blue-400 flex-shrink-0" />
+              <img 
+                src="/assets/images/image.png" 
+                alt="BetFinder" 
+                className="w-8 h-8 object-contain rounded-lg shadow-md"
+              />
               {sidebarOpen && (
                 <div className="overflow-hidden">
-                  <h1 className="font-bold text-lg">EstateHub</h1>
+                  <h1 className="font-bold text-lg">BetFinder</h1>
                   <p className="text-xs text-gray-400">Admin Portal</p>
                 </div>
               )}
@@ -293,10 +273,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
 
         {/* Navigation Menu */}
         <nav className="flex-1 py-4 overflow-y-auto">
-          <div className="px-3 mb-2">
-            {sidebarOpen && <p className="text-xs text-gray-500 uppercase tracking-wider">Main Menu</p>}
-          </div>
-          
           {menuItems.map((item) => {
             const Icon = item.icon
             const isActive = item.end 
@@ -334,7 +310,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
             )
           })}
 
-          {/* ========== SETTINGS DROPDOWN ========== */}
+          {/* Settings Dropdown */}
           <div className="settings-dropdown mt-2">
             <button
               onClick={() => sidebarOpen && setSettingsOpen(!settingsOpen)}
@@ -387,12 +363,11 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, unreadCount = 0 }) => {
           </div>
         </nav>
 
-        {/* Bottom Section - User Info with Profile Picture */}
+        {/* Bottom Section - User Info */}
         <div className="border-t border-gray-700">
           <div className="p-3">
             <div className="w-full flex items-center gap-3 p-2 rounded-lg">
-              {/* Profile Picture */}
-              <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-md">
                 {profileImageUrl && !imageError ? (
                   <img 
                     src={profileImageUrl} 

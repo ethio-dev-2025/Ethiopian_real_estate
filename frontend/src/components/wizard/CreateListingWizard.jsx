@@ -31,12 +31,10 @@ const CreateListingWizard = ({ onSuccess }) => {
   const [activationStatus, setActivationStatus] = useState(null)
   const checkCompletedRef = useRef(false)
   
-  // Subscription check states
   const [subscriptionValid, setSubscriptionValid] = useState(true)
   const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState(0)
   const [checkingSubscription, setCheckingSubscription] = useState(true)
 
-  // Check activation status from backend
   const checkActivationStatus = async () => {
     try {
       const token = localStorage.getItem('access_token')
@@ -58,7 +56,6 @@ const CreateListingWizard = ({ onSuccess }) => {
       console.log('📊 Activation status:', data)
       setActivationStatus(data)
       
-      // Check for expired subscription
       if (data.status === 'subscription_expired') {
         setIsActivated(false)
         setActivationMessage('Your subscription has expired. Please renew to continue creating listings.')
@@ -93,7 +90,6 @@ const CreateListingWizard = ({ onSuccess }) => {
     }
   }
 
-  // Check subscription validity
   const checkSubscriptionValidity = async () => {
     try {
       const token = localStorage.getItem('access_token')
@@ -135,7 +131,6 @@ const CreateListingWizard = ({ onSuccess }) => {
     }
   }
 
-  // Check both activation and subscription
   useEffect(() => {
     const checkAll = async () => {
       await checkActivationStatus()
@@ -148,22 +143,19 @@ const CreateListingWizard = ({ onSuccess }) => {
     }
   }, [navigate, refreshUser])
 
-  // Show loading while checking
   if (checkingActivation || checkingSubscription) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-700"></div>
         <p className="ml-3 text-gray-500">Checking account status...</p>
       </div>
     )
   }
 
-  // Check if subscription is expired
   const isExpired = (!subscriptionValid && subscriptionDaysLeft === 0) || 
                     activationStatus?.status === 'subscription_expired' ||
                     (activationStatus?.status === 'fully_activated' && activationStatus?.days_remaining === 0)
 
-  // Show activation required screen for pending or expired users
   if (!isActivated || !subscriptionValid || isExpired) {
     return (
       <div className="max-w-2xl mx-auto mt-12">
@@ -183,7 +175,7 @@ const CreateListingWizard = ({ onSuccess }) => {
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => navigate(isExpired ? '/dashboard/subscription' : '/dashboard/activation')}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
+                className="px-6 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg transition"
               >
                 {isExpired ? 'Renew Subscription' : 'Go to Activation'}
               </button>
@@ -200,7 +192,6 @@ const CreateListingWizard = ({ onSuccess }) => {
     )
   }
 
-  // ========== ACTIVE USER WITH VALID SUBSCRIPTION - SHOW CREATE LISTING FORM ==========
   const [formData, setFormData] = useState({
     title: '',
     property_type: 'house',
@@ -261,10 +252,10 @@ const CreateListingWizard = ({ onSuccess }) => {
           <div className="grid grid-cols-2 gap-6">
             <button
               onClick={() => setListingType('sale')}
-              className="p-8 border-2 rounded-2xl hover:border-green-500 hover:bg-green-50 transition-all group"
+              className="p-8 border-2 rounded-2xl hover:border-primary-600 hover:bg-primary-50 transition-all group"
             >
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-green-200 transition">
-                <DollarSign className="w-10 h-10 text-green-600" />
+              <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-primary-200 transition">
+                <DollarSign className="w-10 h-10 text-primary-700" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">For Sale</h2>
               <p className="text-gray-500">Sell your property to potential buyers</p>
@@ -272,10 +263,10 @@ const CreateListingWizard = ({ onSuccess }) => {
             
             <button
               onClick={() => setListingType('rent')}
-              className="p-8 border-2 rounded-2xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+              className="p-8 border-2 rounded-2xl hover:border-secondary-500 hover:bg-secondary-50 transition-all group"
             >
-              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-200 transition">
-                <Calendar className="w-10 h-10 text-blue-600" />
+              <div className="w-20 h-20 bg-secondary-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-secondary-200 transition">
+                <Calendar className="w-10 h-10 text-secondary-600" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">For Rent</h2>
               <p className="text-gray-500">Find tenants for your property</p>
@@ -604,7 +595,7 @@ const CreateListingWizard = ({ onSuccess }) => {
             )}
           </div>
           <h2 className="text-2xl font-bold">{formData.title}</h2>
-          <p className="text-2xl text-blue-600">ETB {formData.price}</p>
+          <p className="text-2xl text-primary-700">ETB {formData.price}</p>
           <p className="text-gray-500 mt-2">{formData.address}, {formData.city}</p>
           <p className="mt-4">{formData.description}</p>
         </div>
@@ -622,14 +613,14 @@ const CreateListingWizard = ({ onSuccess }) => {
             <h1 className="text-3xl font-bold text-gray-900">
               {listingType === 'sale' ? 'List Property for Sale' : 'List Property for Rent'}
             </h1>
-            <p className="text-green-600 text-sm mt-1">
+            <p className="text-primary-600 text-sm mt-1">
               ✓ Account fully activated • {subscriptionDaysLeft} days remaining on subscription
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-semibold text-blue-600">{Math.round(progress)}% Complete</p>
+            <p className="text-sm font-semibold text-primary-700">{Math.round(progress)}% Complete</p>
             <div className="w-32 h-2 bg-gray-200 rounded-full mt-1 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-full transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-full bg-gradient-to-r from-primary-700 to-primary-800 rounded-full transition-all" style={{ width: `${progress}%` }} />
             </div>
           </div>
         </div>
@@ -637,14 +628,14 @@ const CreateListingWizard = ({ onSuccess }) => {
         <div className="flex gap-2 mt-6">
           {['Basic Info', 'Location', 'Address Details', 'Amenities', 'Photos & Contact'].map((label, idx) => (
             <div key={idx} className="flex-1">
-              <div className={`h-1 rounded-full ${step > idx ? 'bg-blue-600' : 'bg-gray-200'}`} />
+              <div className={`h-1 rounded-full ${step > idx ? 'bg-primary-700' : 'bg-gray-200'}`} />
               <div className="flex items-center gap-2 mt-2">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                  step > idx ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                  step > idx ? 'bg-primary-700 text-white' : 'bg-gray-200 text-gray-500'
                 }`}>
                   {idx + 1}
                 </div>
-                <p className={`text-xs font-medium ${step > idx ? 'text-blue-600' : 'text-gray-400'}`}>{label}</p>
+                <p className={`text-xs font-medium ${step > idx ? 'text-primary-700' : 'text-gray-400'}`}>{label}</p>
               </div>
             </div>
           ))}
@@ -656,10 +647,10 @@ const CreateListingWizard = ({ onSuccess }) => {
           <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border p-8">
             <h2 className="text-xl font-bold mb-6">Basic Information</h2>
             <div className="space-y-6">
-              <div><label className="block text-sm font-medium mb-2">Title *</label><input name="title" value={formData.title} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="e.g., Luxury Apartment in Bole" /></div>
+              <div><label className="block text-sm font-medium mb-2">Title *</label><input name="title" value={formData.title} onChange={handleChange} className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all" placeholder="e.g., Luxury Apartment in Bole" /></div>
               <div className="grid grid-cols-2 gap-6">
-                <div><label className="block text-sm font-medium mb-2">Property Type</label><select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-4 border rounded-xl">{propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
-                <div><label className="block text-sm font-medium mb-2">{listingType === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} *</label><input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="e.g., 15000000" /></div>
+                <div><label className="block text-sm font-medium mb-2">Property Type</label><select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600">{propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+                <div><label className="block text-sm font-medium mb-2">{listingType === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} *</label><input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all" placeholder="e.g., 15000000" /></div>
               </div>
               <div className="grid grid-cols-3 gap-6">
                 <div><label className="block text-sm font-medium mb-2">Bedrooms</label><input name="bedrooms" type="number" value={formData.bedrooms} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="e.g., 3" /></div>
@@ -675,9 +666,9 @@ const CreateListingWizard = ({ onSuccess }) => {
           <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border p-8">
             <h2 className="text-xl font-bold mb-6">Location</h2>
             <div className="space-y-6">
-              <div><label className="block text-sm font-medium mb-2">Address *</label><input name="address" value={formData.address} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Street name, building number" /></div>
+              <div><label className="block text-sm font-medium mb-2">Address *</label><input name="address" value={formData.address} onChange={handleChange} className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all" placeholder="Street name, building number" /></div>
               <div className="grid grid-cols-2 gap-6">
-                <div><label className="block text-sm font-medium mb-2">City *</label><input name="city" value={formData.city} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="e.g., Addis Ababa" /></div>
+                <div><label className="block text-sm font-medium mb-2">City *</label><input name="city" value={formData.city} onChange={handleChange} className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600" placeholder="e.g., Addis Ababa" /></div>
                 <div><label className="block text-sm font-medium mb-2">Region</label><input name="region" value={formData.region} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="e.g., Addis Ababa" /></div>
               </div>
             </div>
@@ -692,8 +683,8 @@ const CreateListingWizard = ({ onSuccess }) => {
                 <div><label className="block text-sm font-medium mb-2">Sub City</label><input name="sub_city" value={formData.sub_city} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="e.g., Bole, Kirkos" /></div>
                 <div><label className="block text-sm font-medium mb-2">Kebele</label><input name="kebele" value={formData.kebele} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="e.g., Kebele 03" /></div>
               </div>
-              <div className="bg-blue-50 rounded-xl p-6">
-                <p className="text-sm text-blue-700">Complete Address: {formData.address}, {formData.sub_city && `${formData.sub_city}, `}{formData.kebele && `Kebele ${formData.kebele}, `}{formData.city}, {formData.region}</p>
+              <div className="bg-primary-50 rounded-xl p-6">
+                <p className="text-sm text-primary-700">Complete Address: {formData.address}, {formData.sub_city && `${formData.sub_city}, `}{formData.kebele && `Kebele ${formData.kebele}, `}{formData.city}, {formData.region}</p>
               </div>
             </div>
           </motion.div>
@@ -707,8 +698,8 @@ const CreateListingWizard = ({ onSuccess }) => {
                 const Icon = a.icon
                 const isSelected = formData.amenities.includes(a.name)
                 return (
-                  <button key={a.name} type="button" onClick={() => handleAmenityToggle(a.name)} className={`p-3 border-2 rounded-xl flex items-center gap-2 transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
-                    <Icon className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <button key={a.name} type="button" onClick={() => handleAmenityToggle(a.name)} className={`p-3 border-2 rounded-xl flex items-center gap-2 transition-all ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-gray-200'}`}>
+                    <Icon className={`w-4 h-4 ${isSelected ? 'text-primary-700' : 'text-gray-400'}`} />
                     <span className="text-sm">{a.name}</span>
                   </button>
                 )
@@ -723,7 +714,7 @@ const CreateListingWizard = ({ onSuccess }) => {
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-2">Photos *</label>
-                <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-blue-500 transition">
+                <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-primary-500 transition">
                   <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-600">Click to upload photos (Max 20)</p>
                   <p className="text-gray-400 text-sm mt-1">JPG, PNG, GIF up to 10MB each</p>
@@ -734,18 +725,21 @@ const CreateListingWizard = ({ onSuccess }) => {
                     {uploadedImages.map((img, idx) => (
                       <div key={img.id} className="relative group">
                         <img src={img.preview} className="w-full h-24 object-cover rounded-lg" alt={`Upload ${idx + 1}`} />
-                        <button onClick={() => removeImage(img.id)} className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition"><X className="w-3 h-3" /></button>
-                        <button onClick={() => setAsCover(idx)} className={`absolute bottom-1 left-1 p-1 rounded-full transition ${coverImageIndex === idx ? 'bg-yellow-500' : 'bg-black bg-opacity-50 hover:bg-opacity-75'}`}>
-                          <Star className="w-3 h-3 text-white" />
-                        </button>
-                        {coverImageIndex === idx && <span className="absolute top-1 left-1 text-[10px] bg-yellow-500 text-white px-1 rounded">Cover</span>}
+                        <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
+                          <button onClick={() => setAsCover(idx)} className={`p-1 rounded-full transition ${coverImageIndex === idx ? 'bg-secondary-500' : 'bg-black bg-opacity-50 hover:bg-opacity-75'}`}>
+                            <Star className="w-3 h-3 text-white" />
+                          </button>
+                          <button onClick={() => removeImage(img.id)} className="p-1 bg-error text-white rounded-full">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {coverImageIndex === idx && <div className="absolute top-0 left-0 bg-secondary-500 text-white text-[10px] px-1 rounded-tl-lg rounded-br-lg">Cover</div>}
                       </div>
                     ))}
                   </div>
                 )}
-                {uploadedImages.length > 0 && <p className="text-sm text-gray-500 mt-2">{uploadedImages.length} photo(s) uploaded. Click star to set as cover.</p>}
               </div>
-              <div><label className="block text-sm font-medium mb-2">Description *</label><textarea name="description" rows="5" value={formData.description} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Describe your property in detail..." /></div>
+              <div><label className="block text-sm font-medium mb-2">Description *</label><textarea name="description" rows="5" value={formData.description} onChange={handleChange} className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-primary-600" placeholder="Describe your property in detail..." /></div>
               <div className="grid grid-cols-2 gap-6">
                 <div><label className="block text-sm font-medium mb-2">Phone Number</label><input name="phone_number" value={formData.phone_number} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="+251 911 111 111" /></div>
                 <div><label className="block text-sm font-medium mb-2">Email</label><input name="email" type="email" value={formData.email} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="contact@property.com" /></div>
@@ -770,14 +764,14 @@ const CreateListingWizard = ({ onSuccess }) => {
             </button>
           )}
           {step < 5 ? (
-            <button onClick={nextStep} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg flex items-center gap-2 transition-all">
+            <button onClick={nextStep} className="px-6 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg flex items-center gap-2 transition-all">
               Continue <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             <button 
               onClick={handlePublish} 
               disabled={isPublishing} 
-              className="px-6 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 flex items-center gap-2 transition-all disabled:opacity-50"
+              className="px-6 py-3 bg-success text-white rounded-xl font-semibold hover:bg-green-700 flex items-center gap-2 transition-all disabled:opacity-50"
             >
               {isPublishing ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
               Publish Listing

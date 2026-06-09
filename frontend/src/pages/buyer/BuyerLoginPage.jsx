@@ -102,39 +102,39 @@ const BuyerLoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background to-gray-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-          {/* Header - White/Black theme */}
-          <div className="bg-white p-6 text-center border-b border-gray-100">
-            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-3">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-border-light">
+          {/* Header - Brand colors */}
+          <div className="bg-gradient-to-r from-primary-800 to-primary-900 p-6 text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
               <Home className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Buyer Login</h1>
-            <p className="text-gray-500 text-sm mt-1">Sign in to explore properties</p>
+            <h1 className="text-2xl font-bold text-white">Buyer Login</h1>
+            <p className="text-primary-100 text-sm mt-1">Sign in to explore properties</p>
           </div>
 
           {/* Form */}
           <div className="p-6">
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                <div className="w-4 h-4 text-red-500">⚠️</div>
-                <p className="text-sm text-red-600">{error}</p>
+                <div className="w-4 h-4 text-error">⚠️</div>
+                <p className="text-sm text-error">{error}</p>
               </div>
             )}
 
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-text-primary mb-1">
                   Username
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
+                    className="w-full pl-10 pr-4 py-3 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                     placeholder="Enter your username"
                     disabled={loading}
                   />
@@ -142,23 +142,23 @@ const BuyerLoginPage = () => {
               </div>
 
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-text-primary mb-1">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
+                    className="w-full pl-10 pr-10 py-3 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                     placeholder="Enter your password"
                     disabled={loading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -171,12 +171,12 @@ const BuyerLoginPage = () => {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                    className="w-4 h-4 rounded border-border-light text-primary-600 focus:ring-primary-500"
                   />
-                  <span className="text-sm text-gray-600">Remember me</span>
+                  <span className="text-sm text-text-secondary">Remember me</span>
                 </label>
                 
-                <Link to="/forgot-password" className="text-sm text-gray-600 hover:text-gray-900">
+                <Link to="/forgot-password" className="text-sm text-secondary-600 hover:text-secondary-700 transition-colors">
                   Forgot Password?
                 </Link>
               </div>
@@ -184,7 +184,7 @@ const BuyerLoginPage = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:from-primary-800 hover:to-primary-900 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
               >
                 {loading ? (
                   <>
@@ -201,9 +201,9 @@ const BuyerLoginPage = () => {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-text-secondary">
                 Don't have a buyer account?{' '}
-                <Link to="/buyer/register" className="text-gray-900 hover:text-gray-700 font-semibold">
+                <Link to="/buyer/register" className="text-secondary-600 hover:text-secondary-700 font-semibold transition-colors">
                   Sign Up
                 </Link>
               </p>

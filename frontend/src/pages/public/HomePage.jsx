@@ -1,4 +1,4 @@
-// src/pages/public/HomePage.jsx - REMOVED SOLD/RENTED TEXT AT BOTTOM
+// src/pages/public/HomePage.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Header from '../../components/layout/Header'
@@ -9,15 +9,15 @@ import {
   Award, Phone, Mail, Star, ArrowRight, 
   Bed, Bath, Square, Filter,
   Grid3x3, List, FilterX, ChevronRight, AlertCircle, ImageOff,
-  RefreshCw
+  RefreshCw, Sparkles, ChevronDown
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
 const API_URL = 'http://localhost:8000'
 
-// Custom Select Component
-const CustomSelect = ({ value, onChange, options, placeholder }) => {
+// Simple Select Component that works reliably on mobile
+const SimpleSelect = ({ value, onChange, options, label }) => {
   const [isOpen, setIsOpen] = useState(false)
   const selectRef = useRef(null)
 
@@ -35,14 +35,16 @@ const CustomSelect = ({ value, onChange, options, placeholder }) => {
 
   return (
     <div className="relative" ref={selectRef}>
+      <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-2 text-left bg-white border border-gray-300 rounded-lg flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-2.5 text-left bg-white border border-gray-300 rounded-lg flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-primary-600 min-h-[44px]"
       >
-        <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
-          {selectedOption ? selectedOption.label : placeholder || 'Select option'}
+        <span className={selectedOption ? 'text-gray-900 text-sm' : 'text-gray-500 text-sm'}>
+          {selectedOption ? selectedOption.label : 'Select'}
         </span>
-        <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       
       {isOpen && (
@@ -50,12 +52,13 @@ const CustomSelect = ({ value, onChange, options, placeholder }) => {
           {options.map((option) => (
             <button
               key={option.value}
+              type="button"
               onClick={() => {
                 onChange(option.value)
                 setIsOpen(false)
               }}
-              className={`w-full px-4 py-2 text-left hover:bg-gray-50 transition ${
-                value === option.value ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+              className={`w-full px-3 py-2.5 text-left hover:bg-gray-50 transition text-sm ${
+                value === option.value ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700'
               }`}
             >
               {option.label}
@@ -89,24 +92,28 @@ const HomePage = () => {
   // Format API property
   const formatApiProperty = (apiProp) => {
     let imageUrl = null
-    if (apiProp.images && apiProp.images.length > 0) {
-      const img = apiProp.images[0]
-      if (img.startsWith('http')) {
-        imageUrl = img
-      } else if (img.startsWith('/uploads')) {
-        imageUrl = `${API_URL}${img}`
+    
+    if (apiProp.cover_image) {
+      let coverImg = apiProp.cover_image
+      if (coverImg.startsWith('http')) {
+        imageUrl = coverImg
+      } else if (coverImg.startsWith('/uploads')) {
+        imageUrl = `${API_URL}${coverImg}`
       } else {
-        imageUrl = `${API_URL}/uploads/${img}`
+        imageUrl = `${API_URL}/uploads/${coverImg}`
       }
     }
     
-    if (!imageUrl && apiProp.cover_image) {
-      if (apiProp.cover_image.startsWith('http')) {
-        imageUrl = apiProp.cover_image
-      } else if (apiProp.cover_image.startsWith('/uploads')) {
-        imageUrl = `${API_URL}${apiProp.cover_image}`
-      } else {
-        imageUrl = `${API_URL}/uploads/${apiProp.cover_image}`
+    if (!imageUrl && apiProp.images && apiProp.images.length > 0) {
+      const img = apiProp.images[0]
+      if (img) {
+        if (img.startsWith('http')) {
+          imageUrl = img
+        } else if (img.startsWith('/uploads')) {
+          imageUrl = `${API_URL}${img}`
+        } else {
+          imageUrl = `${API_URL}/uploads/${img}`
+        }
       }
     }
     
@@ -159,7 +166,7 @@ const HomePage = () => {
     }
   }
 
-  // Extract locations from properties
+  // Extract locations
   useEffect(() => {
     const uniqueLocations = [...new Set(allProperties.map(p => p.location))].filter(Boolean)
     setLocations(uniqueLocations)
@@ -173,7 +180,7 @@ const HomePage = () => {
       filtered = filtered.filter(prop => prop.type === activeTab)
     }
 
-    if (searchTerm) {
+    if (searchTerm && searchTerm.trim() !== '') {
       const term = searchTerm.toLowerCase()
       filtered = filtered.filter(prop =>
         prop.title.toLowerCase().includes(term) ||
@@ -182,7 +189,9 @@ const HomePage = () => {
     }
 
     if (priceRange !== 'all') {
-      if (activeTab === 'rent') {
+      const currentType = activeTab === 'all' ? 'sale' : activeTab
+      
+      if (currentType === 'rent') {
         if (priceRange === 'under-20k') {
           filtered = filtered.filter(prop => prop.price < 20000)
         } else if (priceRange === '20k-50k') {
@@ -202,11 +211,13 @@ const HomePage = () => {
     }
 
     if (bedrooms !== 'any') {
-      filtered = filtered.filter(prop => prop.beds >= parseInt(bedrooms))
+      const minBeds = parseInt(bedrooms, 10)
+      filtered = filtered.filter(prop => prop.beds >= minBeds)
     }
 
     if (bathrooms !== 'any') {
-      filtered = filtered.filter(prop => prop.baths >= parseInt(bathrooms))
+      const minBaths = parseInt(bathrooms, 10)
+      filtered = filtered.filter(prop => prop.baths >= minBaths)
     }
 
     if (selectedLocation !== 'all') {
@@ -222,7 +233,7 @@ const HomePage = () => {
     }
 
     setFilteredProperties(filtered)
-  }, [allProperties, activeTab, searchTerm, priceRange, bedrooms, bathrooms, sortBy, selectedLocation])
+  }, [allProperties, activeTab, searchTerm, priceRange, bedrooms, bathrooms, selectedLocation, sortBy])
 
   // Fetch data on mount
   useEffect(() => {
@@ -235,6 +246,7 @@ const HomePage = () => {
 
   const resetFilters = () => {
     setSearchTerm('')
+    setActiveTab('all')
     setPriceRange('all')
     setBedrooms('any')
     setBathrooms('any')
@@ -269,14 +281,10 @@ const HomePage = () => {
     return `ETB ${price.toLocaleString()}`
   }
 
-  const tabs = [
-    { id: 'all', label: 'All Properties', icon: Building2, count: allProperties.length },
-    { id: 'sale', label: 'For Sale', icon: Home, count: allProperties.filter(p => p.type === 'sale').length },
-    { id: 'rent', label: 'For Rent', icon: Home, count: allProperties.filter(p => p.type === 'rent').length }
-  ]
-
   const getPriceOptions = () => {
-    if (activeTab === 'rent') {
+    const currentType = activeTab === 'all' ? 'sale' : activeTab
+    
+    if (currentType === 'rent') {
       return [
         { value: 'all', label: 'Any Price' },
         { value: 'under-20k', label: 'Under ETB 20,000' },
@@ -292,13 +300,14 @@ const HomePage = () => {
     ]
   }
 
+  const tabs = [
+    { id: 'all', label: 'All Properties', count: allProperties.length },
+    { id: 'sale', label: 'For Sale', count: allProperties.filter(p => p.type === 'sale').length },
+    { id: 'rent', label: 'For Rent', count: allProperties.filter(p => p.type === 'rent').length }
+  ]
+
   const displayedProperties = filteredProperties.slice(0, 6)
 
-  const handleRefresh = () => {
-    fetchRealProperties()
-  }
-
-  // Diagonal badge component
   const DiagonalBadge = ({ status }) => {
     const isSold = status === 'sold'
     const isRented = status === 'rented'
@@ -307,8 +316,8 @@ const HomePage = () => {
     
     return (
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-        <div className={`transform -rotate-45 px-8 py-2 text-white font-bold text-lg uppercase tracking-wider shadow-lg ${
-          isSold ? 'bg-red-600' : 'bg-purple-600'
+        <div className={`transform -rotate-45 px-6 py-1 text-white font-bold text-sm uppercase tracking-wider shadow-lg ${
+          isSold ? 'bg-error' : 'bg-purple-600'
         }`}>
           {isSold ? 'SOLD' : 'RENTED'}
         </div>
@@ -321,66 +330,54 @@ const HomePage = () => {
       <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="flex justify-center items-center h-96">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-700"></div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 overflow-x-hidden">
       <Header />
 
       {/* Hero Section */}
-      <section className="relative pt-24 pb-16 bg-gradient-to-r from-blue-600 to-purple-600">
-        <div className="absolute inset-0 bg-black/20"></div>
-        <div className="relative z-10 container mx-auto px-4 text-center text-white">
-          <h1 className="text-4xl md:text-6xl font-bold mb-4">
-            Find Your Dream Property
+      <section className="relative pt-20 pb-8 bg-gradient-to-r from-primary-800 to-primary-900">
+        <div className="container mx-auto px-4 text-center text-white">
+          <h1 className="text-3xl md:text-5xl font-bold mb-3">
+            Find Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-300">Dream Property</span>
           </h1>
-          <p className="text-lg md:text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-sm md:text-lg text-primary-100 mb-6 max-w-2xl mx-auto">
             Discover the best properties in Ethiopia. Buy, sell, or rent with confidence.
           </p>
           
-          <div className="mb-4 flex justify-center items-center gap-3 flex-wrap">
-            <button
-              onClick={handleRefresh}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-white/20 hover:bg-white/30 transition"
-            >
-              <RefreshCw className="w-3 h-3" />
-              Refresh
-            </button>
-          </div>
-          
-          <div className="bg-white rounded-2xl shadow-2xl p-2 max-w-3xl mx-auto">
-            <div className="flex flex-col md:flex-row gap-2">
-              <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          {/* ROW 1: Search Bar + Filter Button + Reset Button */}
+          <div className="flex justify-center">
+            <div className="flex items-center gap-3 bg-white rounded-xl shadow-2xl p-2 w-full max-w-3xl">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input 
                   type="text" 
                   placeholder="Search by location, property name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-3 py-2 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-600 text-sm"
                 />
               </div>
               <button 
                 onClick={() => setShowFilters(!showFilters)}
-                className={`px-6 py-4 rounded-xl transition flex items-center gap-2 ${
+                className={`px-4 py-2 rounded-lg transition flex items-center gap-1.5 text-sm whitespace-nowrap ${
                   showFilters 
-                    ? 'bg-blue-600 text-white' 
+                    ? 'bg-primary-700 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                <Filter className="w-5 h-5" />
-                Filters
+                <Filter className="w-3.5 h-3.5" /> Filters
               </button>
               <button 
                 onClick={resetFilters}
-                className="px-6 py-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-1.5 text-sm whitespace-nowrap"
               >
-                <FilterX className="w-5 h-5" />
-                Reset
+                <FilterX className="w-3.5 h-3.5" /> Reset
               </button>
             </div>
           </div>
@@ -388,8 +385,9 @@ const HomePage = () => {
       </section>
 
       {/* Properties Section */}
-      <section className="py-16 px-4">
+      <section className="py-8 px-4">
         <div className="container mx-auto">
+          {/* Filters Panel */}
           <AnimatePresence>
             {showFilters && (
               <motion.div
@@ -397,12 +395,11 @@ const HomePage = () => {
                 animate={{ opacity: 1, height: 'auto', y: 0 }}
                 exit={{ opacity: 0, height: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white rounded-2xl shadow-lg p-6 mb-8"
+                className="bg-white rounded-xl shadow-lg p-4 mb-5"
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-                    <CustomSelect
+                    <SimpleSelect
                       value={sortBy}
                       onChange={setSortBy}
                       options={[
@@ -410,19 +407,21 @@ const HomePage = () => {
                         { value: 'price_low', label: 'Price: Low to High' },
                         { value: 'price_high', label: 'Price: High to Low' }
                       ]}
+                      label="Sort By"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Price Range</label>
-                    <CustomSelect
+                    <SimpleSelect
                       value={priceRange}
                       onChange={setPriceRange}
                       options={getPriceOptions()}
+                      label="Price Range"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Bedrooms</label>
-                    <CustomSelect
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <SimpleSelect
                       value={bedrooms}
                       onChange={setBedrooms}
                       options={[
@@ -430,29 +429,34 @@ const HomePage = () => {
                         { value: '1', label: '1+' },
                         { value: '2', label: '2+' },
                         { value: '3', label: '3+' },
-                        { value: '4', label: '4+' }
+                        { value: '4', label: '4+' },
+                        { value: '5', label: '5+' }
                       ]}
+                      label="Bedrooms"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Bathrooms</label>
-                    <CustomSelect
+                    <SimpleSelect
                       value={bathrooms}
                       onChange={setBathrooms}
                       options={[
                         { value: 'any', label: 'Any' },
                         { value: '1', label: '1+' },
                         { value: '2', label: '2+' },
-                        { value: '3', label: '3+' }
+                        { value: '3', label: '3+' },
+                        { value: '4', label: '4+' }
                       ]}
+                      label="Bathrooms"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                    <CustomSelect
+                    <SimpleSelect
                       value={selectedLocation}
                       onChange={setSelectedLocation}
-                      options={[{ value: 'all', label: 'All Locations' }, ...locations.map(l => ({ value: l, label: l }))]}
+                      options={[
+                        { value: 'all', label: 'All Locations' },
+                        ...locations.map(l => ({ value: l, label: l }))
+                      ]}
+                      label="Location"
                     />
                   </div>
                 </div>
@@ -460,43 +464,57 @@ const HomePage = () => {
             )}
           </AnimatePresence>
 
-          <div className="flex flex-wrap justify-between items-center mb-8">
-            <div className="flex flex-wrap gap-2 bg-white rounded-full p-1 shadow-sm">
-              {tabs.map((tab) => {
-                const Icon = tab.icon
-                const isActive = activeTab === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-6 py-2 rounded-full font-semibold transition ${
-                      isActive
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                    <span className={`text-xs ${isActive ? 'text-white/80' : 'text-gray-400'}`}>
-                      ({tab.count})
-                    </span>
-                  </button>
-                )
-              })}
+          {/* ROW 2: Tabs + View Mode Buttons */}
+          <div className="flex items-start justify-between gap-2 mb-5">
+            <div className="flex-1 overflow-x-auto overflow-y-visible no-scrollbar pb-1">
+              <div className="flex gap-1.5 bg-white rounded-full p-1 shadow-sm w-max">
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id)
+                        setPriceRange('all')
+                      }}
+                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full font-medium text-xs sm:text-sm transition whitespace-nowrap ${
+                        isActive
+                          ? 'bg-gradient-to-r from-primary-700 to-primary-800 text-white shadow-md'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      {tab.label}
+                      <span className={`text-xs ${isActive ? 'text-white/80' : 'text-gray-400'}`}>
+                        ({tab.count})
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             
-            <div className="flex gap-2 mt-4 md:mt-0">
+            <div className="flex-shrink-0 flex gap-1.5 bg-white rounded-lg p-1 shadow-sm">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 shadow'}`}
+                className={`p-1.5 rounded-md transition ${
+                  viewMode === 'grid' 
+                    ? 'bg-gradient-to-r from-primary-700 to-primary-800 text-white' 
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                title="Grid View"
               >
-                <Grid3x3 className="w-5 h-5" />
+                <Grid3x3 className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 shadow'}`}
+                className={`p-1.5 rounded-md transition ${
+                  viewMode === 'list' 
+                    ? 'bg-gradient-to-r from-primary-700 to-primary-800 text-white' 
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                title="List View"
               >
-                <List className="w-5 h-5" />
+                <List className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -505,15 +523,14 @@ const HomePage = () => {
             <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <Home className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 text-lg">No properties found</p>
-              <button onClick={resetFilters} className="mt-4 text-blue-600 hover:underline">
+              <button onClick={resetFilters} className="mt-4 text-primary-700 hover:underline text-sm">
                 Clear filters
               </button>
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
               {displayedProperties.map((property) => {
                 const hasError = imageErrors[property.id]
-                const imageUrl = property.image
                 const isSold = property.listing_status === 'sold'
                 const isRented = property.listing_status === 'rented'
                 const isAvailable = !isSold && !isRented
@@ -522,53 +539,53 @@ const HomePage = () => {
                   <div
                     key={property.id}
                     onClick={() => isAvailable && handleViewDetails(property.id)}
-                    className={`bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition cursor-pointer group ${!isAvailable ? 'opacity-90' : ''}`}
+                    className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition cursor-pointer group ${!isAvailable ? 'opacity-90' : ''}`}
                   >
-                    <div className="relative h-56 overflow-hidden bg-gray-200">
-                      {!hasError && imageUrl ? (
+                    <div className="relative h-44 sm:h-48 overflow-hidden bg-gray-200">
+                      {!hasError && property.image ? (
                         <img 
-                          src={imageUrl} 
+                          src={property.image} 
                           alt={property.title}
-                          className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                           loading="lazy"
                           onError={() => handleImageError(property.id)}
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                          <ImageOff className="w-8 h-8 mb-1" />
+                          <ImageOff className="w-6 h-6 mb-1" />
                           <p className="text-xs">No Image</p>
                         </div>
                       )}
                       
                       <DiagonalBadge status={property.listing_status} />
                       
-                      <div className="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600">
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-800">
                         {property.type === 'sale' ? 'For Sale' : 'For Rent'}
                       </div>
                       {property.featured && (
-                        <div className="absolute top-4 left-4 bg-yellow-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                        <div className="absolute top-2 left-2 bg-secondary-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">
                           <Star className="w-3 h-3" /> Featured
                         </div>
                       )}
                     </div>
-                    <div className="p-5">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">{property.title}</h3>
-                      <div className="flex items-center gap-1 text-gray-500 mb-3">
-                        <MapPin className="w-4 h-4" />
-                        <span className="text-sm line-clamp-1">{property.location}</span>
+                    <div className="p-3 sm:p-4">
+                      <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1 line-clamp-1">{property.title}</h3>
+                      <div className="flex items-center gap-1 text-gray-500 mb-2">
+                        <MapPin className="w-3 h-3" />
+                        <span className="text-xs sm:text-sm line-clamp-1">{property.location}</span>
                       </div>
-                      <div className="flex gap-4 mb-4 text-sm text-gray-500">
-                        <div className="flex items-center gap-1"><Bed className="w-4 h-4" /> {property.beds}</div>
-                        <div className="flex items-center gap-1"><Bath className="w-4 h-4" /> {property.baths}</div>
-                        <div className="flex items-center gap-1"><Square className="w-4 h-4" /> {property.sqft} sqft</div>
+                      <div className="flex gap-3 mb-3 text-xs text-gray-500">
+                        <div className="flex items-center gap-1"><Bed className="w-3 h-3" /> {property.beds}</div>
+                        <div className="flex items-center gap-1"><Bath className="w-3 h-3" /> {property.baths}</div>
+                        <div className="flex items-center gap-1"><Square className="w-3 h-3" /> {property.sqft}</div>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className={`text-xl font-bold ${isSold || isRented ? 'text-gray-500 line-through' : 'text-blue-600'}`}>
+                        <span className={`text-base sm:text-lg font-bold ${isSold || isRented ? 'text-gray-500 line-through' : 'text-primary-700'}`}>
                           {formatPrice(property.price, property.type)}
                         </span>
                         {isAvailable && (
-                          <button className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition flex items-center gap-2">
-                            View Details <ArrowRight className="w-4 h-4" />
+                          <button className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold text-xs hover:shadow-lg transition flex items-center gap-1">
+                            View Details <ArrowRight className="w-3 h-3" />
                           </button>
                         )}
                       </div>
@@ -578,7 +595,7 @@ const HomePage = () => {
               })}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {displayedProperties.map((property) => {
                 const isSold = property.listing_status === 'sold'
                 const isRented = property.listing_status === 'rented'
@@ -588,9 +605,9 @@ const HomePage = () => {
                   <div
                     key={property.id}
                     onClick={() => isAvailable && handleViewDetails(property.id)}
-                    className={`bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition cursor-pointer flex flex-col sm:flex-row ${!isAvailable ? 'opacity-90' : ''}`}
+                    className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer flex flex-col sm:flex-row ${!isAvailable ? 'opacity-90' : ''}`}
                   >
-                    <div className="w-full sm:w-48 h-48 overflow-hidden bg-gray-200 flex-shrink-0 relative">
+                    <div className="w-full sm:w-32 md:w-40 h-32 sm:h-32 overflow-hidden bg-gray-200 flex-shrink-0 relative">
                       <img 
                         src={property.image} 
                         alt={property.title}
@@ -599,36 +616,43 @@ const HomePage = () => {
                       />
                       {(isSold || isRented) && (
                         <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                          <span className={`px-2 py-1 rounded text-xs font-bold text-white ${isSold ? 'bg-red-600' : 'bg-purple-600'}`}>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${isSold ? 'bg-error' : 'bg-purple-600'}`}>
                             {isSold ? 'SOLD' : 'RENTED'}
                           </span>
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 p-5">
-                      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                        <div>
-                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold mb-2 ${property.type === 'sale' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                            {property.type === 'sale' ? 'For Sale' : 'For Rent'}
-                          </span>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1">{property.title}</h3>
-                          <div className="flex items-center gap-1 text-gray-500 mb-2">
-                            <MapPin className="w-4 h-4" />
-                            <span className="text-sm">{property.location}</span>
+                    <div className="flex-1 p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-semibold ${property.type === 'sale' ? 'bg-primary-100 text-primary-700' : 'bg-success/10 text-success'}`}>
+                              {property.type === 'sale' ? 'For Sale' : 'For Rent'}
+                            </span>
+                            {property.featured && (
+                              <span className="inline-flex items-center gap-1 bg-secondary-100 text-secondary-700 px-1.5 py-0.5 rounded-full text-xs font-semibold">
+                                <Star className="w-3 h-3" /> Featured
+                              </span>
+                            )}
                           </div>
-                          <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                            <span className="flex items-center gap-1"><Bed className="w-4 h-4" /> {property.beds} beds</span>
-                            <span className="flex items-center gap-1"><Bath className="w-4 h-4" /> {property.baths} baths</span>
-                            <span className="flex items-center gap-1"><Square className="w-4 h-4" /> {property.sqft} sqft</span>
+                          <h3 className="text-base font-bold text-gray-900 mb-1">{property.title}</h3>
+                          <div className="flex items-center gap-1 text-gray-500 mb-2">
+                            <MapPin className="w-3 h-3" />
+                            <span className="text-xs">{property.location}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                            <span className="flex items-center gap-1"><Bed className="w-3 h-3" /> {property.beds}</span>
+                            <span className="flex items-center gap-1"><Bath className="w-3 h-3" /> {property.baths}</span>
+                            <span className="flex items-center gap-1"><Square className="w-3 h-3" /> {property.sqft}</span>
                           </div>
                         </div>
                         <div className="text-left sm:text-right w-full sm:w-auto">
-                          <p className={`text-2xl font-bold ${isSold || isRented ? 'text-gray-500 line-through' : 'text-blue-600'}`}>
+                          <p className={`text-base sm:text-lg font-bold ${isSold || isRented ? 'text-gray-500 line-through' : 'text-primary-700'}`}>
                             {formatPrice(property.price, property.type)}
                           </p>
                           {isAvailable && (
-                            <button className="mt-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition flex items-center gap-2">
-                              View Details <ArrowRight className="w-4 h-4" />
+                            <button className="mt-1 px-2.5 py-1 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold text-xs hover:shadow-lg transition inline-flex items-center gap-1">
+                              View <ArrowRight className="w-3 h-3" />
                             </button>
                           )}
                         </div>
@@ -641,12 +665,12 @@ const HomePage = () => {
           )}
 
           {filteredProperties.length > 6 && (
-            <div className="text-center mt-12">
+            <div className="text-center mt-10">
               <button
                 onClick={handleSeeMore}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
+                className="px-5 py-2.5 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition inline-flex items-center gap-1"
               >
-                See More Properties <ChevronRight className="w-4 h-4 inline" />
+                See More Properties <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -654,38 +678,55 @@ const HomePage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12 px-4">
+      <footer className="bg-gray-900 text-gray-400 py-8 px-4">
         <div className="container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 className="w-8 h-8 text-blue-500" />
-                <span className="text-xl font-bold text-white">RealEstate Pro</span>
+              <div className="flex items-center gap-2 mb-3">
+                <Building2 className="w-7 h-7 text-primary-500" />
+                <span className="text-lg font-bold text-white">EstateHub</span>
               </div>
               <p className="text-sm">Your trusted partner in real estate</p>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Quick Links</h4>
-              <ul className="space-y-2 text-sm">
+              <h4 className="text-white font-semibold mb-3 text-sm">Quick Links</h4>
+              <ul className="space-y-1.5 text-sm">
                 <li><Link to="/properties" className="hover:text-white transition">Properties</Link></li>
                 <li><Link to="/about" className="hover:text-white transition">About Us</Link></li>
                 <li><Link to="/contact" className="hover:text-white transition">Contact</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Contact Us</h4>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-center gap-2"><Phone className="w-4 h-4" /> +251 11 123 4567</li>
-                <li className="flex items-center gap-2"><Mail className="w-4 h-4" /> info@realestatepro.com</li>
+              <h4 className="text-white font-semibold mb-3 text-sm">Contact Us</h4>
+              <ul className="space-y-1.5 text-sm">
+                <li className="flex items-center gap-2"><Phone className="w-4 h-4" /> +251-960724272</li>
+                <li className="flex items-center gap-2"><Mail className="w-4 h-4" /> info@estatehub.com</li>
                 <li className="flex items-center gap-2"><MapPin className="w-4 h-4" /> Addis Ababa, Ethiopia</li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
-            <p>&copy; 2024 RealEstate Pro. All rights reserved.</p>
+          <div className="border-t border-gray-800 mt-6 pt-6 text-center text-xs">
+            <p>&copy; 2024 EstateHub. All rights reserved.</p>
           </div>
         </div>
       </footer>
+
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+          overflow-x: auto;
+          overflow-y: visible;
+          -webkit-overflow-scrolling: touch;
+        }
+        body {
+          overflow-x: hidden;
+          max-width: 100%;
+        }
+      `}</style>
     </div>
   )
 }

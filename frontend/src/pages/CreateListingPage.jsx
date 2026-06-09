@@ -333,7 +333,7 @@ const CreateListingPage = () => {
             </div>
             <h3 className="text-xl font-bold">{formData.title || 'Untitled'}</h3>
             <div className="flex items-center gap-1 text-gray-500 mt-1"><MapPin className="w-4 h-4" /><span>{formData.city || 'Location not set'}</span></div>
-            <p className="text-2xl font-bold text-blue-600 mt-2">ETB {parseFloat(formData.price || 0).toLocaleString()}{formData.listing_type === 'rent' && <span className="text-sm">/month</span>}</p>
+            <p className="text-2xl font-bold text-primary-700 mt-2">ETB {parseFloat(formData.price || 0).toLocaleString()}{formData.listing_type === 'rent' && <span className="text-sm">/month</span>}</p>
             <div className="flex gap-3 mt-3 text-sm text-gray-500">
               <div className="flex items-center gap-1"><Bed className="w-4 h-4" /> {formData.bedrooms || 0} beds</div>
               <div className="flex items-center gap-1"><Bath className="w-4 h-4" /> {formData.bathrooms || 0} baths</div>
@@ -354,27 +354,27 @@ const CreateListingPage = () => {
       <PreviewModal />
       
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+        <div className="bg-gradient-to-r from-primary-800 to-primary-900 p-6 text-white">
           <h1 className="text-2xl font-bold">Create New Listing</h1>
-          <p className="text-blue-100 mt-1">List your property for sale or rent</p>
+          <p className="text-primary-100 mt-1">List your property for sale or rent</p>
         </div>
 
         <form onSubmit={(e) => { e.preventDefault(); publishListing(); }} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Property Title *</label>
-              <input type="text" name="title" value={formData.title} onChange={handleChange} placeholder="e.g., Beautiful Modern Villa in Bole" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" required />
+              <input type="text" name="title" value={formData.title} onChange={handleChange} placeholder="e.g., Beautiful Modern Villa in Bole" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-primary-600" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Listing Type *</label>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setFormData(prev => ({ ...prev, listing_type: 'sale' }))} className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${formData.listing_type === 'sale' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>For Sale</button>
-                <button type="button" onClick={() => setFormData(prev => ({ ...prev, listing_type: 'rent' }))} className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${formData.listing_type === 'rent' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>For Rent</button>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, listing_type: 'sale' }))} className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${formData.listing_type === 'sale' ? 'bg-primary-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>For Sale</button>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, listing_type: 'rent' }))} className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${formData.listing_type === 'rent' ? 'bg-primary-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>For Rent</button>
               </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Property Type</label>
-              <select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-3 border rounded-lg">
+              <select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600">
                 <option value="house">House</option><option value="apartment">Apartment</option><option value="condo">Condo</option>
                 <option value="land">Land</option><option value="commercial">Commercial</option><option value="villa">Villa</option>
               </select>
@@ -382,20 +382,20 @@ const CreateListingPage = () => {
           </div>
 
           <div className="border-t pt-5">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-blue-600" /> Location</h3>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-primary-700" /> Location</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">City *</label><input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="e.g., Addis Ababa" className="w-full p-3 border rounded-lg" required /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">City *</label><input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="e.g., Addis Ababa" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" required /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Address</label><input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="Street address" className="w-full p-3 border rounded-lg" /></div>
             </div>
           </div>
 
           <div className="border-t pt-5">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><DollarSign className="w-5 h-5 text-green-600" /> Pricing</h3>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Price (ETB) *</label><input type="number" name="price" value={formData.price} onChange={handleChange} placeholder={formData.listing_type === 'rent' ? 'Monthly rent' : 'Sale price'} className="w-full p-3 border rounded-lg" required /></div>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><DollarSign className="w-5 h-5 text-success" /> Pricing</h3>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Price (ETB) *</label><input type="number" name="price" value={formData.price} onChange={handleChange} placeholder={formData.listing_type === 'rent' ? 'Monthly rent' : 'Sale price'} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" required /></div>
           </div>
 
           <div className="border-t pt-5">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Home className="w-5 h-5 text-purple-600" /> Property Details</h3>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Home className="w-5 h-5 text-primary-700" /> Property Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div><label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><Bed className="w-4 h-4" /> Bedrooms</label><input type="number" name="bedrooms" value={formData.bedrooms} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><Bath className="w-4 h-4" /> Bathrooms</label><input type="number" name="bathrooms" value={formData.bathrooms} onChange={handleChange} className="w-full p-3 border rounded-lg" /></div>
@@ -406,24 +406,24 @@ const CreateListingPage = () => {
           <div className="border-t pt-5">
             <h3 className="text-lg font-semibold mb-4">Amenities</h3>
             <div className="flex gap-2 mb-3">
-              <input type="text" value={amenityInput} onChange={(e) => setAmenityInput(e.target.value)} placeholder="e.g., Swimming Pool, Parking, Garden, Security, WiFi" className="flex-1 p-3 border rounded-lg" onKeyPress={(e) => e.key === 'Enter' && handleAddAmenity()} />
-              <button type="button" onClick={handleAddAmenity} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><Plus className="w-5 h-5" /></button>
+              <input type="text" value={amenityInput} onChange={(e) => setAmenityInput(e.target.value)} placeholder="e.g., Swimming Pool, Parking, Garden, Security, WiFi" className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" onKeyPress={(e) => e.key === 'Enter' && handleAddAmenity()} />
+              <button type="button" onClick={handleAddAmenity} className="px-4 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800"><Plus className="w-5 h-5" /></button>
             </div>
-            <div className="flex flex-wrap gap-2">{formData.amenities.map((amenity, index) => (<span key={index} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">{amenity}<button type="button" onClick={() => handleRemoveAmenity(index)} className="ml-1 text-red-500 hover:text-red-700"><X className="w-3 h-3" /></button></span>))}</div>
+            <div className="flex flex-wrap gap-2">{formData.amenities.map((amenity, index) => (<span key={index} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm">{amenity}<button type="button" onClick={() => handleRemoveAmenity(index)} className="ml-1 text-error hover:text-red-700"><X className="w-3 h-3" /></button></span>))}</div>
           </div>
 
           <div className="border-t pt-5">
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea name="description" value={formData.description} onChange={handleChange} rows="5" placeholder="Describe your property in detail..." className="w-full p-3 border rounded-lg" />
+            <textarea name="description" value={formData.description} onChange={handleChange} rows="5" placeholder="Describe your property in detail..." className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" />
           </div>
 
           <div className="border-t pt-5">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Upload className="w-5 h-5 text-blue-600" /> Property Images *</h3>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Upload className="w-5 h-5 text-primary-700" /> Property Images *</h3>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-4">
               <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" id="image-upload" ref={fileInputRef} />
               <label htmlFor="image-upload" className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition"><Upload className="w-5 h-5" /> Select Images</label>
               <p className="text-xs text-gray-500 mt-2">You can upload multiple images (JPG, PNG)</p>
-              {uploadingImages && <div className="mt-2 text-blue-600 text-sm">Uploading...</div>}
+              {uploadingImages && <div className="mt-2 text-primary-700 text-sm">Uploading...</div>}
             </div>
             {imagePreviews.length > 0 && (
               <div className="mt-4">
@@ -431,12 +431,12 @@ const CreateListingPage = () => {
                 <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
                   {imagePreviews.map((preview, index) => (
                     <div key={index} className="relative group">
-                      <img src={preview} alt={`Preview ${index + 1}`} className={`w-full h-32 object-cover rounded-lg border-2 ${coverImageIndex === index ? 'border-blue-500' : 'border-gray-200'}`} />
+                      <img src={preview} alt={`Preview ${index + 1}`} className={`w-full h-32 object-cover rounded-lg border-2 ${coverImageIndex === index ? 'border-primary-700' : 'border-gray-200'}`} />
                       <div className="absolute top-1 right-1 flex gap-1">
-                        <button type="button" onClick={() => setAsCover(index)} className="p-1 bg-black/50 rounded-full hover:bg-black/70" title="Set as cover"><Star className={`w-4 h-4 ${coverImageIndex === index ? 'text-yellow-400 fill-yellow-400' : 'text-white'}`} /></button>
-                        <button type="button" onClick={() => handleRemoveImage(index)} className="p-1 bg-red-600 rounded-full hover:bg-red-700" title="Remove image"><Trash2 className="w-3 h-3 text-white" /></button>
+                        <button type="button" onClick={() => setAsCover(index)} className="p-1 bg-black/50 rounded-full hover:bg-black/70" title="Set as cover"><Star className={`w-4 h-4 ${coverImageIndex === index ? 'text-secondary-500 fill-secondary-500' : 'text-white'}`} /></button>
+                        <button type="button" onClick={() => handleRemoveImage(index)} className="p-1 bg-error rounded-full hover:bg-red-700" title="Remove image"><Trash2 className="w-3 h-3 text-white" /></button>
                       </div>
-                      {coverImageIndex === index && <div className="absolute bottom-1 left-1 bg-blue-600 text-white text-xs px-1 rounded">Cover</div>}
+                      {coverImageIndex === index && <div className="absolute bottom-1 left-1 bg-primary-700 text-white text-xs px-1 rounded">Cover</div>}
                     </div>
                   ))}
                 </div>
@@ -445,15 +445,20 @@ const CreateListingPage = () => {
           </div>
 
           <div className="border-t pt-5">
-            <div className="bg-yellow-50 rounded-lg p-4 mb-4"><p className="text-sm text-yellow-800 flex items-start gap-2"><AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" /><span>Your listing will be reviewed by an admin before being published.</span></p></div>
+            <div className="bg-secondary-50 rounded-lg p-4 mb-4 border border-secondary-200">
+              <p className="text-sm text-secondary-800 flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span>Your listing will be reviewed by an admin before being published.</span>
+              </p>
+            </div>
             <div className="flex gap-3">
               <button type="button" onClick={saveAsDraft} disabled={savingDraft} className="flex-1 py-3 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
                 {savingDraft ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <><Save className="w-5 h-5" /> Save as Draft</>}
               </button>
-              <button type="button" onClick={() => setPreviewMode(true)} className="flex-1 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition flex items-center justify-center gap-2">
+              <button type="button" onClick={() => setPreviewMode(true)} className="flex-1 py-3 bg-secondary-600 text-white rounded-lg font-semibold hover:bg-secondary-700 transition flex items-center justify-center gap-2">
                 <Eye className="w-5 h-5" /> Preview
               </button>
-              <button type="submit" disabled={loading} className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2">
+              <button type="submit" disabled={loading} className="flex-1 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <><Send className="w-5 h-5" /> Post Listing</>}
               </button>
             </div>
@@ -464,4 +469,4 @@ const CreateListingPage = () => {
   )
 }
 
-export default CreateListingPage
+export default CreateListingPage;

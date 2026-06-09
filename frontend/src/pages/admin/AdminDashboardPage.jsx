@@ -28,7 +28,6 @@ const AdminDashboardPage = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   
-  // REAL DATA from backend
   const [dashboardData, setDashboardData] = useState({
     total_users: 0,
     active_users: 0,
@@ -59,16 +58,11 @@ const AdminDashboardPage = () => {
 
   const getToken = () => localStorage.getItem('access_token')
 
-  // Fetch REAL dashboard stats from backend
   const fetchDashboardData = async () => {
     try {
       const token = getToken()
-      if (!token) {
-        console.error('No token found')
-        return
-      }
+      if (!token) return
       
-      // Fetch dashboard stats from your backend
       const response = await fetch(`${API_URL}/api/admin/dashboard-stats`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
@@ -80,7 +74,6 @@ const AdminDashboardPage = () => {
         const data = await response.json()
         console.log('📊 Dashboard stats from backend:', data)
         
-        // Map backend data to frontend state
         setDashboardData({
           total_users: data.total_users || 0,
           active_users: data.verified_users || 0,
@@ -97,8 +90,6 @@ const AdminDashboardPage = () => {
           unread_messages: 0
         })
       } else {
-        console.error('Failed to fetch dashboard stats:', response.status)
-        // Fallback to direct database queries via API
         await fetchDirectStats()
       }
     } catch (error) {
@@ -107,31 +98,26 @@ const AdminDashboardPage = () => {
     }
   }
 
-  // Fallback: Fetch stats directly from individual endpoints
   const fetchDirectStats = async () => {
     const token = getToken()
     if (!token) return
 
     try {
-      // Fetch users
       const usersRes = await fetch(`${API_URL}/api/admin/users?limit=1`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const usersData = await usersRes.json()
       
-      // Fetch listings
       const listingsRes = await fetch(`${API_URL}/api/admin/stats/listings`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const listingsData = await listingsRes.json()
       
-      // Fetch verifications
       const verificationsRes = await fetch(`${API_URL}/api/admin/stats/verifications`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const verificationsData = await verificationsRes.json()
       
-      // Fetch payments
       const paymentsRes = await fetch(`${API_URL}/api/admin/real-payments?status=pending`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -157,7 +143,6 @@ const AdminDashboardPage = () => {
     }
   }
 
-  // Fetch recent activities
   const fetchRecentActivities = async () => {
     try {
       const token = getToken()
@@ -182,7 +167,6 @@ const AdminDashboardPage = () => {
     }
   }
 
-  // Fetch recent users
   const fetchRecentUsers = async () => {
     try {
       const token = getToken()
@@ -209,7 +193,6 @@ const AdminDashboardPage = () => {
     }
   }
 
-  // Fetch user growth data
   const fetchUserGrowth = async () => {
     try {
       const token = getToken()
@@ -233,7 +216,6 @@ const AdminDashboardPage = () => {
     }
   }
 
-  // Default/fallback data (only used when API fails)
   const setDefaultActivities = () => {
     setRecentActivities([
       { id: 1, message: 'Welcome to admin dashboard', time: 'Just now', type: 'system' }
@@ -294,7 +276,6 @@ const AdminDashboardPage = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
 
-  // Check if user is admin
   useEffect(() => {
     const userData = localStorage.getItem('user')
     if (userData) {
@@ -315,31 +296,31 @@ const AdminDashboardPage = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Loader className="w-16 h-16 text-blue-600 animate-spin" />
+        <Loader className="w-16 h-16 text-primary-700 animate-spin" />
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* SIDEBAR */}
-      <aside className={`fixed top-0 left-0 z-40 h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'}`}>
+      {/* SIDEBAR - Updated colors */}
+      <aside className={`fixed top-0 left-0 z-40 h-screen bg-gradient-to-b from-primary-900 to-primary-800 text-white transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'}`}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-5 border-b border-gray-700">
+          <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <div className="w-10 h-10 bg-gradient-to-r from-primary-600 to-secondary-500 rounded-xl flex items-center justify-center shadow-lg">
                   <Building2 className="w-5 h-5 text-white" />
                 </div>
                 {sidebarOpen && (
                   <div>
-                    <span className="text-lg font-bold tracking-tight">Ethio Real Estate</span>
-                    <p className="text-xs text-gray-400">Admin Panel</p>
+                    <span className="text-lg font-bold tracking-tight">EstateHub</span>
+                    <p className="text-xs text-gray-300">Admin Panel</p>
                   </div>
                 )}
               </div>
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-gray-700 transition-all">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-white/10 transition-all">
                 {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
             </div>
@@ -364,11 +345,11 @@ const AdminDashboardPage = () => {
                   onClick={() => setActiveTab(item.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
                     isActive 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      ? 'bg-gradient-to-r from-primary-700 to-primary-800 text-white shadow-lg'
+                      : 'text-gray-300 hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'group-hover:text-white'}`} />
+                  <Icon className="w-5 h-5" />
                   {sidebarOpen && (
                     <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
                   )}
@@ -378,10 +359,10 @@ const AdminDashboardPage = () => {
           </nav>
 
           {/* Logout Button */}
-          <div className="p-4 border-t border-gray-700">
+          <div className="p-4 border-t border-white/10">
             <button 
               onClick={handleLogout} 
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-red-600 hover:text-white transition-all group"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-error hover:text-white transition-all group"
             >
               <LogOut className="w-5 h-5" />
               {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
@@ -390,17 +371,17 @@ const AdminDashboardPage = () => {
 
           {/* Admin Account Info */}
           <div className="p-4 pt-0 pb-5">
-            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-gray-800/50">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-md">
+            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-white/10">
+              <div className="w-10 h-10 bg-gradient-to-r from-primary-600 to-secondary-500 rounded-full flex items-center justify-center shadow-md">
                 <span className="text-white font-bold text-sm">{getInitials(user?.full_name || user?.username)}</span>
               </div>
               {sidebarOpen && (
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm truncate">{user?.full_name || user?.username}</p>
-                  <p className="text-xs text-gray-400 truncate">System Administrator</p>
+                  <p className="text-xs text-gray-300 truncate">System Administrator</p>
                   <div className="flex items-center gap-1 mt-1">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-xs text-green-400">Active</span>
+                    <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+                    <span className="text-xs text-success">Active</span>
                   </div>
                 </div>
               )}
@@ -412,7 +393,6 @@ const AdminDashboardPage = () => {
       {/* MAIN CONTENT */}
       <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
         <div className="p-6">
-          {/* Header with Actions */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
@@ -429,7 +409,7 @@ const AdminDashboardPage = () => {
               </button>
               <button
                 onClick={handleExportData}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 transition-colors"
               >
                 <Download className="w-4 h-4" />
                 <span className="text-sm">Export</span>
@@ -437,7 +417,7 @@ const AdminDashboardPage = () => {
             </div>
           </div>
 
-          {/* Stats Cards - REAL DATA from database */}
+          {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
             <div className="bg-white rounded-xl shadow-sm border p-5">
               <div className="flex justify-between items-start">
@@ -445,8 +425,8 @@ const AdminDashboardPage = () => {
                   <p className="text-sm text-gray-500 mb-1">Total Users</p>
                   <p className="text-3xl font-bold text-gray-900">{dashboardData.total_users.toLocaleString()}</p>
                 </div>
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Users className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-primary-700" />
                 </div>
               </div>
             </div>
@@ -457,8 +437,8 @@ const AdminDashboardPage = () => {
                   <p className="text-sm text-gray-500 mb-1">Active Listings</p>
                   <p className="text-3xl font-bold text-gray-900">{dashboardData.active_listings}</p>
                 </div>
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Home className="w-5 h-5 text-green-600" />
+                <div className="w-10 h-10 bg-success/10 rounded-lg flex items-center justify-center">
+                  <Home className="w-5 h-5 text-success" />
                 </div>
               </div>
             </div>
@@ -467,10 +447,10 @@ const AdminDashboardPage = () => {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Pending Verifications</p>
-                  <p className="text-3xl font-bold text-yellow-600">{dashboardData.pending_verifications}</p>
+                  <p className="text-3xl font-bold text-secondary-600">{dashboardData.pending_verifications}</p>
                 </div>
-                <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-yellow-600" />
+                <div className="w-10 h-10 bg-secondary-100 rounded-lg flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-secondary-600" />
                 </div>
               </div>
             </div>
@@ -490,7 +470,7 @@ const AdminDashboardPage = () => {
 
           {/* Second Row - Revenue and Stats */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-            <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-sm p-5 text-white">
+            <div className="bg-gradient-to-r from-primary-800 to-primary-900 rounded-xl shadow-sm p-5 text-white">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm opacity-90 mb-1">Total Revenue</p>
@@ -509,8 +489,8 @@ const AdminDashboardPage = () => {
                   <p className="text-sm text-gray-500 mb-1">Active Users</p>
                   <p className="text-2xl font-bold text-gray-900">{dashboardData.active_users}</p>
                 </div>
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <UserCheck className="w-5 h-5 text-green-600" />
+                <div className="w-10 h-10 bg-success/10 rounded-lg flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-success" />
                 </div>
               </div>
             </div>
@@ -521,8 +501,8 @@ const AdminDashboardPage = () => {
                   <p className="text-sm text-gray-500 mb-1">Total Listings</p>
                   <p className="text-2xl font-bold text-gray-900">{dashboardData.total_listings}</p>
                 </div>
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-primary-700" />
                 </div>
               </div>
             </div>
@@ -532,7 +512,7 @@ const AdminDashboardPage = () => {
           {userGrowthData.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border p-5 mb-6">
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-green-600" />
+                <TrendingUp className="w-5 h-5 text-success" />
                 User Growth (Last 6 Months)
               </h3>
               <ResponsiveContainer width="100%" height={300}>
@@ -549,7 +529,6 @@ const AdminDashboardPage = () => {
 
           {/* Recent Activities and Users */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Activities */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
               <div className="p-4 border-b bg-gray-50">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -571,7 +550,6 @@ const AdminDashboardPage = () => {
               </div>
             </div>
 
-            {/* Recent Users */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
               <div className="p-4 border-b bg-gray-50">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -587,7 +565,7 @@ const AdminDashboardPage = () => {
                       <p className="text-sm text-gray-500">{user.email}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                          user.status === 'active' ? 'bg-success/10 text-success' : 'bg-secondary-100 text-secondary-700'
                         }`}>
                           {user.status}
                         </span>

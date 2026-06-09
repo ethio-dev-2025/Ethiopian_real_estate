@@ -23,7 +23,6 @@ const BuyerSaved = () => {
 
   const fetchSavedProperties = useCallback(async () => {
     try {
-      // Get saved property IDs from localStorage
       const localSaved = localStorage.getItem('buyer_saved_properties');
       let savedIds = [];
       
@@ -40,7 +39,6 @@ const BuyerSaved = () => {
         return;
       }
       
-      // Fetch full property details from API
       const fullProperties = [];
       
       for (const id of savedIds) {
@@ -62,7 +60,6 @@ const BuyerSaved = () => {
       
       setSavedProperties(fullProperties);
       
-      // Update localStorage with full data
       if (fullProperties.length > 0) {
         localStorage.setItem('buyer_saved_properties', JSON.stringify(fullProperties));
       }
@@ -78,7 +75,6 @@ const BuyerSaved = () => {
   const handleRemove = (propertyId) => {
     const newSaved = savedProperties.filter(p => p.id !== propertyId);
     setSavedProperties(newSaved);
-    // Update localStorage with remaining properties
     localStorage.setItem('buyer_saved_properties', JSON.stringify(newSaved));
     toast.success('Removed from saved');
   };
@@ -92,7 +88,6 @@ const BuyerSaved = () => {
   };
 
   const getImageUrl = (property) => {
-    // Try to get image from property data
     if (property.images && property.images.length > 0) {
       const img = property.images[0];
       if (img.startsWith('http')) return img;
@@ -111,18 +106,17 @@ const BuyerSaved = () => {
     fetchSavedProperties(); 
   }, [fetchSavedProperties]);
 
-  // Show content immediately, no spinner
   if (savedProperties.length === 0 && !isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-white rounded-2xl shadow-sm border p-12 text-center">
-        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4">
-          <Heart className="w-10 h-10 text-red-500" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-white rounded-2xl shadow-sm border border-border-light p-12 text-center">
+        <div className="w-20 h-20 bg-error/10 rounded-full flex items-center justify-center mb-4">
+          <Heart className="w-10 h-10 text-error" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-700 mb-2">No saved properties yet</h2>
-        <p className="text-gray-500 mb-6">Start saving properties you like and they'll appear here</p>
+        <h2 className="text-2xl font-bold text-text-primary mb-2">No saved properties yet</h2>
+        <p className="text-text-muted mb-6">Start saving properties you like and they'll appear here</p>
         <button 
           onClick={() => navigate('/dashboard/buyer/properties')} 
-          className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition flex items-center gap-2"
+          className="px-6 py-2.5 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition flex items-center gap-2"
         >
           Browse Properties <ArrowRight className="w-4 h-4" />
         </button>
@@ -134,20 +128,20 @@ const BuyerSaved = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-            <Heart className="w-5 h-5 text-red-500" />
+          <div className="w-10 h-10 bg-error/10 rounded-xl flex items-center justify-center">
+            <Heart className="w-5 h-5 text-error" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Saved Properties</h1>
-            <p className="text-gray-500 text-sm">Properties you've saved for later</p>
+            <h1 className="text-2xl font-bold text-text-primary">Saved Properties</h1>
+            <p className="text-text-muted text-sm">Properties you've saved for later</p>
           </div>
-          <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm ml-2">
+          <span className="bg-gray-100 text-text-secondary px-3 py-1 rounded-full text-sm ml-2">
             {savedProperties.length} saved
           </span>
         </div>
         <button 
           onClick={fetchSavedProperties} 
-          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition"
+          className="p-2 rounded-lg text-text-muted hover:bg-gray-100 transition"
           title="Refresh"
         >
           <RefreshCw className="w-4 h-4" />
@@ -161,7 +155,7 @@ const BuyerSaved = () => {
           return (
             <div 
               key={property.id} 
-              className="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition group cursor-pointer"
+              className="bg-white rounded-xl shadow-sm border border-border-light overflow-hidden hover:shadow-md transition group cursor-pointer"
               onClick={() => navigate(`/properties/${property.id}`)}
             >
               <div className="relative h-36 bg-gray-200">
@@ -174,43 +168,43 @@ const BuyerSaved = () => {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-300">
-                    <ImageOff className="w-8 h-8 text-gray-400" />
+                    <ImageOff className="w-8 h-8 text-text-muted" />
                   </div>
                 )}
-                <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-semibold text-white ${property.listing_type === 'sale' ? 'bg-green-600' : 'bg-blue-600'}`}>
+                <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-semibold text-white ${property.listing_type === 'sale' ? 'bg-success' : 'bg-primary-600'}`}>
                   {property.listing_type === 'sale' ? 'For Sale' : 'For Rent'}
                 </div>
                 {property.featured && (
-                  <div className="absolute top-3 left-3 px-2 py-1 rounded-lg text-xs font-semibold bg-yellow-500 text-white flex items-center gap-1">
+                  <div className="absolute top-3 left-3 px-2 py-1 rounded-lg text-xs font-semibold bg-warning text-white flex items-center gap-1">
                     <Star className="w-3 h-3" /> Featured
                   </div>
                 )}
               </div>
               <div className="p-4">
-                <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition line-clamp-1">
+                <h3 className="font-semibold text-text-primary group-hover:text-primary-600 transition line-clamp-1">
                   {property.title}
                 </h3>
-                <div className="flex items-center gap-1 text-gray-500 text-sm mt-1">
+                <div className="flex items-center gap-1 text-text-muted text-sm mt-1">
                   <MapPin className="w-3 h-3" /> {property.city || property.address || 'Addis Ababa'}
                 </div>
-                <div className="flex gap-3 mt-2 text-sm text-gray-500">
+                <div className="flex gap-3 mt-2 text-sm text-text-muted">
                   <span><Bed className="w-3 h-3 inline mr-1" /> {property.bedrooms || 0}</span>
                   <span><Bath className="w-3 h-3 inline mr-1" /> {property.bathrooms || 0}</span>
                   <span><Square className="w-3 h-3 inline mr-1" /> {property.sqft || 0}</span>
                 </div>
-                <p className="text-lg font-bold text-blue-600 mt-2">
+                <p className="text-lg font-bold text-primary-600 mt-2">
                   {formatPrice(property.price, property.listing_type)}
                 </p>
                 <div className="flex gap-2 mt-3">
                   <button 
                     onClick={(e) => { e.stopPropagation(); navigate(`/properties/${property.id}`); }} 
-                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
+                    className="flex-1 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition"
                   >
                     View Details
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleRemove(property.id); }} 
-                    className="px-3 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-200 transition flex items-center gap-1"
+                    className="px-3 py-2 bg-error/10 text-error rounded-lg text-sm font-semibold hover:bg-error/20 transition flex items-center gap-1"
                   >
                     <Heart className="w-4 h-4 fill-current" />
                     Remove

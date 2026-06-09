@@ -1,15 +1,17 @@
+// src/pages/public/ContactPage.jsx
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../context/LanguageContext'
 import Header from '../../components/layout/Header'
 import { 
-  MapPin, Phone, Mail, MessageCircle, Clock, Send, 
-  Facebook, Twitter, Linkedin, Instagram, Youtube,
-  CheckCircle, AlertCircle, Loader, Building2, Users,
-  Globe, Headphones, Calendar, ChevronRight
+  Building2, Phone, Mail, MapPin, Clock, Send, 
+  User, MessageCircle, CheckCircle,
+  Sparkles, ArrowRight, ChevronRight
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
+
+const API_URL = 'http://localhost:8000'
 
 const ContactPage = () => {
   const { t, language } = useLanguage()
@@ -20,123 +22,147 @@ const ContactPage = () => {
     subject: '',
     message: ''
   })
-  const [loading, setLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [faqOpen, setFaqOpen] = useState(null)
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+  const contactInfo = {
+    address: 'Bole, Addis Ababa, Ethiopia',
+    phone: '+251-960724272',
+    email: 'info@estatehub.com',
+    supportEmail: 'support@estatehub.com',
+    salesEmail: 'sales@estatehub.com',
+    workingHours: 'Monday - Friday: 9:00 AM - 6:00 PM',
+    weekendHours: 'Saturday: 10:00 AM - 2:00 PM',
+    emergency: '+251-911-234567'
   }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!formData.name || !formData.email || !formData.message) {
-      toast.error('Please fill all required fields')
-      return
-    }
-    
-    setLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false)
-      setSubmitted(true)
-      toast.success('Message sent successfully! We\'ll get back to you soon.')
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' })
-      setTimeout(() => setSubmitted(false), 3000)
-    }, 1500)
-  }
-
-  const contactInfo = [
-    {
-      icon: MapPin,
-      title: 'Visit Us',
-      details: ['Bole Sub City, Woreda 03', 'Addis Ababa, Ethiopia', 'Near Edna Mall'],
-      color: 'blue'
-    },
-    {
-      icon: Phone,
-      title: 'Call Us',
-      details: ['+251 11 123 4567', '+251 91 123 4567', 'Mon - Fri, 9am - 6pm'],
-      color: 'green'
-    },
-    {
-      icon: Mail,
-      title: 'Email Us',
-      details: ['info@realestatepro.com', 'support@realestatepro.com', 'sales@realestatepro.com'],
-      color: 'purple'
-    },
-    {
-      icon: Clock,
-      title: 'Business Hours',
-      details: ['Monday - Friday: 9am - 6pm', 'Saturday: 10am - 4pm', 'Sunday: Closed'],
-      color: 'orange'
-    }
-  ]
 
   const offices = [
     {
       city: 'Addis Ababa',
-      address: 'Bole Sub City, Woreda 03, Addis Ababa, Ethiopia',
-      phone: '+251 11 123 4567',
-      email: 'addis@realestatepro.com',
-      map: 'https://maps.google.com/?q=Addis+Ababa+Ethiopia'
+      address: 'Bole Road, Dembel City Center, 4th Floor',
+      phone: '+251-960724272',
+      email: 'addis@estatehub.com',
+      mapUrl: 'https://maps.google.com/?q=Bole+Addis+Ababa+Ethiopia'
+    },
+    {
+      city: 'Adama',
+      address: 'Megenagna, Adama City, 2nd Floor',
+      phone: '+251-221-123456',
+      email: 'adama@estatehub.com',
+      mapUrl: 'https://maps.google.com/?q=Adama+Ethiopia'
     },
     {
       city: 'Bahir Dar',
-      address: 'Kebele 05, Near Bahir Dar University, Bahir Dar, Ethiopia',
-      phone: '+251 58 123 4567',
-      email: 'bahirdar@realestatepro.com',
-      map: 'https://maps.google.com/?q=Bahir+Dar+Ethiopia'
-    },
-    {
-      city: 'Hawassa',
-      address: 'Sidama Region, Hawassa City, Ethiopia',
-      phone: '+251 46 123 4567',
-      email: 'hawassa@realestatepro.com',
-      map: 'https://maps.google.com/?q=Hawassa+Ethiopia'
+      address: 'Tana Mall, Bahir Dar, 3rd Floor',
+      phone: '+251-581-123456',
+      email: 'bahirdar@estatehub.com',
+      mapUrl: 'https://maps.google.com/?q=Bahir+Dar+Ethiopia'
     }
   ]
 
   const faqs = [
     {
-      question: 'How do I list my property?',
-      answer: 'Simply create an account, verify your identity, and follow our easy listing process. Our team will review and publish your listing within 24 hours.'
+      question: 'How do I list my property on EstateHub?',
+      answer: 'To list your property, you need to register as a seller or landlord, complete document verification, subscribe to a plan, and then you can create your property listing from your dashboard.'
     },
     {
-      question: 'Is the platform free for buyers?',
-      answer: 'Yes! Buyers can browse properties, contact agents, and schedule viewings completely free of charge.'
+      question: 'What payment methods are accepted?',
+      answer: 'We accept payments through Chapa payment gateway, which supports Telebirr, CBE Birr, credit cards, and bank transfers.'
     },
     {
-      question: 'How are properties verified?',
-      answer: 'We have a dedicated verification team that checks all properties for authenticity, ownership documents, and legal compliance before listing.'
+      question: 'How long does document verification take?',
+      answer: 'Document verification typically takes 24-48 hours. Our admin team reviews all documents to ensure authenticity and compliance.'
     },
     {
-      question: 'What payment methods do you accept?',
-      answer: 'We accept various payment methods including bank transfers, credit cards, and mobile money through our secure payment gateway.'
+      question: 'Can I cancel my subscription?',
+      answer: 'Yes, you can cancel your subscription at any time from your dashboard. Your subscription will remain active until the end of the paid period.'
+    },
+    {
+      question: 'Is there a free plan?',
+      answer: 'Buyers can use the platform for free. Sellers and landlords need to subscribe to one of our paid plans after document verification.'
+    },
+    {
+      question: 'How do I contact customer support?',
+      answer: 'You can reach us via phone at +251-960724272, email at info@estatehub.com, or through the contact form below. Our support team is available Monday-Friday 9AM-6PM.'
     }
   ]
+
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    })
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    
+    try {
+      const response = await fetch(`${API_URL}/api/contact/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        setSubmitted(true)
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          subject: '',
+          message: ''
+        })
+        toast.success(data.message || 'Message sent successfully! We will get back to you soon.')
+        
+        setTimeout(() => setSubmitted(false), 5000)
+      } else {
+        toast.error(data.detail || 'Failed to send message. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
+      toast.error('Network error. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const toggleFaq = (index) => {
+    setFaqOpen(faqOpen === index ? null : index)
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
       <Header />
 
       {/* Hero Section */}
-      <section className="relative pt-24 pb-16 bg-gradient-to-r from-blue-600 to-purple-600">
+      <section className="relative pt-24 pb-16 bg-gradient-to-r from-primary-800 to-primary-900 overflow-hidden">
         <div className="absolute inset-0 bg-black/20"></div>
+        <div className="absolute top-20 right-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 left-10 w-80 h-80 bg-primary-400/10 rounded-full blur-3xl"></div>
+        
         <div className="relative z-10 container mx-auto px-4 text-center text-white">
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-5xl font-bold mb-4"
+            transition={{ delay: 0.1 }}
+            className="text-4xl md:text-6xl font-bold mb-4"
           >
-            Contact Us
+            Contact <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-300">Us</span>
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-lg md:text-xl text-blue-100 max-w-2xl mx-auto"
+            transition={{ delay: 0.2 }}
+            className="text-lg md:text-xl text-primary-100 max-w-2xl mx-auto"
           >
-            We're here to help! Reach out to us for any questions or support
+            Have questions? We're here to help. Reach out to us anytime.
           </motion.p>
         </div>
       </section>
@@ -144,273 +170,304 @@ const ContactPage = () => {
       {/* Contact Info Cards */}
       <section className="py-16 px-4">
         <div className="container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {contactInfo.map((info, idx) => {
-              const Icon = info.icon
-              const colorClasses = {
-                blue: 'from-blue-500 to-blue-600',
-                green: 'from-green-500 to-green-600',
-                purple: 'from-purple-500 to-purple-600',
-                orange: 'from-orange-500 to-orange-600'
-              }
-              return (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  viewport={{ once: true }}
-                  className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition"
-                >
-                  <div className={`w-16 h-16 bg-gradient-to-r ${colorClasses[info.color]} rounded-full flex items-center justify-center mx-auto mb-4`}>
-                    <Icon className="w-8 h-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{info.title}</h3>
-                  {info.details.map((detail, i) => (
-                    <p key={i} className="text-gray-600 text-sm">{detail}</p>
-                  ))}
-                </motion.div>
-              )
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <div className="w-16 h-16 bg-gradient-to-r from-primary-700 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Phone className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Phone</h3>
+              <p className="text-gray-600">{contactInfo.phone}</p>
+              <p className="text-sm text-gray-400 mt-2">Emergency: {contactInfo.emergency}</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              viewport={{ once: true }}
+              className="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <div className="w-16 h-16 bg-gradient-to-r from-primary-700 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Email</h3>
+              <p className="text-gray-600">{contactInfo.email}</p>
+              <p className="text-sm text-gray-400 mt-2">Support: {contactInfo.supportEmail}</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              viewport={{ once: true }}
+              className="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <div className="w-16 h-16 bg-gradient-to-r from-primary-700 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MapPin className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Address</h3>
+              <p className="text-gray-600">{contactInfo.address}</p>
+              <p className="text-sm text-gray-400 mt-2">Ethiopia</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              viewport={{ once: true }}
+              className="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <div className="w-16 h-16 bg-gradient-to-r from-primary-700 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Working Hours</h3>
+              <p className="text-gray-600 text-sm">{contactInfo.workingHours}</p>
+              <p className="text-sm text-gray-400 mt-2">{contactInfo.weekendHours}</p>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Contact Form & Map */}
-      <section className="py-16 px-4 bg-white">
+      {/* Contact Form and FAQ */}
+      <section className="py-16 px-4 bg-gray-50">
         <div className="container mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            
             {/* Contact Form */}
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
+              className="bg-white rounded-3xl shadow-xl p-8"
             >
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Send Us a Message</h2>
-              <div className="w-20 h-1 bg-blue-600 mb-6"></div>
-              <p className="text-gray-600 mb-8">
-                Have a question or need assistance? Fill out the form below and we'll get back to you within 24 hours.
-              </p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Send us a Message</h2>
+              <p className="text-gray-500 mb-6">Fill out the form and we'll get back to you within 24 hours</p>
               
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {submitted && (
+                <div className="mb-6 p-4 bg-success/10 rounded-xl flex items-center gap-3 text-success">
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Message sent successfully! We'll contact you soon.</span>
+                </div>
+              )}
+              
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      placeholder="John Doe"
-                      className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Your Name *</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        placeholder="John Doe"
+                      />
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      placeholder="john@example.com"
-                      className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        placeholder="john@example.com"
+                      />
+                    </div>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      placeholder="+251 11 123 4567"
-                      className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
-                    />
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        placeholder="+251-XXX-XXXXXX"
+                      />
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-                    <input
-                      type="text"
-                      name="subject"
-                      value={formData.subject}
-                      onChange={handleChange}
-                      placeholder="Property Inquiry"
-                      className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
+                    <div className="relative">
+                      <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        name="subject"
+                        value={formData.subject}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        placeholder="Property Inquiry"
+                      />
+                    </div>
                   </div>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Message <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Message *</label>
                   <textarea
                     name="message"
-                    rows="5"
                     value={formData.message}
-                    onChange={handleChange}
+                    onChange={handleInputChange}
+                    required
+                    rows="5"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent resize-none"
                     placeholder="Tell us how we can help..."
-                    className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
-                  />
+                  ></textarea>
                 </div>
                 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {loading ? (
-                    <Loader className="w-5 h-5 animate-spin" />
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Sending...
+                    </>
                   ) : (
-                    <Send className="w-5 h-5" />
+                    <>
+                      Send Message
+                      <Send className="w-4 h-4" />
+                    </>
                   )}
-                  {loading ? 'Sending...' : 'Send Message'}
                 </button>
-                
-                {submitted && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <span className="text-green-700">Message sent successfully!</span>
-                  </div>
-                )}
               </form>
             </motion.div>
 
-            {/* Map & Office Info */}
+            {/* FAQ Section */}
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
+              className="bg-white rounded-3xl shadow-xl p-8"
             >
-              <div className="bg-gray-100 rounded-2xl overflow-hidden mb-6 h-64">
-                <iframe
-                  title="Office Location Map"
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3940.442219037457!2d38.75728000000001!3d9.000000000000002!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x164b85cef5a40253%3A0x9e6a2a4e5e5e5e5e!2sAddis%20Ababa%2C%20Ethiopia!5e0!3m2!1sen!2sus!4v1700000000000!5m2!1sen!2sus"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen=""
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                ></iframe>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Frequently Asked Questions</h2>
+                <p className="text-gray-500">Find answers to common questions about our platform</p>
               </div>
               
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Connect With Us</h3>
-                <div className="flex gap-4">
-                  <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition">
-                    <Facebook className="w-5 h-5 text-white" />
-                  </a>
-                  <a href="#" className="w-10 h-10 bg-sky-500 rounded-full flex items-center justify-center hover:bg-sky-600 transition">
-                    <Twitter className="w-5 h-5 text-white" />
-                  </a>
-                  <a href="#" className="w-10 h-10 bg-pink-600 rounded-full flex items-center justify-center hover:bg-pink-700 transition">
-                    <Instagram className="w-5 h-5 text-white" />
-                  </a>
-                  <a href="#" className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center hover:bg-blue-800 transition">
-                    <Linkedin className="w-5 h-5 text-white" />
-                  </a>
-                  <a href="#" className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition">
-                    <Youtube className="w-5 h-5 text-white" />
-                  </a>
-                </div>
+              <div className="space-y-4">
+                {faqs.map((faq, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    viewport={{ once: true }}
+                    className="border border-gray-100 rounded-xl overflow-hidden"
+                  >
+                    <button
+                      onClick={() => toggleFaq(index)}
+                      className="w-full bg-white p-4 text-left flex justify-between items-center hover:bg-gray-50 transition-all duration-300"
+                    >
+                      <span className="font-semibold text-gray-900">{faq.question}</span>
+                      <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform duration-300 flex-shrink-0 ml-2 ${faqOpen === index ? 'rotate-90' : ''}`} />
+                    </button>
+                    {faqOpen === index && (
+                      <div className="bg-gray-50 p-4 text-gray-600 border-t border-gray-100">
+                        <p>{faq.answer}</p>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
               </div>
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Our Offices Section */}
-      <section className="py-16 px-4 bg-gray-50">
-        <div className="container mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Offices</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Visit us at any of our locations across Ethiopia
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {offices.map((office, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                viewport={{ once: true }}
-                className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition"
-              >
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mb-4">
-                  <Building2 className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{office.city}</h3>
-                <p className="text-gray-600 text-sm mb-3">{office.address}</p>
-                <p className="text-gray-600 text-sm mb-1">📞 {office.phone}</p>
-                <p className="text-gray-600 text-sm mb-3">✉️ {office.email}</p>
-                <a href={office.map} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm font-medium hover:underline">
-                  Get Directions →
-                </a>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
+      {/* Office Locations */}
       <section className="py-16 px-4">
         <div className="container mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Office Locations</h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Find answers to common questions about our platform
+              Visit us at one of our offices across Ethiopia
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            {faqs.map((faq, idx) => (
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {offices.map((office, index) => (
               <motion.div
-                key={idx}
+                key={index}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
+                transition={{ delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className="bg-white rounded-2xl shadow-lg p-6"
+                className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300"
               >
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{faq.question}</h3>
-                <p className="text-gray-600">{faq.answer}</p>
+                <div className="w-14 h-14 bg-gradient-to-r from-primary-700 to-primary-800 rounded-xl flex items-center justify-center mb-4">
+                  <Building2 className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{office.city}</h3>
+                <p className="text-gray-500 text-sm mb-3">{office.address}</p>
+                <div className="space-y-2">
+                  <p className="flex items-center gap-2 text-gray-600 text-sm">
+                    <Phone className="w-4 h-4 text-primary-600" /> {office.phone}
+                  </p>
+                  <p className="flex items-center gap-2 text-gray-600 text-sm">
+                    <Mail className="w-4 h-4 text-primary-600" /> {office.email}
+                  </p>
+                </div>
               </motion.div>
             ))}
-          </div>
-          <div className="text-center mt-8">
-            <Link to="/faq" className="text-blue-600 font-medium hover:underline flex items-center justify-center gap-1">
-              View all FAQs <ChevronRight className="w-4 h-4" />
-            </Link>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-16 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-        <div className="container mx-auto px-4 text-center">
-          <Headphones className="w-16 h-16 mx-auto mb-4 opacity-80" />
-          <h2 className="text-3xl font-bold mb-4">24/7 Customer Support</h2>
-          <p className="text-blue-100 mb-8 max-w-2xl mx-auto">
-            Our dedicated support team is always ready to assist you
-          </p>
-          <Link
-            to="/register"
-            className="inline-flex items-center gap-2 px-8 py-3 bg-white text-blue-600 rounded-xl font-semibold hover:shadow-lg transition group"
-          >
-            Create Account
-            <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition" />
-          </Link>
+      {/* Footer */}
+      <footer className="bg-gray-900 text-gray-400 py-12 px-4">
+        <div className="container mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Building2 className="w-8 h-8 text-primary-500" />
+                <span className="text-xl font-bold text-white">EstateHub</span>
+              </div>
+              <p className="text-sm">Your trusted partner in real estate</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-4">Quick Links</h4>
+              <ul className="space-y-2 text-sm">
+                <li><Link to="/properties" className="hover:text-white transition">Properties</Link></li>
+                <li><Link to="/about" className="hover:text-white transition">About Us</Link></li>
+                <li><Link to="/contact" className="hover:text-white transition">Contact</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-4">Contact Us</h4>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2"><Phone className="w-4 h-4" /> +251-960724272</li>
+                <li className="flex items-center gap-2"><Mail className="w-4 h-4" /> info@estatehub.com</li>
+                <li className="flex items-center gap-2"><MapPin className="w-4 h-4" /> Addis Ababa, Ethiopia</li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
+            <p>&copy; 2024 EstateHub. All rights reserved.</p>
+          </div>
         </div>
-      </section>
+      </footer>
     </div>
   )
 }

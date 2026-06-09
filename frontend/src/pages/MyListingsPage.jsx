@@ -1,4 +1,3 @@
-// src/pages/MyListingsPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -96,7 +95,6 @@ const MyListingsPage = () => {
     }
   };
 
-  // CORRECTED: Navigate to edit-listing without /seller prefix
   const handleEdit = (listingId) => {
     navigate(`/edit-listing/${listingId}`);
   };
@@ -122,7 +120,7 @@ const MyListingsPage = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <Loader className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader className="w-8 h-8 animate-spin text-primary-700" />
       </div>
     );
   }
@@ -138,19 +136,19 @@ const MyListingsPage = () => {
             </div>
             <div className="flex gap-3">
               <div className="w-48">
-                <CustomSelect
+                <select
                   value={statusFilter}
-                  onChange={setStatusFilter}
-                  options={[
-                    { value: 'all', label: `All (${totalCount})` },
-                    { value: 'published', label: `Published (${publishedCount})` },
-                    { value: 'drafts', label: `Drafts (${draftsCount})` }
-                  ]}
-                />
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+                >
+                  <option value="all">All ({totalCount})</option>
+                  <option value="published">Published ({publishedCount})</option>
+                  <option value="drafts">Drafts ({draftsCount})</option>
+                </select>
               </div>
               <button 
                 onClick={() => navigate('/create-listing')}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center gap-2 text-sm"
+                className="px-4 py-2 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center gap-2 text-sm"
               >
                 <Plus className="w-4 h-4" /> Create Listing
               </button>
@@ -181,7 +179,7 @@ const MyListingsPage = () => {
               </p>
               <button 
                 onClick={() => navigate('/create-listing')}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg flex items-center gap-2 mx-auto"
+                className="px-6 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-5 h-5" /> Create Your First Listing
               </button>
@@ -219,7 +217,7 @@ const MyListingsPage = () => {
                       </div>
                       
                       {listing.cover_image && (
-                        <div className="absolute top-3 left-3 px-1.5 py-0.5 rounded bg-yellow-500 text-white text-[10px] font-semibold flex items-center gap-1">
+                        <div className="absolute top-3 left-3 px-1.5 py-0.5 rounded bg-secondary-500 text-white text-[10px] font-semibold flex items-center gap-1">
                           <Star className="w-3 h-3 fill-white" /> Cover
                         </div>
                       )}
@@ -239,7 +237,7 @@ const MyListingsPage = () => {
                         <div className="flex items-center gap-1"><Square className="w-3 h-3" /> {listing.sqft || 0}</div>
                       </div>
                       
-                      <p className="text-xl font-bold text-blue-600 mb-4">
+                      <p className="text-xl font-bold text-primary-700 mb-4">
                         ETB {listing.price?.toLocaleString() || 0}
                         {listing.listing_type === 'rent' && <span className="text-sm text-gray-500">/month</span>}
                       </p>
@@ -253,21 +251,21 @@ const MyListingsPage = () => {
                         </button>
                         <button
                           onClick={() => handleEdit(listing.id)}
-                          className="flex-1 px-3 py-2 border border-blue-200 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition flex items-center justify-center gap-1"
+                          className="flex-1 px-3 py-2 border border-primary-200 bg-primary-50 text-primary-700 rounded-lg text-sm font-medium hover:bg-primary-100 transition flex items-center justify-center gap-1"
                         >
                           <Edit className="w-4 h-4" /> Edit
                         </button>
                         {listing.is_draft && (
                           <button
                             onClick={() => handlePublish(listing.id)}
-                            className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition flex items-center justify-center gap-1"
+                            className="flex-1 px-3 py-2 bg-success text-white rounded-lg text-sm font-medium hover:bg-green-700 transition flex items-center justify-center gap-1"
                           >
                             <Send className="w-4 h-4" /> Publish
                           </button>
                         )}
                         <button
                           onClick={() => handleDelete(listing.id)}
-                          className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition flex items-center justify-center gap-1"
+                          className="px-3 py-2 border border-red-200 text-error rounded-lg text-sm font-medium hover:bg-red-50 transition flex items-center justify-center gap-1"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

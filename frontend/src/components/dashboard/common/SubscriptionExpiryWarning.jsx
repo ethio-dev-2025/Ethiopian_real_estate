@@ -26,17 +26,14 @@ const SubscriptionExpiryWarning = () => {
 
   const fetchSubscriptionStatus = async () => {
     try {
-      // Check from user object in localStorage
       const storedUser = localStorage.getItem('user');
       
       if (storedUser) {
         const user = JSON.parse(storedUser);
         
-        // Calculate days remaining from subscription_end_date
         let daysRemaining = calculateDaysRemaining(user.subscription_end_date);
         let hasActive = daysRemaining > 0;
         
-        // Also check other flags
         hasActive = hasActive || 
                     user.has_active_subscription === true || 
                     user.can_create_listings === true || 
@@ -67,13 +64,10 @@ const SubscriptionExpiryWarning = () => {
 
   useEffect(() => {
     fetchSubscriptionStatus();
-    
-    // Refresh every 30 seconds
     const interval = setInterval(fetchSubscriptionStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Don't show for admin or if not seller/landlord - check from localStorage
   const storedUser = localStorage.getItem('user');
   let userRole = null;
   if (storedUser) {

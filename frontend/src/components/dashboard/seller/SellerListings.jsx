@@ -1,4 +1,4 @@
-// src/components/dashboard/seller/SellerListings.jsx - LARGER IMAGES, SMALLER CONTENT
+// src/components/dashboard/seller/SellerListings.jsx - FULLY UPDATED WITH OPTION 1 COLORS
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
@@ -93,38 +93,38 @@ const MarkAsSoldModalComponent = ({ listing, isOpen, onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold text-green-600">Mark as Sold</h3>
+          <h3 className="text-xl font-bold text-success">Mark as Sold</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
         
-        <p className="text-gray-600 mb-4">
+        <p className="text-text-secondary mb-4">
           Marking <span className="font-semibold">{listing?.title}</span> as SOLD
         </p>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Buyer Username *</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">Buyer Username *</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={buyerUsername}
                 onChange={(e) => setBuyerUsername(e.target.value)}
                 placeholder="Enter buyer's username"
-                className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                className="flex-1 px-3 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-success focus:border-success transition-all"
                 autoComplete="off"
               />
               <button
                 onClick={searchBuyer}
                 disabled={searching}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1"
+                className="px-4 py-2 bg-gray-100 text-text-secondary rounded-lg hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1"
               >
                 <SearchIcon className="w-4 h-4" />
                 {searching ? '...' : 'Find'}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Enter the buyer's username (not email)</p>
+            <p className="text-xs text-text-muted mt-1">Enter the buyer's username (not email)</p>
           </div>
           
           {foundBuyer && (
@@ -138,36 +138,36 @@ const MarkAsSoldModalComponent = ({ listing, isOpen, onClose, onSuccess }) => {
           )}
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sale Amount (ETB) *</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">Sale Amount (ETB) *</label>
             <input
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="e.g., 15000000"
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-success focus:border-success transition-all"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Reference (Optional)</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">Payment Reference (Optional)</label>
             <input
               type="text"
               value={paymentRef}
               onChange={(e) => setPaymentRef(e.target.value)}
               placeholder="Chapa transaction ID or receipt number"
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-success focus:border-success transition-all"
             />
           </div>
         </div>
         
         <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-border-light rounded-lg hover:bg-gray-50 transition">
             Cancel
           </button>
           <button 
             onClick={handleConfirm} 
             disabled={!foundBuyer || !amount}
-            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            className="flex-1 px-4 py-2 bg-success text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
           >
             Confirm Sale
           </button>
@@ -262,38 +262,38 @@ const MarkAsRentedModalComponent = ({ listing, isOpen, onClose, onSuccess }) => 
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold text-blue-600">Mark as Rented</h3>
+          <h3 className="text-xl font-bold text-info">Mark as Rented</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
         
-        <p className="text-gray-600 mb-4">
+        <p className="text-text-secondary mb-4">
           Marking <span className="font-semibold">{listing?.title}</span> as RENTED
         </p>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Renter Username *</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">Renter Username *</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={buyerUsername}
                 onChange={(e) => setBuyerUsername(e.target.value)}
                 placeholder="Enter renter's username"
-                className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-info focus:border-info transition-all"
                 autoComplete="off"
               />
               <button
                 onClick={searchBuyer}
                 disabled={searching}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1"
+                className="px-4 py-2 bg-gray-100 text-text-secondary rounded-lg hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1"
               >
                 <SearchIcon className="w-4 h-4" />
                 {searching ? '...' : 'Find'}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Enter the renter's username (not email)</p>
+            <p className="text-xs text-text-muted mt-1">Enter the renter's username (not email)</p>
           </div>
           
           {foundBuyer && (
@@ -307,22 +307,22 @@ const MarkAsRentedModalComponent = ({ listing, isOpen, onClose, onSuccess }) => 
           )}
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Rent (ETB) *</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">Monthly Rent (ETB) *</label>
             <input
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="e.g., 25000"
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-info focus:border-info transition-all"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Lease Duration</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">Lease Duration</label>
             <select
               value={rentalMonths}
               onChange={(e) => setRentalMonths(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-info focus:border-info transition-all"
             >
               <option value="6">6 months</option>
               <option value="12">1 year</option>
@@ -331,25 +331,25 @@ const MarkAsRentedModalComponent = ({ listing, isOpen, onClose, onSuccess }) => 
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Reference (Optional)</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">Payment Reference (Optional)</label>
             <input
               type="text"
               value={paymentRef}
               onChange={(e) => setPaymentRef(e.target.value)}
               placeholder="Chapa transaction ID or receipt number"
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-info focus:border-info transition-all"
             />
           </div>
         </div>
         
         <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-border-light rounded-lg hover:bg-gray-50 transition">
             Cancel
           </button>
           <button 
             onClick={handleConfirm} 
             disabled={!foundBuyer || !amount}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 px-4 py-2 bg-info text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
           >
             Confirm Rental
           </button>
@@ -513,7 +513,6 @@ const SellerListings = () => {
     setImageErrors(prev => ({ ...prev, [listingId]: true }))
   }
 
-  // Get diagonal overlay for sold/rented properties
   const getStatusOverlay = (listing) => {
     if (listing.listing_status === 'sold') {
       return (
@@ -547,11 +546,11 @@ const SellerListings = () => {
   const DeleteConfirmModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
-        <h3 className="text-xl font-bold text-red-600 mb-4">Delete Listing</h3>
-        <p className="text-gray-600 mb-6">Are you sure you want to delete this listing? This action cannot be undone.</p>
+        <h3 className="text-xl font-bold text-error mb-4">Delete Listing</h3>
+        <p className="text-text-secondary mb-6">Are you sure you want to delete this listing? This action cannot be undone.</p>
         <div className="flex gap-3">
-          <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-          <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+          <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-4 py-2 border border-border-light rounded-lg hover:bg-gray-50 transition">Cancel</button>
+          <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 px-4 py-2 bg-error text-white rounded-lg hover:bg-red-700 transition">Delete</button>
         </div>
       </div>
     </div>
@@ -560,7 +559,7 @@ const SellerListings = () => {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     )
   }
@@ -569,10 +568,10 @@ const SellerListings = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Listings</h1>
-          <p className="text-gray-500 text-sm">Manage your properties</p>
+          <h1 className="text-2xl font-bold text-text-primary">My Listings</h1>
+          <p className="text-text-muted text-sm">Manage your properties</p>
         </div>
-        <button onClick={() => navigate('/create-listing')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+        <button onClick={() => navigate('/dashboard/create-listing')} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center gap-2">
           <PlusCircle className="w-4 h-4" /> Create New Listing
         </button>
       </div>
@@ -588,13 +587,13 @@ const SellerListings = () => {
               onClick={() => setActiveFilter(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'bg-gray-100 text-text-secondary hover:bg-gray-200'
               }`}
             >
               <Icon className="w-4 h-4" />
               {tab.label}
-              <span className={`text-xs ${isActive ? 'text-white/80' : 'text-gray-500'}`}>
+              <span className={`text-xs ${isActive ? 'text-white/80' : 'text-text-muted'}`}>
                 ({tab.count})
               </span>
             </button>
@@ -606,23 +605,23 @@ const SellerListings = () => {
       <div className="flex justify-end items-center mb-4 gap-2">
         <button
           onClick={() => setViewMode('grid')}
-          className={`p-2 rounded-lg transition ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+          className={`p-2 rounded-lg transition ${viewMode === 'grid' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-text-secondary'}`}
         >
           <Grid3x3 className="w-4 h-4" />
         </button>
         <button
           onClick={() => setViewMode('list')}
-          className={`p-2 rounded-lg transition ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+          className={`p-2 rounded-lg transition ${viewMode === 'list' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-text-secondary'}`}
         >
           <List className="w-4 h-4" />
         </button>
       </div>
 
       {filteredListings.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-          <Home className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No listings found in this category</p>
-          <button onClick={() => navigate('/create-listing')} className="mt-4 text-blue-600 hover:underline">Create your first listing →</button>
+        <div className="bg-white rounded-xl shadow-sm border border-border-light p-12 text-center">
+          <Home className="w-16 h-16 text-text-muted mx-auto mb-4" />
+          <p className="text-text-secondary">No listings found in this category</p>
+          <button onClick={() => navigate('/dashboard/create-listing')} className="mt-4 text-primary-600 hover:underline">Create your first listing →</button>
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -636,8 +635,7 @@ const SellerListings = () => {
             const showMarkRentedButton = !isSold && !isRented && !isDraft && listing.listing_type === 'rent'
             
             return (
-              <div key={listing.id} className="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition flex flex-col relative">
-                {/* LARGER IMAGE SECTION - Increased from h-48 to h-64 */}
+              <div key={listing.id} className="bg-white rounded-xl shadow-sm border border-border-light overflow-hidden hover:shadow-md transition flex flex-col relative">
                 <div className="relative h-64 bg-gray-200 overflow-hidden">
                   {imageUrl && !hasError ? (
                     <img 
@@ -648,12 +646,11 @@ const SellerListings = () => {
                     />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                      <Image className="w-12 h-12 text-gray-400 mb-2" />
-                      <p className="text-xs text-gray-500">No Image</p>
+                      <Image className="w-12 h-12 text-text-muted mb-2" />
+                      <p className="text-xs text-text-muted">No Image</p>
                     </div>
                   )}
                   
-                  {/* DRAFT badge */}
                   {isDraft && (
                     <div className="absolute top-3 right-3 z-10">
                       <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500 text-white rounded-full text-xs font-bold shadow-lg">
@@ -662,46 +659,43 @@ const SellerListings = () => {
                     </div>
                   )}
                   
-                  {/* Listing Type Badge */}
                   <div className="absolute top-3 left-3 z-10">
                     <span className={`px-2 py-1 rounded-lg text-xs font-semibold text-white ${
-                      listing.listing_type === 'sale' ? 'bg-green-600' : 'bg-blue-600'
+                      listing.listing_type === 'sale' ? 'bg-success' : 'bg-info'
                     }`}>
                       {listing.listing_type === 'sale' ? 'For Sale' : 'For Rent'}
                     </span>
                   </div>
                   
-                  {/* Diagonal overlay for sold/rented properties */}
                   {getStatusOverlay(listing)}
                 </div>
                 
-                {/* SMALLER CONTENT SECTION - Reduced padding and text sizes */}
                 <div className="p-3 flex-1 flex flex-col">
-                  <h3 className="font-semibold text-gray-900 line-clamp-1 text-base">{listing.title}</h3>
+                  <h3 className="font-semibold text-text-primary line-clamp-1 text-base">{listing.title}</h3>
                   
-                  <div className="flex items-center gap-1 text-gray-500 text-xs mt-1">
+                  <div className="flex items-center gap-1 text-text-muted text-xs mt-1">
                     <MapPin className="w-3 h-3 flex-shrink-0" />
                     <span className="truncate">{listing.city || 'Addis Ababa'}</span>
                   </div>
                   
-                  <div className="flex gap-2 mt-1 text-xs text-gray-500">
+                  <div className="flex gap-2 mt-1 text-xs text-text-muted">
                     <span className="flex items-center gap-1"><Bed className="w-3 h-3" /> {listing.bedrooms || 0}</span>
                     <span className="flex items-center gap-1"><Bath className="w-3 h-3" /> {listing.bathrooms || 0}</span>
                     <span className="flex items-center gap-1"><Square className="w-3 h-3" /> {listing.sqft || 0}</span>
                   </div>
                   
-                  <p className="text-lg font-bold text-blue-600 mt-1">ETB {listing.price?.toLocaleString()}</p>
+                  <p className="text-lg font-bold text-primary-600 mt-1">ETB {listing.price?.toLocaleString()}</p>
                   
                   <div className="flex gap-1 mt-2 flex-wrap">
                     <button 
                       onClick={() => window.open(`/properties/${listing.id}`, '_blank')} 
-                      className="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded-md text-xs font-semibold hover:bg-gray-200 transition flex items-center justify-center gap-1"
+                      className="flex-1 py-1.5 bg-gray-100 text-text-secondary rounded-md text-xs font-semibold hover:bg-gray-200 transition flex items-center justify-center gap-1"
                     >
                       <Eye className="w-3 h-3" /> View
                     </button>
                     <button 
-                      onClick={() => navigate(`/edit-listing/${listing.id}`)} 
-                      className="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded-md text-xs font-semibold hover:bg-gray-200 transition flex items-center justify-center gap-1"
+                      onClick={() => navigate(`/dashboard/edit-listing/${listing.id}`)} 
+                      className="flex-1 py-1.5 bg-gray-100 text-text-secondary rounded-md text-xs font-semibold hover:bg-gray-200 transition flex items-center justify-center gap-1"
                     >
                       <Edit className="w-3 h-3" /> Edit
                     </button>
@@ -709,7 +703,7 @@ const SellerListings = () => {
                     {isDraft && (
                       <button 
                         onClick={() => handlePublish(listing.id)} 
-                        className="flex-1 py-1.5 bg-green-600 text-white rounded-md text-xs font-semibold hover:bg-green-700 transition flex items-center justify-center gap-1"
+                        className="flex-1 py-1.5 bg-success text-white rounded-md text-xs font-semibold hover:bg-green-700 transition flex items-center justify-center gap-1"
                       >
                         <CheckCircle className="w-3 h-3" /> Publish
                       </button>
@@ -721,7 +715,7 @@ const SellerListings = () => {
                           setSelectedSoldListing(listing)
                           setShowSoldModal(true)
                         }} 
-                        className="flex-1 py-1.5 bg-green-600 text-white rounded-md text-xs font-semibold hover:bg-green-700 transition flex items-center justify-center gap-1"
+                        className="flex-1 py-1.5 bg-success text-white rounded-md text-xs font-semibold hover:bg-green-700 transition flex items-center justify-center gap-1"
                       >
                         <Award className="w-3 h-3" /> Sold
                       </button>
@@ -733,7 +727,7 @@ const SellerListings = () => {
                           setSelectedRentedListing(listing)
                           setShowRentedModal(true)
                         }} 
-                        className="flex-1 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-1"
+                        className="flex-1 py-1.5 bg-info text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-1"
                       >
                         <Calendar className="w-3 h-3" /> Rent
                       </button>
@@ -741,7 +735,7 @@ const SellerListings = () => {
                     
                     <button 
                       onClick={() => setDeleteConfirm(listing.id)} 
-                      className="px-2 py-1.5 bg-red-100 text-red-600 rounded-md text-xs font-semibold hover:bg-red-200 transition"
+                      className="px-2 py-1.5 bg-red-100 text-error rounded-md text-xs font-semibold hover:bg-red-200 transition"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -763,8 +757,7 @@ const SellerListings = () => {
             const showMarkRentedButton = !isSold && !isRented && !isDraft && listing.listing_type === 'rent'
             
             return (
-              <div key={listing.id} className="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition flex flex-col sm:flex-row relative">
-                {/* LARGER IMAGE in list view */}
+              <div key={listing.id} className="bg-white rounded-xl shadow-sm border border-border-light overflow-hidden hover:shadow-md transition flex flex-col sm:flex-row relative">
                 <div className="w-full sm:w-40 h-40 bg-gray-200 flex-shrink-0 relative">
                   {imageUrl && !hasError ? (
                     <img 
@@ -775,10 +768,9 @@ const SellerListings = () => {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <Image className="w-6 h-6 text-gray-400" />
+                      <Image className="w-6 h-6 text-text-muted" />
                     </div>
                   )}
-                  {/* Diagonal overlay for list view */}
                   {isSold && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                       <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold transform -rotate-12">SOLD</span>
@@ -794,38 +786,38 @@ const SellerListings = () => {
                   <div className="flex flex-wrap justify-between items-start gap-2">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900 text-sm">{listing.title}</h3>
+                        <h3 className="font-semibold text-text-primary text-sm">{listing.title}</h3>
                         <span className={`text-xs px-2 py-0.5 rounded-full text-white ${
-                          listing.listing_type === 'sale' ? 'bg-green-600' : 'bg-blue-600'
+                          listing.listing_type === 'sale' ? 'bg-success' : 'bg-info'
                         }`}>
                           {listing.listing_type === 'sale' ? 'Sale' : 'Rent'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 text-gray-500 text-xs">
+                      <div className="flex items-center gap-1 text-text-muted text-xs">
                         <MapPin className="w-3 h-3" />
                         <span>{listing.city || 'Addis Ababa'}</span>
                       </div>
-                      <div className="flex gap-2 mt-1 text-xs text-gray-500">
+                      <div className="flex gap-2 mt-1 text-xs text-text-muted">
                         <span><Bed className="w-3 h-3 inline mr-1" /> {listing.bedrooms || 0}</span>
                         <span><Bath className="w-3 h-3 inline mr-1" /> {listing.bathrooms || 0}</span>
                         <span><Square className="w-3 h-3 inline mr-1" /> {listing.sqft || 0}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-base font-bold text-blue-600">ETB {listing.price?.toLocaleString()}</p>
+                      <p className="text-base font-bold text-primary-600">ETB {listing.price?.toLocaleString()}</p>
                       <div className="flex gap-1 mt-1">
                         <button onClick={() => window.open(`/properties/${listing.id}`, '_blank')} className="px-2 py-1 bg-gray-100 rounded text-xs">View</button>
-                        <button onClick={() => navigate(`/edit-listing/${listing.id}`)} className="px-2 py-1 bg-gray-100 rounded text-xs">Edit</button>
+                        <button onClick={() => navigate(`/dashboard/edit-listing/${listing.id}`)} className="px-2 py-1 bg-gray-100 rounded text-xs">Edit</button>
                         {isDraft && (
-                          <button onClick={() => handlePublish(listing.id)} className="px-2 py-1 bg-green-600 text-white rounded text-xs">Pub</button>
+                          <button onClick={() => handlePublish(listing.id)} className="px-2 py-1 bg-success text-white rounded text-xs">Pub</button>
                         )}
                         {showMarkSoldButton && (
-                          <button onClick={() => { setSelectedSoldListing(listing); setShowSoldModal(true) }} className="px-2 py-1 bg-green-600 text-white rounded text-xs">Sold</button>
+                          <button onClick={() => { setSelectedSoldListing(listing); setShowSoldModal(true) }} className="px-2 py-1 bg-success text-white rounded text-xs">Sold</button>
                         )}
                         {showMarkRentedButton && (
-                          <button onClick={() => { setSelectedRentedListing(listing); setShowRentedModal(true) }} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Rent</button>
+                          <button onClick={() => { setSelectedRentedListing(listing); setShowRentedModal(true) }} className="px-2 py-1 bg-info text-white rounded text-xs">Rent</button>
                         )}
-                        <button onClick={() => setDeleteConfirm(listing.id)} className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs">Del</button>
+                        <button onClick={() => setDeleteConfirm(listing.id)} className="px-2 py-1 bg-red-100 text-error rounded text-xs">Del</button>
                       </div>
                     </div>
                   </div>

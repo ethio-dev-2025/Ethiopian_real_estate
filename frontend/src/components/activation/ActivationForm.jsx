@@ -1,3 +1,4 @@
+// src/components/dashboard/common/ActivationForm.jsx
 import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -5,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   User, Mail, Phone, MapPin, Building2, Upload, X, CheckCircle,
   ChevronRight, ChevronLeft, FileText, Briefcase, Calendar,
-  Loader, AlertCircle, Home, Camera, Star, Trash2
+  Loader, AlertCircle, Home, Camera, Star, Trash2, Shield
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -150,7 +151,6 @@ const ActivationForm = ({ onSuccess }) => {
   const handleSubmit = async () => {
     setLoading(true)
     try {
-      // Upload all photos first
       const photoUrls = await uploadAllPhotos()
       
       const requestData = {
@@ -226,29 +226,29 @@ const ActivationForm = ({ onSuccess }) => {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-gray-900">Activate Your Account</h1>
-        <p className="text-gray-500 mt-2">Please provide the following information to activate your account</p>
+        <h1 className="text-3xl font-bold text-text-primary">Activate Your Account</h1>
+        <p className="text-text-secondary mt-2">Please provide the following information to activate your account</p>
       </div>
 
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
-          <p className="text-sm font-semibold text-blue-600">{Math.round(progress)}% Complete</p>
-          <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-full transition-all" style={{ width: `${progress}%` }} />
+          <p className="text-sm font-semibold text-secondary-600">{Math.round(progress)}% Complete</p>
+          <div className="w-32 h-2 bg-border-light rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-primary-600 to-primary-700 rounded-full transition-all" style={{ width: `${progress}%` }} />
           </div>
         </div>
         
         <div className="flex gap-2">
           {['Personal Info', 'Property Info', 'Business Info'].map((label, idx) => (
             <div key={idx} className="flex-1">
-              <div className={`h-1 rounded-full ${step > idx ? 'bg-blue-600' : 'bg-gray-200'}`} />
+              <div className={`h-1 rounded-full ${step > idx ? 'bg-primary-600' : 'bg-border-light'}`} />
               <div className="flex items-center gap-2 mt-2">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                  step > idx ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                  step > idx ? 'bg-primary-600 text-white' : 'bg-border-light text-text-muted'
                 }`}>
                   {idx + 1}
                 </div>
-                <p className={`text-xs font-medium ${step > idx ? 'text-blue-600' : 'text-gray-400'}`}>{label}</p>
+                <p className={`text-xs font-medium ${step > idx ? 'text-primary-600' : 'text-text-muted'}`}>{label}</p>
               </div>
             </div>
           ))}
@@ -258,13 +258,22 @@ const ActivationForm = ({ onSuccess }) => {
       <AnimatePresence mode="wait">
         {/* Step 1: Personal Information */}
         {step === 1 && (
-          <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border p-8">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><User className="w-5 h-5 text-blue-600" />Personal Information</h2>
+          <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border border-border-light p-8">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><User className="w-5 h-5 text-primary-600" />Personal Information</h2>
             <div className="space-y-6">
-              <div><label className="block text-sm font-medium mb-2">Full Name *</label><input name="full_name" value={formData.full_name} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Enter your full name" /></div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">Full Name <span className="text-error">*</span></label>
+                <input name="full_name" value={formData.full_name} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" placeholder="Enter your full name" />
+              </div>
               <div className="grid grid-cols-2 gap-6">
-                <div><label className="block text-sm font-medium mb-2">Email Address</label><input value={formData.email} className="w-full p-4 border rounded-xl bg-gray-50" disabled /></div>
-                <div><label className="block text-sm font-medium mb-2">Phone Number *</label><input name="phone_number" value={formData.phone_number} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="+251 911 111 111" /></div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Email Address</label>
+                  <input value={formData.email} className="w-full p-4 border border-border-light rounded-xl bg-surface-muted text-text-muted" disabled />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Phone Number <span className="text-error">*</span></label>
+                  <input name="phone_number" value={formData.phone_number} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" placeholder="+251 911 111 111" />
+                </div>
               </div>
             </div>
           </motion.div>
@@ -272,43 +281,154 @@ const ActivationForm = ({ onSuccess }) => {
 
         {/* Step 2: Property Information */}
         {step === 2 && (
-          <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border p-8">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Home className="w-5 h-5 text-blue-600" />Property Information</h2>
+          <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border border-border-light p-8">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Home className="w-5 h-5 text-primary-600" />Property Information</h2>
             <div className="space-y-6">
-              <div><label className="block text-sm font-medium mb-2">Property Address *</label><input name="property_address" value={formData.property_address} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Enter property address" /></div>
-              <div className="grid grid-cols-2 gap-6">
-                <div><label className="block text-sm font-medium mb-2">Property Type</label><select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-4 border rounded-xl">{propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
-                <div><label className="block text-sm font-medium mb-2">Previous Listings</label><input name="previous_listings_count" type="number" value={formData.previous_listings_count} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Number of previous listings" /></div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">Property Address <span className="text-error">*</span></label>
+                <input name="property_address" value={formData.property_address} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" placeholder="Enter property address" />
               </div>
-              <div><label className="block text-sm font-medium mb-2">Ownership Document</label><div onClick={() => fileInputRefs.ownership.current?.click()} className="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:border-blue-500"><Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" /><p className="text-sm">Upload ownership document</p><input ref={fileInputRefs.ownership} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'ownership_document')} className="hidden" /></div>{uploadedFiles.ownership_document && <div className="mt-2 text-green-600 text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Document uploaded</div>}</div>
-              <div><label className="block text-sm font-medium mb-2">Title Deed</label><div onClick={() => fileInputRefs.title_deed.current?.click()} className="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:border-blue-500"><Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" /><p className="text-sm">Upload title deed</p><input ref={fileInputRefs.title_deed} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'title_deed')} className="hidden" /></div>{uploadedFiles.title_deed && <div className="mt-2 text-green-600 text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Title deed uploaded</div>}</div>
-              <div><label className="block text-sm font-medium mb-2">Tax Clearance</label><div onClick={() => fileInputRefs.tax_clearance.current?.click()} className="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:border-blue-500"><Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" /><p className="text-sm">Upload tax clearance</p><input ref={fileInputRefs.tax_clearance} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'tax_clearance')} className="hidden" /></div>{uploadedFiles.tax_clearance && <div className="mt-2 text-green-600 text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Tax clearance uploaded</div>}</div>
-              <div><label className="block text-sm font-medium mb-2">Property Photos</label><div onClick={() => fileInputRefs.photos.current?.click()} className="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:border-blue-500"><Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" /><p className="text-sm">Upload property photos</p><input ref={fileInputRefs.photos} type="file" multiple accept="image/*" onChange={handlePhotoUpload} className="hidden" /></div>
-              {photoPreviews.length > 0 && (<div className="grid grid-cols-4 gap-2 mt-3">{photoPreviews.map((photo, idx) => (<div key={idx} className="relative"><img src={photo.preview} className="w-full h-20 object-cover rounded-lg" /><button onClick={() => removePhoto(idx)} className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full"><X className="w-3 h-3" /></button></div>))}</div>)}</div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Property Type</label>
+                  <select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all">
+                    {propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Previous Listings</label>
+                  <input name="previous_listings_count" type="number" value={formData.previous_listings_count} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" placeholder="Number of previous listings" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">Ownership Document</label>
+                <div onClick={() => fileInputRefs.ownership.current?.click()} className="border-2 border-dashed border-border-light rounded-xl p-4 text-center cursor-pointer hover:border-primary-500 transition-all">
+                  <Upload className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                  <p className="text-sm text-text-secondary">Upload ownership document</p>
+                  <input ref={fileInputRefs.ownership} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'ownership_document')} className="hidden" />
+                </div>
+                {uploadedFiles.ownership_document && <div className="mt-2 text-success text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Document uploaded</div>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">Title Deed</label>
+                <div onClick={() => fileInputRefs.title_deed.current?.click()} className="border-2 border-dashed border-border-light rounded-xl p-4 text-center cursor-pointer hover:border-primary-500 transition-all">
+                  <Upload className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                  <p className="text-sm text-text-secondary">Upload title deed</p>
+                  <input ref={fileInputRefs.title_deed} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'title_deed')} className="hidden" />
+                </div>
+                {uploadedFiles.title_deed && <div className="mt-2 text-success text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Title deed uploaded</div>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">Tax Clearance</label>
+                <div onClick={() => fileInputRefs.tax_clearance.current?.click()} className="border-2 border-dashed border-border-light rounded-xl p-4 text-center cursor-pointer hover:border-primary-500 transition-all">
+                  <Upload className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                  <p className="text-sm text-text-secondary">Upload tax clearance</p>
+                  <input ref={fileInputRefs.tax_clearance} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'tax_clearance')} className="hidden" />
+                </div>
+                {uploadedFiles.tax_clearance && <div className="mt-2 text-success text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Tax clearance uploaded</div>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">Property Photos</label>
+                <div onClick={() => fileInputRefs.photos.current?.click()} className="border-2 border-dashed border-border-light rounded-xl p-4 text-center cursor-pointer hover:border-primary-500 transition-all">
+                  <Camera className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                  <p className="text-sm text-text-secondary">Upload property photos</p>
+                  <input ref={fileInputRefs.photos} type="file" multiple accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                </div>
+                {photoPreviews.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2 mt-3">
+                    {photoPreviews.map((photo, idx) => (
+                      <div key={idx} className="relative">
+                        <img src={photo.preview} className="w-full h-20 object-cover rounded-lg" />
+                        <button onClick={() => removePhoto(idx)} className="absolute top-1 right-1 p-1 bg-error text-white rounded-full">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
 
         {/* Step 3: Business Information */}
         {step === 3 && (
-          <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border p-8">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Briefcase className="w-5 h-5 text-blue-600" />Business Information</h2>
+          <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-white rounded-2xl shadow-lg border border-border-light p-8">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Briefcase className="w-5 h-5 text-primary-600" />Business Information</h2>
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-6"><div><label className="block text-sm font-medium mb-2">Business Name</label><input name="business_name" value={formData.business_name} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Your business name" /></div>
-              <div><label className="block text-sm font-medium mb-2">Tax ID / TIN</label><input name="tax_id" value={formData.tax_id} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Tax identification number" /></div></div>
-              <div className="grid grid-cols-2 gap-6"><div><label className="block text-sm font-medium mb-2">Years of Experience</label><input name="experience_years" type="number" value={formData.experience_years} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Years in real estate" /></div>
-              <div><label className="block text-sm font-medium mb-2">Business License</label><div onClick={() => fileInputRefs.business_license.current?.click()} className="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:border-blue-500"><Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" /><p className="text-sm">Upload license</p><input ref={fileInputRefs.business_license} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'business_license')} className="hidden" /></div>{uploadedFiles.business_license && <div className="mt-2 text-green-600 text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> License uploaded</div>}</div></div>
-              <div><label className="block text-sm font-medium mb-2">Government ID</label><div onClick={() => fileInputRefs.government_id.current?.click()} className="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:border-blue-500"><Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" /><p className="text-sm">Upload government ID</p><input ref={fileInputRefs.government_id} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'government_id')} className="hidden" /></div>{uploadedFiles.government_id && <div className="mt-2 text-green-600 text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> ID uploaded</div>}</div>
-              <div><label className="block text-sm font-medium mb-2">Reason for Activation</label><textarea name="reason_for_activation" rows="4" value={formData.reason_for_activation} onChange={handleChange} className="w-full p-4 border rounded-xl" placeholder="Why do you want to list properties on our platform?" /></div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Business Name</label>
+                  <input name="business_name" value={formData.business_name} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" placeholder="Your business name" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Tax ID / TIN</label>
+                  <input name="tax_id" value={formData.tax_id} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" placeholder="Tax identification number" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Years of Experience</label>
+                  <input name="experience_years" type="number" value={formData.experience_years} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" placeholder="Years in real estate" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Business License</label>
+                  <div onClick={() => fileInputRefs.business_license.current?.click()} className="border-2 border-dashed border-border-light rounded-xl p-4 text-center cursor-pointer hover:border-primary-500 transition-all">
+                    <Upload className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                    <p className="text-sm text-text-secondary">Upload license</p>
+                    <input ref={fileInputRefs.business_license} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'business_license')} className="hidden" />
+                  </div>
+                  {uploadedFiles.business_license && <div className="mt-2 text-success text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> License uploaded</div>}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">Government ID</label>
+                <div onClick={() => fileInputRefs.government_id.current?.click()} className="border-2 border-dashed border-border-light rounded-xl p-4 text-center cursor-pointer hover:border-primary-500 transition-all">
+                  <Upload className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                  <p className="text-sm text-text-secondary">Upload government ID</p>
+                  <input ref={fileInputRefs.government_id} type="file" accept="image/*,application/pdf" onChange={(e) => handleDocumentUpload(e, 'government_id')} className="hidden" />
+                </div>
+                {uploadedFiles.government_id && <div className="mt-2 text-success text-sm flex items-center gap-1"><CheckCircle className="w-4 h-4" /> ID uploaded</div>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">Reason for Activation</label>
+                <textarea name="reason_for_activation" rows="4" value={formData.reason_for_activation} onChange={handleChange} className="w-full p-4 border border-border-light rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" placeholder="Why do you want to list properties on our platform?" />
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       <div className="flex justify-between mt-8">
-        {step > 1 && <button onClick={prevStep} className="px-6 py-3 border-2 rounded-xl font-semibold flex items-center gap-2"><ChevronLeft className="w-4 h-4" />Back</button>}
+        {step > 1 && (
+          <button onClick={prevStep} className="px-6 py-3 border-2 border-border-light rounded-xl font-semibold flex items-center gap-2 text-text-primary hover:bg-gray-50 transition-all">
+            <ChevronLeft className="w-4 h-4" /> Back
+          </button>
+        )}
         <div className="flex gap-3 ml-auto">
-          {step < 3 ? <button onClick={nextStep} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold flex items-center gap-2">Continue <ChevronRight className="w-4 h-4" /></button> : <button onClick={handleSubmit} disabled={loading} className="px-6 py-3 bg-green-600 text-white rounded-xl font-semibold flex items-center gap-2">{loading ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}Submit Activation Request</button>}
+          {step < 3 ? (
+            <button onClick={nextStep} className="px-6 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition-all">
+              Continue <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button onClick={handleSubmit} disabled={loading} className="px-6 py-3 bg-gradient-to-r from-success to-green-700 text-white rounded-xl font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50">
+              {loading ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Submit Activation Request
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Footer Security Badges */}
+      <div className="mt-8 flex justify-center gap-6">
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <Shield className="w-3 h-3" /> Secure
+        </div>
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <Shield className="w-3 h-3" /> Fast
+        </div>
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <Shield className="w-3 h-3" /> Private
         </div>
       </div>
     </div>

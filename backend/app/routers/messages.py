@@ -1,4 +1,3 @@
-# backend/app/routers/messages.py
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -504,4 +503,108 @@ async def upload_message_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-print("✅ Messages router loaded with unread tracking!")
+# =========================================================
+# GET SELLER MESSAGE RECIPIENTS (ADMIN + EXISTING CONVERSATIONS ONLY)
+# =========================================================
+@router.get("/seller/recipients")
+async def get_seller_message_recipients(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get users that sellers can message:
+    - Admin users (always)
+    - Buyers they already have conversations with
+    - Does NOT show other sellers or landlords
+    """
+    try:
+        # Only sellers, landlords, or dual users can access this
+        if current_user.role_type not in ['seller', 'landlord', 'dual', 'admin']:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        # Get all admin users (excluding current user)
+        admin_users = db.query(User).filter(
+            User.id != current_user.id,
+            User.status == "active",
+            User.role_type == 'admin'
+        ).order_by(User.full_name.asc()).all()
+        
+        # Get users that the seller already has conversations with (buyers only)
+        existing_conversations = db.query(Conversation).filter(
+            (Conversation.buyer_id == current_user.id) | (Conversation.seller_id == current_user.id)
+        ).all()
+        
+        # Extract unique user IDs from existing conversations
+        conversation_user_ids = set()
+        for conv in existing_conversations:
+            other_user_id = conv.seller_id if conv.buyer_id == current_user.id else conv.buyer_id
+            other_user = db.query(User).filter(User.id == other_user_id).first()
+            # Only include buyers from conversations (not other sellers)
+            if other_user and other_user.role_type == 'buyer':
+                conversation_user_ids.add(other_user_id)
+        
+        # Get users from existing conversations (only buyers)
+        conversation_users = []
+        if conversation_user_ids:
+            conversation_users = db.query(User).filter(
+                User.id.in_(conversation_user_ids),
+                User.status == "active",
+                User.role_type == 'buyer'
+            ).all()
+        
+        # Combine admin users and conversation users (no duplicates)
+        all_recipients = admin_users + conversation_users
+        
+        # Remove duplicates by user_id
+        unique_recipients = {}
+        for user in all_recipients:
+            if user.id not in unique_recipients:
+                unique_recipients[user.id] = user
+        
+        result = []
+        for user in unique_recipients.values():
+            # Get the latest conversation with this user
+            existing_conv = db.query(Conversation).filter(
+                (
+                    (Conversation.buyer_id == current_user.id) & (Conversation.seller_id == user.id)
+                ) | (
+                    (Conversation.buyer_id == user.id) & (Conversation.seller_id == current_user.id)
+                )
+            ).first()
+            
+            # Get unread count for this conversation
+            unread_count = 0
+            if existing_conv:
+                if existing_conv.buyer_id == current_user.id:
+                    unread_count = existing_conv.buyer_unread or 0
+                else:
+                    unread_count = existing_conv.seller_unread or 0
+            
+            result.append({
+                "id": user.id,
+                "user_id": user.id,
+                "user_name": user.full_name or user.username,
+                "user_role": user.role_type,
+                "user_avatar": user.avatar_url,
+                "email": user.email,
+                "last_message": existing_conv.last_message if existing_conv else None,
+                "last_message_at": existing_conv.last_message_time.isoformat() if existing_conv and existing_conv.last_message_time else None,
+                "unread_count": unread_count,
+                "is_online": False,
+                "conversation_id": existing_conv.id if existing_conv else None
+            })
+        
+        # Sort by last_message_at (most recent first)
+        result.sort(key=lambda x: x.get('last_message_at') or '', reverse=True)
+        
+        print(f"✅ Seller message recipients: {len(result)} users (Admins + existing buyer conversations only)")
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting seller message recipients: {e}")
+        return []
+
+
+print("✅ Messages router loaded with unread tracking and seller recipient filtering!")

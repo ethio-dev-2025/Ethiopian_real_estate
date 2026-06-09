@@ -1,6 +1,7 @@
+// src/components/common/Loader.jsx
 import React from 'react'
 
-const Loader = ({ size = 'md', color = 'blue', fullScreen = false }) => {
+const Loader = ({ size = 'md', color = 'primary', fullScreen = false }) => {
   const sizeClasses = {
     sm: 'w-8 h-8',
     md: 'w-12 h-12',
@@ -8,9 +9,9 @@ const Loader = ({ size = 'md', color = 'blue', fullScreen = false }) => {
   }
   
   const colorClasses = {
-    blue: 'border-blue-600',
-    green: 'border-green-600',
-    purple: 'border-purple-600',
+    primary: 'border-primary-600',
+    secondary: 'border-secondary-500',
+    success: 'border-success',
     white: 'border-white'
   }
 
@@ -20,7 +21,7 @@ const Loader = ({ size = 'md', color = 'blue', fullScreen = false }) => {
 
   if (fullScreen) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         {spinner}
       </div>
     )

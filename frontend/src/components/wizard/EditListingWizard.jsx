@@ -1,4 +1,3 @@
-// src/components/wizard/EditListingWizard.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -77,7 +76,6 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
     { icon: Zap, name: 'Backup Power' }
   ];
 
-  // Fetch listing data on mount
   useEffect(() => {
     fetchListing();
   }, [listingId]);
@@ -97,7 +95,6 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
       const data = await response.json();
       setOriginalListing(data);
       
-      // Parse images
       let imagesList = [];
       if (data.images) {
         try {
@@ -107,7 +104,6 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         }
       }
       
-      // Parse amenities
       let amenitiesList = [];
       if (data.amenities) {
         try {
@@ -117,7 +113,6 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         }
       }
       
-      // Set existing images with URLs
       const existingImagesList = imagesList.map((url, idx) => ({
         id: `existing-${idx}`,
         url: url,
@@ -127,7 +122,6 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
       
       setExistingImages(existingImagesList);
       
-      // Find cover image index
       if (data.cover_image) {
         const coverIdx = imagesList.findIndex(img => img === data.cover_image);
         if (coverIdx !== -1) {
@@ -135,7 +129,6 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         }
       }
       
-      // Set form data
       setFormData({
         title: data.title || '',
         property_type: data.property_type || 'house',
@@ -283,18 +276,14 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         return;
       }
       
-      // Upload new images
       const newImageUrls = await uploadNewImagesToServer();
       
-      // Combine existing images (excluding removed ones)
       const keptExistingImages = existingImages
         .filter(img => !removedImageUrls.includes(img.url))
         .map(img => img.url);
       
-      // Combine all images
       const allImages = [...keptExistingImages, ...newImageUrls];
       
-      // Get cover image
       let coverImage = null;
       if (coverImageIndex < keptExistingImages.length) {
         coverImage = keptExistingImages[coverImageIndex];
@@ -348,7 +337,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         if (onSuccess) {
           onSuccess();
         } else {
-          setTimeout(() => navigate('/seller/listings'), 1500);
+          setTimeout(() => navigate('/dashboard/listings'), 1500);
         }
       } else {
         toast.error(data.detail || 'Failed to update listing', { id: toastId });
@@ -416,7 +405,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             )}
           </div>
           <h2 className="text-2xl font-bold">{formData.title}</h2>
-          <p className="text-2xl text-blue-600">ETB {Number(formData.price).toLocaleString()}</p>
+          <p className="text-2xl text-primary-700">ETB {Number(formData.price).toLocaleString()}</p>
           <p className="text-gray-500 mt-2">{formData.address}, {formData.city}</p>
           <div className="flex gap-3 mt-3 text-gray-500">
             <div className="flex items-center gap-1"><Bed className="w-4 h-4" /> {formData.bedrooms || 0} beds</div>
@@ -432,7 +421,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
   if (fetchLoading) {
     return (
       <div className="flex justify-center py-12">
-        <Loader className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader className="w-8 h-8 animate-spin text-primary-700" />
       </div>
     );
   }
@@ -448,9 +437,9 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             <p className="text-gray-500 text-sm mt-1">Update your property information</p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-semibold text-blue-600">{Math.round(progress)}% Complete</p>
+            <p className="text-sm font-semibold text-primary-700">{Math.round(progress)}% Complete</p>
             <div className="w-32 h-2 bg-gray-200 rounded-full mt-1 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-full transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-full bg-gradient-to-r from-primary-700 to-primary-800 rounded-full transition-all" style={{ width: `${progress}%` }} />
             </div>
           </div>
         </div>
@@ -458,14 +447,14 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         <div className="flex gap-2 mt-6">
           {['Basic Info', 'Location', 'Address Details', 'Amenities', 'Photos & Contact'].map((label, idx) => (
             <div key={idx} className="flex-1">
-              <div className={`h-1 rounded-full ${step > idx ? 'bg-blue-600' : 'bg-gray-200'}`} />
+              <div className={`h-1 rounded-full ${step > idx ? 'bg-primary-700' : 'bg-gray-200'}`} />
               <div className="flex items-center gap-2 mt-2">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                  step > idx ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                  step > idx ? 'bg-primary-700 text-white' : 'bg-gray-200 text-gray-500'
                 }`}>
                   {idx + 1}
                 </div>
-                <p className={`text-xs font-medium hidden sm:block ${step > idx ? 'text-blue-600' : 'text-gray-400'}`}>{label}</p>
+                <p className={`text-xs font-medium hidden sm:block ${step > idx ? 'text-primary-700' : 'text-gray-400'}`}>{label}</p>
               </div>
             </div>
           ))}
@@ -479,19 +468,19 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Property Title *</label>
-                <input name="title" value={formData.title} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Luxury Apartment in Bole" />
+                <input name="title" value={formData.title} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all" placeholder="e.g., Luxury Apartment in Bole" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Property Type</label>
-                  <select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-3 border rounded-lg">
+                  <select name="property_type" value={formData.property_type} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600">
                     {propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">{formData.listing_type === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} *</label>
-                <input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder={formData.listing_type === 'sale' ? "e.g., 15000000" : "e.g., 25000"} />
+                <input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" placeholder={formData.listing_type === 'sale' ? "e.g., 15000000" : "e.g., 25000"} />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -521,12 +510,12 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Address *</label>
-                <input name="address" value={formData.address} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder="Street name, building number" />
+                <input name="address" value={formData.address} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" placeholder="Street name, building number" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">City *</label>
-                  <input name="city" value={formData.city} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder="e.g., Addis Ababa" />
+                  <input name="city" value={formData.city} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" placeholder="e.g., Addis Ababa" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Region</label>
@@ -551,8 +540,8 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
                   <input name="kebele" value={formData.kebele} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder="e.g., Kebele 03" />
                 </div>
               </div>
-              <div className="bg-blue-50 rounded-lg p-4">
-                <p className="text-sm text-blue-700">Complete Address: {formData.address}, {formData.sub_city && `${formData.sub_city}, `}{formData.kebele && `Kebele ${formData.kebele}, `}{formData.city}, {formData.region}</p>
+              <div className="bg-primary-50 rounded-lg p-4">
+                <p className="text-sm text-primary-700">Complete Address: {formData.address}, {formData.sub_city && `${formData.sub_city}, `}{formData.kebele && `Kebele ${formData.kebele}, `}{formData.city}, {formData.region}</p>
               </div>
             </div>
           </motion.div>
@@ -566,8 +555,8 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
                 const Icon = a.icon;
                 const isSelected = formData.amenities.includes(a.name);
                 return (
-                  <button key={a.name} type="button" onClick={() => handleAmenityToggle(a.name)} className={`p-2 border rounded-lg flex items-center gap-2 text-sm transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <Icon className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <button key={a.name} type="button" onClick={() => handleAmenityToggle(a.name)} className={`p-2 border rounded-lg flex items-center gap-2 text-sm transition-all ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <Icon className={`w-4 h-4 ${isSelected ? 'text-primary-700' : 'text-gray-400'}`} />
                     <span className="truncate">{a.name}</span>
                   </button>
                 );
@@ -582,7 +571,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Photos *</label>
-                <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
+                <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary-500 transition">
                   <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                   <p className="text-gray-600 text-sm">Click to upload new photos</p>
                   <p className="text-gray-400 text-xs mt-1">Max 20 photos total, up to 10MB each</p>
@@ -591,7 +580,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
                 
                 {uploadingImages && (
                   <div className="text-center py-2">
-                    <Loader className="w-5 h-5 animate-spin text-blue-600 mx-auto" />
+                    <Loader className="w-5 h-5 animate-spin text-primary-700 mx-auto" />
                     <p className="text-xs text-gray-500 mt-1">Uploading...</p>
                   </div>
                 )}
@@ -609,15 +598,15 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
                             onError={(e) => { e.target.src = 'https://via.placeholder.com/100x100?text=Error'; }}
                           />
                           <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
-                            <button onClick={() => setAsCover(idx, img.isExisting)} className={`p-1 rounded-full ${coverImageIndex === idx ? 'bg-green-600' : 'bg-blue-600'} text-white`} title="Set as cover">
+                            <button onClick={() => setAsCover(idx, img.isExisting)} className={`p-1 rounded-full ${coverImageIndex === idx ? 'bg-secondary-500' : 'bg-primary-700'} text-white`} title="Set as cover">
                               <Star className="w-3 h-3" />
                             </button>
-                            <button onClick={() => img.isExisting ? removeExistingImage(idx) : removeNewImage(img.id)} className="p-1 bg-red-600 text-white rounded-full" title="Remove">
+                            <button onClick={() => img.isExisting ? removeExistingImage(idx) : removeNewImage(img.id)} className="p-1 bg-error text-white rounded-full" title="Remove">
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
                           {coverImageIndex === idx && (
-                            <div className="absolute top-0 left-0 bg-yellow-500 text-white text-[10px] px-1 rounded-tl-lg rounded-br-lg">Cover</div>
+                            <div className="absolute top-0 left-0 bg-secondary-500 text-white text-[10px] px-1 rounded-tl-lg rounded-br-lg">Cover</div>
                           )}
                         </div>
                       ))}
@@ -628,7 +617,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
 
               <div>
                 <label className="block text-sm font-medium mb-1">Description *</label>
-                <textarea name="description" rows="4" value={formData.description} onChange={handleChange} className="w-full p-3 border rounded-lg" placeholder="Describe your property in detail..." />
+                <textarea name="description" rows="4" value={formData.description} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" placeholder="Describe your property in detail..." />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -646,7 +635,6 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         )}
       </AnimatePresence>
 
-      {/* Navigation Buttons */}
       <div className="flex justify-between mt-6">
         {step > 1 && (
           <button onClick={prevStep} className="px-4 py-2 border rounded-lg font-medium flex items-center gap-1 hover:bg-gray-50 transition">
@@ -659,13 +647,13 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
               <button onClick={() => setShowPreview(true)} className="px-4 py-2 border rounded-lg font-medium hover:bg-gray-50 transition flex items-center gap-1">
                 <Eye className="w-4 h-4" /> Preview
               </button>
-              <button onClick={onCancel} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition">
+              <button onClick={onCancel} className="px-4 py-2 border border-error text-error rounded-lg font-medium hover:bg-error/10 transition">
                 Cancel
               </button>
               <button 
                 onClick={() => handleUpdate(false)} 
                 disabled={loading || !isValid}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1"
+                className="px-4 py-2 bg-primary-700 text-white rounded-lg font-medium hover:bg-primary-800 transition disabled:opacity-50 flex items-center gap-1"
               >
                 {loading ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Save Changes
@@ -673,12 +661,12 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             </>
           )}
           {step < 5 ? (
-            <button onClick={nextStep} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-1 transition">
+            <button onClick={nextStep} className="px-5 py-2 bg-primary-700 text-white rounded-lg font-medium hover:bg-primary-800 flex items-center gap-1 transition">
               Continue <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             originalListing?.is_draft && (
-              <button onClick={() => handleUpdate(true)} disabled={loading || !isValid} className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 transition disabled:opacity-50">
+              <button onClick={() => handleUpdate(true)} disabled={loading || !isValid} className="px-5 py-2 bg-success text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 transition disabled:opacity-50">
                 {loading ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 Publish Listing
               </button>

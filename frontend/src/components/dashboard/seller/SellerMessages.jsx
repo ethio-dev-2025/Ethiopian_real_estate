@@ -2,42 +2,78 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import { usePresence } from '../../../context/PresenceContext';
+import { useSocket } from '../../../context/SocketContext';
 import {
   Search, Send, Paperclip, Image, File, X, CheckCheck,
   Check, Clock, MessageCircle, AlertCircle, Loader,
-  Download, ArrowLeft, User, Users, MessageSquare, RefreshCw,
-  Maximize2, Minimize2
+  ArrowLeft, Download, User, Users, MessageSquare, RefreshCw,
+  Maximize2, Minimize2, Eye, Smile, Reply, Copy
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import EmojiPicker from 'emoji-picker-react';
+import UserStatus from '../../common/UserStatus';
 
 const API_URL = 'http://localhost:8000';
 
-// Telegram-style CSS
-const telegramStyles = `
-  @keyframes pulse-badge {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.8; transform: scale(1.1); }
+// ✅ FIXED: Exact time formatter (no relative time)
+const formatMessageTime = (timestamp) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const now = new Date();
+  
+  // For today's messages, show time only (e.g., "2:30 PM")
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
   }
-  .animate-pulse-badge {
-    animation: pulse-badge 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  
+  // For messages from this year, show month/day and time
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   }
-  .message-bubble-in, .message-bubble-out {
-    animation: fadeInUp 0.3s ease-out;
-  }
-  @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-`;
+  
+  // For older messages, show full date and time
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
 
-if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
-  style.textContent = telegramStyles;
-  document.head.appendChild(style);
-}
+// ✅ FIXED: Telegram-style status icons
+const getStatusIcon = (status, isOwn) => {
+  if (!isOwn) return null;
+  switch (status) {
+    case 'read':
+      return <CheckCheck className="w-3 h-3 text-primary-500" title="Seen" />;
+    case 'delivered':
+      return <CheckCheck className="w-3 h-3 text-gray-500" title="Delivered" />;
+    case 'sent':
+      return <Check className="w-3 h-3 text-gray-400" title="Sent" />;
+    case 'sending':
+      return <Loader className="w-3 h-3 animate-spin text-gray-400" title="Sending" />;
+    default:
+      return <Clock className="w-3 h-3 text-gray-400" title="Pending" />;
+  }
+};
 
 const SellerMessages = () => {
-  const { user, socket, addMessageHandler } = useAuth();
+  const { user } = useAuth();
+  const { getUserPresence } = usePresence();
+  const { socket, isConnected, addMessageHandler, emit } = useSocket();
   const location = useLocation();
   const navigate = useNavigate();
   const { conversationId: urlConversationId } = useParams();
@@ -59,11 +95,17 @@ const SellerMessages = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [pendingFile, setPendingFile] = useState(null);
 
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
+  const inputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const hasSentReadReceipt = useRef(false);
 
   const getToken = () => localStorage.getItem('access_token');
 
@@ -73,39 +115,10 @@ const SellerMessages = () => {
     }, 100);
   };
 
-  // Update global sidebar badge
   const updateGlobalUnreadBadge = useCallback((count) => {
     window.dispatchEvent(new CustomEvent('seller_unread_update', { detail: { count } }));
     localStorage.setItem('seller_unread_count', count.toString());
   }, []);
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now - date;
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (diff < 604800000) return date.toLocaleDateString([], { weekday: 'short' });
-    return date.toLocaleDateString();
-  };
-
-  const formatMessageTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'read': return <CheckCheck className="w-4 h-4 text-blue-400" title="Seen" />;
-      case 'delivered': return <CheckCheck className="w-4 h-4 text-gray-400" title="Delivered" />;
-      case 'sent': return <Check className="w-4 h-4 text-gray-400" title="Sent" />;
-      case 'sending': return <Loader className="w-3 h-3 animate-spin text-gray-300" />;
-      default: return <Clock className="w-3 h-3 text-gray-300" />;
-    }
-  };
 
   const getFullUrl = (url) => {
     if (!url) return null;
@@ -114,11 +127,33 @@ const SellerMessages = () => {
     return url;
   };
 
+  const copyMessage = (content) => {
+    navigator.clipboard.writeText(content);
+    toast.success('Message copied to clipboard');
+  };
+
+  const getFileExtension = (filename) => {
+    if (!filename) return '';
+    return filename.split('.').pop().toLowerCase();
+  };
+
+  const getFileIcon = (filename) => {
+    const ext = getFileExtension(filename);
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return '🖼️';
+    if (['pdf'].includes(ext)) return '📄';
+    if (['doc', 'docx'].includes(ext)) return '📝';
+    if (['xls', 'xlsx'].includes(ext)) return '📊';
+    if (['ppt', 'pptx'].includes(ext)) return '📽️';
+    if (['zip', 'rar', '7z'].includes(ext)) return '🗜️';
+    if (['txt', 'md'].includes(ext)) return '📃';
+    return '📎';
+  };
+
   const getRoleBadge = (role) => {
     switch(role?.toLowerCase()) {
       case 'admin': return <span className="text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded">Admin</span>;
-      case 'buyer': return <span className="text-xs text-orange-600 bg-orange-100 px-2 py-0.5 rounded">Buyer</span>;
-      case 'landlord': return <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Landlord</span>;
+      case 'buyer': return <span className="text-xs text-secondary-600 bg-secondary-100 px-2 py-0.5 rounded">Buyer</span>;
+      case 'landlord': return <span className="text-xs text-success bg-green-100 px-2 py-0.5 rounded">Landlord</span>;
       case 'dual': return <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded">Dual</span>;
       default: return null;
     }
@@ -136,13 +171,28 @@ const SellerMessages = () => {
       if (res.ok) {
         const data = await res.json();
         const sorted = [...data].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        setMessages(sorted);
+        
+        const processedMessages = sorted.map(msg => ({
+          ...msg,
+          time: formatMessageTime(msg.created_at),
+          is_mine: msg.sender_id === user?.id,
+          status: msg.is_read ? 'read' : (msg.status || 'sent')
+        }));
+        
+        setMessages(processedMessages);
         scrollToBottom();
+        
+        hasSentReadReceipt.current = false;
+        await markConversationRead(userId);
+        
+        if (userId) {
+          getUserPresence(userId);
+        }
       }
     } catch (err) {
       console.error('Error fetching messages:', err);
     }
-  }, []);
+  }, [user?.id, getUserPresence]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -167,41 +217,55 @@ const SellerMessages = () => {
     }
   }, [updateGlobalUnreadBadge]);
 
+  // ✅ FIXED: fetchAllUsers - ONLY show Admin + Users with existing conversations (buyers only)
   const fetchAllUsers = useCallback(async () => {
     try {
       setLoading(true);
       const token = getToken();
-      if (!token) return;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-      const response = await fetch(`${API_URL}/api/admin/users?limit=1000`, {
+      // Use the new seller-specific endpoint
+      const response = await fetch(`${API_URL}/api/messages/seller/recipients`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (response.ok) {
         const data = await response.json();
-        const usersList = data.users || (Array.isArray(data) ? data : []);
-        const filteredUsers = usersList.filter(u => u.id !== user?.id && u.role_type !== 'seller');
+        const usersList = Array.isArray(data) ? data : [];
         
-        const formattedUsers = filteredUsers.map(u => ({
-          id: u.id,
-          user_id: u.id,
-          user_name: u.full_name || u.username,
-          user_role: u.role_type,
-          user_avatar: u.avatar_url,
-          last_message: null,
-          last_message_at: null,
-          unread_count: 0,
-          is_online: false
+        // No additional filtering needed - backend now returns only:
+        // 1. Admin users
+        // 2. Buyers with existing conversations
+        const formattedUsers = usersList.map(u => ({
+          id: u.user_id || u.id,
+          user_id: u.user_id || u.id,
+          user_name: u.user_name || u.full_name || u.username,
+          user_role: u.user_role || u.role_type,
+          user_avatar: u.user_avatar || u.avatar_url,
+          email: u.email,
+          last_message: u.last_message || null,
+          last_message_at: u.last_message_at || null,
+          unread_count: u.unread_count || 0,
+          is_online: u.is_online || false,
+          conversation_id: u.conversation_id || null
         }));
+
+        console.log('📋 Sellers can message these users (Admins + Existing Buyer Conversations only):', 
+          formattedUsers.map(u => `${u.user_name} (${u.user_role}) - Has conversation: ${!!u.conversation_id}`));
         
         setAllUsers(formattedUsers);
+      } else {
+        console.error('Failed to fetch seller recipients:', response.status);
       }
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, []);
 
   const markConversationRead = async (userId) => {
     try {
@@ -215,7 +279,15 @@ const SellerMessages = () => {
         c.user_id === userId ? { ...c, unread_count: 0 } : c
       ));
       
-      // Recalculate total unread
+      if (socket && isConnected && !hasSentReadReceipt.current) {
+        hasSentReadReceipt.current = true;
+        emit('read_receipt', {
+          reader_id: user?.id,
+          sender_id: userId
+        });
+        console.log(`📤 Sent read receipt to user ${userId}`);
+      }
+      
       const newTotal = conversations.filter(c => c.user_id !== userId).reduce((sum, c) => sum + (c.unread_count || 0), 0);
       setTotalUnreadCount(newTotal);
       updateGlobalUnreadBadge(newTotal);
@@ -230,9 +302,8 @@ const SellerMessages = () => {
     if (existingConv) {
       setSelectedConversation(existingConv);
       fetchMessages(existingConv.user_id);
-      markConversationRead(existingConv.user_id);
       setActiveView('conversations');
-      navigate(`/messages/${existingConv.id}`);
+      navigate(`/dashboard/messages/${existingConv.id}`);
     } else {
       const newConv = {
         id: null,
@@ -273,7 +344,6 @@ const SellerMessages = () => {
     }
   };
 
-  // Initial data load
   useEffect(() => {
     fetchConversations();
     fetchAllUsers();
@@ -304,23 +374,18 @@ const SellerMessages = () => {
     }
   }, [conversations.length, allUsers.length]);
 
-  // Handle URL conversation
   useEffect(() => {
     if (!urlConversationId || conversations.length === 0) return;
     const conv = conversations.find(c => c.id === parseInt(urlConversationId));
     if (conv && !selectedConversation) {
       setSelectedConversation(conv);
       fetchMessages(conv.user_id);
-      markConversationRead(conv.user_id);
     }
   }, [urlConversationId, conversations, selectedConversation, fetchMessages]);
 
-  // WebSocket handler for real-time messages
+  // WebSocket message handler
   useEffect(() => {
-    if (!socket) {
-      console.log('⚠️ No WebSocket connection available');
-      return;
-    }
+    if (!socket || !isConnected) return;
 
     const handleMessage = (data) => {
       console.log('📨 WebSocket message:', data.type);
@@ -331,7 +396,6 @@ const SellerMessages = () => {
         const isCurrentConversation = selectedConversation?.user_id === msg.sender_id;
         
         if (!isFromCurrentUser) {
-          // Update conversations list with new message and increment unread count
           setConversations(prev => {
             const existingIndex = prev.findIndex(c => c.user_id === msg.sender_id);
             
@@ -376,7 +440,6 @@ const SellerMessages = () => {
             }
           });
           
-          // Show toast notification
           if (!isCurrentConversation) {
             toast.info(`📩 New message from ${msg.sender_name || 'someone'}`, {
               duration: 5000,
@@ -386,19 +449,25 @@ const SellerMessages = () => {
           }
         }
 
-        // Add message to current conversation
         if (isCurrentConversation && !isFromCurrentUser) {
+          const newMsg = { 
+            ...msg, 
+            time: formatMessageTime(msg.created_at), 
+            is_mine: false, 
+            status: 'delivered' 
+          };
           setMessages(prev => {
             if (prev.some(m => m.id === msg.id)) return prev;
-            return [...prev, msg];
+            return [...prev, newMsg];
           });
           scrollToBottom();
           
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({
-              type: 'read_receipt',
+          if (socket && isConnected && !hasSentReadReceipt.current) {
+            hasSentReadReceipt.current = true;
+            emit('read_receipt', {
+              reader_id: user?.id,
               sender_id: msg.sender_id
-            }));
+            });
           }
         }
       }
@@ -411,27 +480,44 @@ const SellerMessages = () => {
 
         if (isCurrentConversation) {
           setMessages(prev => prev.map(m =>
-            m.id === msg.id ? { ...msg, status: 'sent' } : m
+            m.id === msg.id ? { ...msg, status: 'sent', time: formatMessageTime(msg.created_at) } : m
           ));
         }
       }
 
+      if (data.type === 'message_delivered') {
+        const messageId = data.message_id;
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, status: 'delivered' } : m
+        ));
+      }
+
       if (data.type === 'messages_read') {
+        const readerId = data.reader_id;
+        
+        console.log(`📖 READ RECEIPT: User ${readerId} read messages`);
+        
         setConversations(prev => prev.map(c =>
-          c.user_id === data.reader_id ? { ...c, unread_count: 0 } : c
+          c.user_id === readerId ? { ...c, unread_count: 0 } : c
         ));
         
-        setMessages(prev => prev.map(m => ({
-          ...m,
-          status: m.sender_id === user?.id && m.receiver_id === data.reader_id ? 'read' : m.status
-        })));
+        let hasUpdates = false;
+        setMessages(prev => prev.map(m => {
+          if (m.sender_id === user?.id && m.receiver_id === readerId && m.status !== 'read') {
+            console.log(`   ✅ Updating message ${m.id} status to 'read'`);
+            hasUpdates = true;
+            return { ...m, status: 'read' };
+          }
+          return m;
+        }));
         
-        // Recalculate total unread
-        setTotalUnreadCount(prevTotal => {
-          const newTotal = conversations.filter(c => c.user_id !== data.reader_id).reduce((sum, c) => sum + (c.unread_count || 0), 0);
-          updateGlobalUnreadBadge(newTotal);
-          return newTotal;
-        });
+        if (hasUpdates) {
+          setTimeout(() => scrollToBottom(), 100);
+        }
+        
+        const newTotal = conversations.filter(c => c.user_id !== readerId).reduce((sum, c) => sum + (c.unread_count || 0), 0);
+        setTotalUnreadCount(newTotal);
+        updateGlobalUnreadBadge(newTotal);
       }
 
       if (data.type === 'typing') {
@@ -450,7 +536,7 @@ const SellerMessages = () => {
     return () => {
       if (removeHandler) removeHandler();
     };
-  }, [socket, selectedConversation, addMessageHandler, user, fetchConversations, conversations, updateGlobalUnreadBadge]);
+  }, [socket, isConnected, selectedConversation, addMessageHandler, emit, user?.id, fetchConversations, conversations, updateGlobalUnreadBadge]);
 
   useEffect(() => {
     if (isFullscreen) {
@@ -458,16 +544,14 @@ const SellerMessages = () => {
       document.body.style.overflow = 'hidden';
       return () => { document.body.style.overflow = prev; };
     }
-    return undefined;
   }, [isFullscreen]);
 
   const sendTyping = (isTyping) => {
-    if (socket?.readyState === WebSocket.OPEN && selectedConversation) {
-      socket.send(JSON.stringify({
-        type: 'typing',
+    if (socket && isConnected && selectedConversation) {
+      emit('typing', {
         receiver_id: selectedConversation.user_id,
         is_typing: isTyping
-      }));
+      });
     }
   };
 
@@ -478,14 +562,16 @@ const SellerMessages = () => {
     typingTimeoutRef.current = setTimeout(() => sendTyping(false), 1000);
   };
 
-  const sendMessage = async (file = null, fileType = null) => {
+  const sendMessage = async () => {
     if (!selectedConversation) {
       toast.error('Select conversation first');
       return;
     }
 
+    const actualFile = pendingFile?.file;
     let messageContent = inputMessage.trim();
-    if (!messageContent && !file) return;
+    
+    if (!messageContent && !actualFile) return;
 
     setSending(true);
 
@@ -494,21 +580,24 @@ const SellerMessages = () => {
     let fileName = null;
     let fileTypeDetected = null;
 
-    if (file) {
-      uploadedFile = await uploadFile(file);
+    if (actualFile) {
+      uploadedFile = await uploadFile(actualFile);
       if (uploadedFile && uploadedFile.url) {
         fileUrl = uploadedFile.url;
-        fileName = uploadedFile.original_name || file.name;
-        fileTypeDetected = uploadedFile.file_type || (file.type.startsWith('image/') ? 'image' : 'file');
+        fileName = uploadedFile.original_name || actualFile.name;
+        fileTypeDetected = uploadedFile.file_type || (actualFile.type?.startsWith('image/') ? 'image' : 'file');
       } else {
         toast.error('Failed to upload file');
         setSending(false);
         return;
       }
-      messageContent = messageContent || `Sent a ${fileType || 'file'}`;
+      if (!messageContent) {
+        messageContent = `Sent a ${fileTypeDetected === 'image' ? 'photo' : 'file'}`;
+      }
     }
 
     const tempId = Date.now();
+    const now = new Date();
 
     const optimisticMessage = {
       id: tempId,
@@ -519,40 +608,43 @@ const SellerMessages = () => {
       attachment_name: fileName,
       attachment_type: fileTypeDetected,
       status: 'sending',
-      created_at: new Date().toISOString(),
-      sender_name: user.full_name || user.username
+      created_at: now.toISOString(),
+      time: formatMessageTime(now),
+      sender_name: user.full_name || user.username,
+      reply_to: replyingTo ? { id: replyingTo.id, content: replyingTo.content } : null
     };
 
     setMessages(prev => [...prev, optimisticMessage]);
     scrollToBottom();
     setInputMessage('');
+    setPendingFile(null);
+    setAttachmentPreview(null);
+    setReplyingTo(null);
+    
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (imageInputRef.current) imageInputRef.current.value = '';
 
     try {
       const token = getToken();
-      const formData = new FormData();
-      formData.append('receiver_id', selectedConversation.user_id);
-      formData.append('content', messageContent);
-      
-      if (file) {
-        formData.append('file', file);
-        const response = await fetch(`${API_URL}/api/messages/send-with-attachment`, {
+      let response, data;
+
+      if (actualFile) {
+        const formData = new FormData();
+        formData.append('receiver_id', selectedConversation.user_id);
+        formData.append('content', messageContent);
+        if (replyingTo?.id) {
+          formData.append('reply_to_id', replyingTo.id);
+        }
+        formData.append('file', actualFile);
+        
+        response = await fetch(`${API_URL}/api/messages/send-with-attachment`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
         });
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-          setMessages(prev => prev.map(m =>
-            m.id === tempId ? { ...data.message, status: 'sent' } : m
-          ));
-          fetchConversations();
-        } else {
-          setMessages(prev => prev.filter(m => m.id !== tempId));
-          toast.error('Failed to send message');
-        }
+        data = await response.json();
       } else {
-        const response = await fetch(`${API_URL}/api/messages/send`, {
+        response = await fetch(`${API_URL}/api/messages/send`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -560,20 +652,21 @@ const SellerMessages = () => {
           },
           body: JSON.stringify({
             receiver_id: selectedConversation.user_id,
-            content: messageContent
+            content: messageContent,
+            reply_to_id: replyingTo?.id || null
           })
         });
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-          setMessages(prev => prev.map(m =>
-            m.id === tempId ? { ...data.message, status: 'sent' } : m
-          ));
-          fetchConversations();
-        } else {
-          setMessages(prev => prev.filter(m => m.id !== tempId));
-          toast.error(data.detail || 'Failed to send message');
-        }
+        data = await response.json();
+      }
+      
+      if (response.ok && data.success) {
+        setMessages(prev => prev.map(m =>
+          m.id === tempId ? { ...data.message, status: 'sent', time: formatMessageTime(data.message.created_at) } : m
+        ));
+        fetchConversations();
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        toast.error(data.detail || 'Failed to send message');
       }
     } catch (err) {
       console.error(err);
@@ -581,6 +674,9 @@ const SellerMessages = () => {
       toast.error('Failed to send message');
     } finally {
       setSending(false);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
     }
   };
 
@@ -589,6 +685,7 @@ const SellerMessages = () => {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
       toast.error('File too large. Max 10MB');
+      e.target.value = '';
       return;
     }
 
@@ -596,24 +693,56 @@ const SellerMessages = () => {
       const reader = new FileReader();
       reader.onload = (e) => setAttachmentPreview(e.target.result);
       reader.readAsDataURL(file);
+      setPendingFile({ file, type });
+    } else {
+      setAttachmentPreview('file');
+      setPendingFile({ file, type });
     }
-
-    sendMessage(file, type);
+    
+    e.target.value = '';
+    
+    toast.success(`File "${file.name}" ready. Press Enter to send.`, {
+      duration: 3000,
+      icon: '📎'
+    });
+    
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 10);
   };
 
   const removeAttachment = () => {
     setAttachmentPreview(null);
+    setPendingFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (imageInputRef.current) imageInputRef.current.value = '';
+    inputRef.current?.focus();
   };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !sending) {
       e.preventDefault();
-      if (inputMessage.trim()) {
+      e.stopPropagation();
+      if (inputMessage.trim() || pendingFile) {
         sendMessage();
       }
     }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const onEmojiClick = (emojiData) => {
+    setInputMessage(prev => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
+    inputRef.current?.focus();
   };
 
   const getFilteredList = () => {
@@ -627,12 +756,29 @@ const SellerMessages = () => {
   const filteredList = getFilteredList();
   const isUserOnline = (userId) => onlineUsers[userId] === true;
 
-  const MessageBubble = ({ message, isOwn }) => (
-    <div className={`flex mb-4 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[70%] ${isOwn ? 'bg-blue-600 text-white' : 'bg-white text-gray-900'} px-4 py-2 rounded-2xl shadow-sm`}>
-        {message.attachment_url && (
-          <div className="mb-2">
-            {message.attachment_type === 'image' ? (
+  const MessageBubble = ({ message, isOwn }) => {
+    const [showActions, setShowActions] = useState(false);
+    const displayTime = message.time || formatMessageTime(message.created_at);
+    const fileExt = getFileExtension(message.attachment_name);
+    const isImage = message.attachment_type === 'image' || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
+    const fileIcon = getFileIcon(message.attachment_name);
+    
+    return (
+      <div 
+        className={`flex mb-4 ${isOwn ? 'justify-end' : 'justify-start'}`}
+        onMouseEnter={() => setShowActions(true)}
+        onMouseLeave={() => setShowActions(false)}
+      >
+        <div className={`max-w-[70%] ${isOwn ? 'bg-primary-600 text-white' : 'bg-white text-text-primary'} px-4 py-2 rounded-2xl shadow-sm`}>
+          
+          {message.reply_to && (
+            <div className={`text-xs mb-1 pb-1 border-b ${isOwn ? 'border-primary-400' : 'border-gray-200'}`}>
+              <span className="opacity-70">↩️ Replying to: {message.reply_to.content?.substring(0, 50)}</span>
+            </div>
+          )}
+          
+          {message.attachment_url && isImage && (
+            <div className="mb-2">
               <img
                 src={getFullUrl(message.attachment_url)}
                 alt={message.attachment_name || 'Image'}
@@ -641,58 +787,110 @@ const SellerMessages = () => {
                   setSelectedAttachment({
                     url: getFullUrl(message.attachment_url),
                     name: message.attachment_name || 'Image',
-                    type: 'image'
+                    type: 'image',
+                    ext: fileExt
                   });
                   setShowAttachmentModal(true);
                 }}
               />
-            ) : (
-              <a
-                href={getFullUrl(message.attachment_url)}
-                download={message.attachment_name}
-                className={`flex items-center gap-2 p-2 rounded-lg ${isOwn ? 'bg-blue-700' : 'bg-gray-100'}`}
+            </div>
+          )}
+          
+          {message.attachment_url && !isImage && (
+            <div className="mb-2">
+              <div
+                onClick={() => {
+                  setSelectedAttachment({
+                    url: getFullUrl(message.attachment_url),
+                    name: message.attachment_name || 'File',
+                    type: 'file',
+                    ext: fileExt
+                  });
+                  setShowAttachmentModal(true);
+                }}
+                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer ${isOwn ? 'bg-primary-700 hover:bg-primary-800' : 'bg-gray-100 hover:bg-gray-200'}`}
               >
-                <File className="w-5 h-5" />
-                <span className="text-sm font-medium truncate">{message.attachment_name || 'File'}</span>
-              </a>
-            )}
+                <span className="text-xl">{fileIcon}</span>
+                <span className="text-sm font-medium truncate max-w-[150px]">{message.attachment_name || 'File'}</span>
+                <Eye className="w-3 h-3 opacity-50" />
+              </div>
+            </div>
+          )}
+          
+          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+          
+          {showActions && (
+            <div className={`absolute -top-8 flex gap-1 bg-white rounded-lg shadow-lg p-1 z-10 ${isOwn ? 'right-0' : 'left-0'}`}>
+              <button 
+                onClick={() => copyMessage(message.content)}
+                className="p-1 hover:bg-gray-100 rounded"
+                title="Copy message"
+              >
+                <Copy className="w-3 h-3 text-gray-600" />
+              </button>
+              <button 
+                onClick={() => setReplyingTo(message)}
+                className="p-1 hover:bg-gray-100 rounded"
+                title="Reply"
+              >
+                <Reply className="w-3 h-3 text-gray-600" />
+              </button>
+            </div>
+          )}
+          
+          <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${isOwn ? 'text-primary-100' : 'text-text-muted'}`}>
+            <span>{displayTime}</span>
+            {getStatusIcon(message.status, isOwn)}
           </div>
-        )}
-        {message.content && <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>}
-        <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${isOwn ? 'text-blue-100' : 'text-gray-400'}`}>
-          <span>{formatMessageTime(message.created_at)}</span>
-          {isOwn && getStatusIcon(message.status)}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const AttachmentModal = () => {
     if (!selectedAttachment) return null;
+    const { url, name, type, ext } = selectedAttachment;
+    const isPdf = ext === 'pdf';
+    const isImage = type === 'image' || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    const isDocFile = ['doc', 'docx'].includes(ext);
+    const fullUrl = getFullUrl(url);
+    
+    const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`;
+    const pdfViewerUrl = `${fullUrl}#toolbar=1&navpanes=1&scrollbar=1`;
+    
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={() => setShowAttachmentModal(false)}>
+        <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
           <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
-            <h3 className="text-lg font-semibold truncate">{selectedAttachment.name}</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{getFileIcon(name)}</span>
+              <h3 className="text-lg font-semibold truncate">{name}</h3>
+            </div>
             <div className="flex gap-2">
-              <a href={selectedAttachment.url} download={selectedAttachment.name} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+              <a href={fullUrl} download={name} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" title="Download">
                 <Download className="w-5 h-5" />
               </a>
-              <button onClick={() => setShowAttachmentModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowAttachmentModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-6 bg-gray-100 flex items-center justify-center min-h-[60vh]">
-            {selectedAttachment.type === 'image' ? (
-              <img src={selectedAttachment.url} alt={selectedAttachment.name} className="max-w-full max-h-[70vh] object-contain" />
+          <div className="flex-1 overflow-auto p-6 bg-gray-100 flex items-center justify-center min-h-[60vh]">
+            {isImage ? (
+              <img src={fullUrl} alt={name} className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg" />
+            ) : isPdf ? (
+              <iframe src={pdfViewerUrl} className="w-full h-[70vh] rounded-lg shadow-lg" title={name} />
+            ) : isDocFile ? (
+              <iframe src={officeViewerUrl} className="w-full h-[70vh] rounded-lg shadow-lg" title={name} />
             ) : (
               <div className="text-center">
-                <File className="w-20 h-20 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Preview not available</p>
-                <a href={selectedAttachment.url} download={selectedAttachment.name} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg">
-                  <Download className="w-4 h-4" /> Download File
-                </a>
+                <span className="text-8xl mb-4 block">{getFileIcon(name)}</span>
+                <p className="text-gray-500 mb-4">Preview not available for this file type (.{ext})</p>
+                <div className="flex gap-3 justify-center">
+                  <a href={fullUrl} download={name} className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition">
+                    <Download className="w-4 h-4" /> Download File
+                  </a>
+                </div>
               </div>
             )}
           </div>
@@ -709,7 +907,7 @@ const SellerMessages = () => {
     return (
       <div className="flex h-[calc(100vh-80px)] bg-gray-100 items-center justify-center">
         <div className="text-center">
-          <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
+          <Loader className="w-8 h-8 animate-spin text-primary-600 mx-auto mb-3" />
           <p className="text-gray-500">Loading messages...</p>
         </div>
       </div>
@@ -720,14 +918,13 @@ const SellerMessages = () => {
     <div className={`flex bg-gray-100 ${containerClass}`}>
       {showAttachmentModal && <AttachmentModal />}
 
-      {/* Conversations Sidebar */}
       <div className={`${(isFullscreen || (isMobile && selectedConversation)) ? 'hidden' : 'w-80'} bg-white border-r flex flex-col`}>
         <div className="p-4 border-b">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold">Messages</h2>
             <div className="flex items-center gap-2">
               {totalUnreadCount > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 animate-pulse">
+                <span className="bg-error text-white text-xs font-bold rounded-full px-2 py-1 animate-pulse">
                   {totalUnreadCount > 99 ? '99+' : totalUnreadCount} new
                 </span>
               )}
@@ -737,21 +934,20 @@ const SellerMessages = () => {
             </div>
           </div>
           
-          {/* View Toggle Buttons */}
           <div className="flex gap-2 mt-3">
             <button
               onClick={() => setActiveView('conversations')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
                 activeView === 'conversations'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-text-secondary hover:bg-gray-200'
               }`}
             >
               <MessageSquare className="w-4 h-4" />
               Conversations
               {conversations.length > 0 && (
                 <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
-                  activeView === 'conversations' ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+                  activeView === 'conversations' ? 'bg-white text-primary-600' : 'bg-primary-600 text-white'
                 }`}>
                   {conversations.length}
                 </span>
@@ -761,21 +957,20 @@ const SellerMessages = () => {
               onClick={() => setActiveView('all_users')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
                 activeView === 'all_users'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-text-secondary hover:bg-gray-200'
               }`}
             >
               <Users className="w-4 h-4" />
               All Users
               <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
-                activeView === 'all_users' ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+                activeView === 'all_users' ? 'bg-white text-primary-600' : 'bg-primary-600 text-white'
               }`}>
                 {allUsers.length}
               </span>
             </button>
           </div>
           
-          {/* Search */}
           <div className="relative mt-3">
             <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
             <input
@@ -783,12 +978,11 @@ const SellerMessages = () => {
               placeholder={activeView === 'conversations' ? "Search conversations..." : "Search users..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
             />
           </div>
         </div>
 
-        {/* Conversation List with RED BADGES */}
         <div className="flex-1 overflow-y-auto">
           {filteredList.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
@@ -809,28 +1003,26 @@ const SellerMessages = () => {
                   } else {
                     setSelectedConversation(item);
                     fetchMessages(item.user_id);
-                    markConversationRead(item.user_id);
                     if (item.id) {
-                      navigate(`/messages/${item.id}`);
+                      navigate(`/dashboard/messages/${item.id}`);
                     }
                   }
                 }}
                 className={`p-3 flex gap-3 cursor-pointer transition-all border-l-4 ${
                   selectedConversation?.user_id === item.user_id 
-                    ? 'bg-blue-50 border-l-blue-600' 
+                    ? 'bg-primary-50 border-l-primary-600' 
                     : 'border-l-transparent hover:bg-gray-50'
                 }`}
               >
                 <div className="relative flex-shrink-0">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-primary-600 to-primary-700 flex items-center justify-center text-white font-bold text-lg">
                     {item.user_name?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                   {isUserOnline(item.user_id) && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-success rounded-full border-2 border-white"></div>
                   )}
-                  {/* RED BADGE - Shows unread count */}
                   {item.unread_count > 0 && (
-                    <div className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1.5 shadow-lg animate-pulse-badge border border-white z-10">
+                    <div className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-error text-white text-xs font-bold rounded-full flex items-center justify-center px-1.5 shadow-lg animate-pulse-badge border border-white z-10">
                       {item.unread_count > 99 ? '99+' : item.unread_count}
                     </div>
                   )}
@@ -838,20 +1030,20 @@ const SellerMessages = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1">
-                      <h3 className={`font-semibold truncate ${item.unread_count > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+                      <h3 className={`font-semibold truncate ${item.unread_count > 0 ? 'text-text-primary' : 'text-text-secondary'}`}>
                         {item.user_name}
                       </h3>
                     </div>
                     {item.last_message_at && (
-                      <span className={`text-xs flex-shrink-0 ${item.unread_count > 0 ? 'text-gray-600 font-medium' : 'text-gray-400'}`}>
-                        {formatTime(item.last_message_at)}
+                      <span className={`text-xs flex-shrink-0 ${item.unread_count > 0 ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
+                        {formatMessageTime(item.last_message_at)}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {getRoleBadge(item.user_role)}
                   </div>
-                  <p className={`text-sm truncate mt-1 ${item.unread_count > 0 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
+                  <p className={`text-sm truncate mt-1 ${item.unread_count > 0 ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
                     {item.last_message || (activeView === 'all_users' ? 'Click to start conversation' : 'No messages yet')}
                   </p>
                 </div>
@@ -860,7 +1052,6 @@ const SellerMessages = () => {
           )}
         </div>
 
-        {/* Refresh Button */}
         <div className="p-4 border-t bg-white">
           <button 
             onClick={() => {
@@ -874,41 +1065,51 @@ const SellerMessages = () => {
         </div>
       </div>
 
-      {/* Chat Area */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {selectedConversation ? (
           <>
-            {/* Chat Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white border-b p-4 flex items-center gap-3 flex-shrink-0 shadow-md">
+            <div className="bg-gradient-to-r from-primary-700 to-primary-800 text-white border-b p-4 flex items-center gap-3 flex-shrink-0 shadow-md">
               <button 
                 onClick={() => {
                   setSelectedConversation(null);
-                  navigate('/messages');
+                  navigate('/dashboard/messages');
                 }}
-                className="p-2 hover:bg-blue-500 rounded-lg transition text-white"
+                className="p-2 hover:bg-primary-600 rounded-lg transition text-white"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-white text-blue-600 flex items-center justify-center font-bold shadow-md">
+                <div className="w-10 h-10 rounded-full bg-white text-primary-700 flex items-center justify-center font-bold shadow-md">
                   {selectedConversation.user_name?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
                 {isUserOnline(selectedConversation.user_id) && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white"></div>
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-success rounded-full border-2 border-white"></div>
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-white truncate">{selectedConversation.user_name}</h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-blue-100">
-                    {isUserOnline(selectedConversation.user_id) ? '● Online' : '● Offline'}
-                    {typingUsers[selectedConversation.user_id] && ' • Typing...'}
-                  </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {getRoleBadge(selectedConversation.user_role)}
+                  <UserStatus userId={selectedConversation.user_id} showText={true} />
+                  {typingUsers[selectedConversation.user_id] && (
+                    <span className="text-xs text-primary-200 ml-2">• Typing...</span>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Messages */}
+            {replyingTo && (
+              <div className="bg-gray-100 px-4 py-2 flex items-center justify-between border-b">
+                <div className="text-sm">
+                  <span className="text-gray-500">Replying to:</span>
+                  <span className="ml-2 text-gray-700">{replyingTo.content?.substring(0, 50)}</span>
+                </div>
+                <button onClick={() => setReplyingTo(null)} className="text-error hover:text-red-700">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-4 bg-gray-50 min-h-0">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -922,12 +1123,21 @@ const SellerMessages = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
             <div className="bg-white border-t p-3 sticky bottom-0 z-10 shadow-lg">
-              {attachmentPreview && (
-                <div className="mb-3 p-3 bg-blue-50 rounded-lg relative inline-block border-2 border-blue-200">
+              {attachmentPreview && attachmentPreview !== 'file' && (
+                <div className="mb-3 p-3 bg-primary-50 rounded-lg relative inline-block border-2 border-primary-200">
                   <img src={attachmentPreview} alt="Preview" className="h-16 w-16 object-cover rounded" />
-                  <button onClick={removeAttachment} className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600">
+                  <button onClick={removeAttachment} className="absolute -top-3 -right-3 bg-error text-white rounded-full p-1 shadow-md hover:bg-red-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {attachmentPreview === 'file' && pendingFile && (
+                <div className="mb-3 p-3 bg-primary-50 rounded-lg relative inline-block border-2 border-primary-200">
+                  <span className="text-xl mr-2">{getFileIcon(pendingFile.file.name)}</span>
+                  <span className="ml-2 text-sm text-gray-700">{pendingFile.file.name}</span>
+                  <button onClick={removeAttachment} className="absolute -top-3 -right-3 bg-error text-white rounded-full p-1 shadow-md hover:bg-red-600">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -936,25 +1146,54 @@ const SellerMessages = () => {
               <div className="flex gap-2 items-end">
                 <input type="file" ref={fileInputRef} onChange={(e) => handleFileSelect(e, 'file')} className="hidden" />
                 <input type="file" ref={imageInputRef} onChange={(e) => handleFileSelect(e, 'image')} className="hidden" accept="image/*" />
-                <button onClick={() => fileInputRef.current?.click()} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Attach document">
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()} 
+                  className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition" 
+                  title="Attach document"
+                >
                   <Paperclip className="w-5 h-5" />
                 </button>
-                <button onClick={() => imageInputRef.current?.click()} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Attach image">
+                <button 
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()} 
+                  className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition" 
+                  title="Attach image"
+                >
                   <Image className="w-5 h-5" />
                 </button>
+                
+                <div className="relative" ref={emojiPickerRef}>
+                  <button 
+                    type="button"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                    title="Add emoji"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-12 left-0 z-50">
+                      <EmojiPicker onEmojiClick={onEmojiClick} />
+                    </div>
+                  )}
+                </div>
+                
                 <textarea
+                  ref={inputRef}
                   value={inputMessage}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyPress}
                   placeholder="Type a message..."
                   rows={1}
-                  className="flex-1 border border-gray-300 rounded-2xl px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 border border-gray-300 rounded-2xl px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   disabled={sending}
                 />
                 <button 
+                  type="button"
                   onClick={() => sendMessage()} 
-                  disabled={(!inputMessage.trim() && !attachmentPreview) || sending} 
-                  className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 disabled:opacity-50 transition shadow-md"
+                  disabled={(!inputMessage.trim() && !pendingFile) || sending} 
+                  className="bg-primary-600 text-white p-2.5 rounded-full hover:bg-primary-700 disabled:opacity-50 transition shadow-md"
                 >
                   {sending ? <Loader className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                 </button>

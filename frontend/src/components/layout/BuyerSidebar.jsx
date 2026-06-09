@@ -1,9 +1,10 @@
+// src/components/layout/BuyerSidebar.jsx
 import React, { useState, useEffect, memo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
-  Home, Search, Heart, MessageCircle, Settings, LogOut, Menu, X, ChevronRight, Building2, Camera,
-  User, Lock, ChevronDown
+  Home, Search, Heart, MessageCircle, Settings, LogOut, Menu, X, ChevronRight,
+  Camera, User, Lock, ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../../context/LanguageContext'
@@ -25,13 +26,11 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
 
   const { t } = useLanguage()
 
-  // Settings dropdown menu items - Only Profile and Security
   const settingsMenuItems = [
     { id: 'profile', labelKey: 'profile_information', label: 'Profile Information', icon: User, tab: 'profile' },
     { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' }
   ];
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (settingsDropdownRef.current && 
@@ -45,12 +44,10 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close dropdown when route changes
   useEffect(() => {
     setIsSettingsDropdownOpen(false);
   }, [location.pathname]);
 
-  // Initial fetch for unread count
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -83,7 +80,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     };
   }, []);
 
-  // Listen for real-time unread updates
   useEffect(() => {
     const handleUnreadUpdate = (event) => {
       if (event.detail?.count !== undefined) {
@@ -104,7 +100,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     };
   }, []);
 
-  // Load profile image from user context
   useEffect(() => {
     if (user?.avatar_url) {
       let imageUrl = user.avatar_url;
@@ -117,7 +112,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
     }
   }, [user]);
 
-  // Main menu items
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard/buyer' },
     { id: 'properties', label: 'Browse Properties', icon: Search, path: '/dashboard/buyer/properties' },
@@ -225,16 +219,18 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
       
       <aside className={`fixed top-0 left-0 z-40 h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'} ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}`}>
         <div className="flex flex-col h-full">
-          {/* Logo */}
+          {/* Logo Section - LARGER LOGO */}
           <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigation('/dashboard/buyer')}>
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Building2 className="w-5 h-5 text-white" />
-                </div>
+                <img 
+                  src="/assets/images/image.png" 
+                  alt="BetFinder" 
+                  className="w-14 h-14 object-contain rounded-xl shadow-lg"
+                />
                 {sidebarOpen && (
                   <div>
-                    <span className="text-xl font-bold tracking-tight">EstateHub</span>
+                    <span className="text-xl font-bold tracking-tight">BetFinder</span>
                     <p className="text-xs text-slate-400">{t('buyer_dashboard')}</p>
                   </div>
                 )}
@@ -245,7 +241,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
             </div>
           </div>
 
-          {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1 mt-4">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -280,7 +275,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
               );
             })}
 
-            {/* Settings Menu Item with Dropdown */}
             <div className="relative">
               <button
                 ref={settingsButtonRef}
@@ -300,7 +294,6 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
                 )}
               </button>
               
-              {/* Dropdown Menu - Opens downward */}
               {sidebarOpen && isSettingsDropdownOpen && (
                 <div 
                   ref={settingsDropdownRef}
@@ -329,7 +322,7 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
             </div>
           </nav>
 
-          {/* Bottom Section - User Profile with Picture */}
+          {/* User Profile Section */}
           <div className="p-4 border-t border-white/10">
             {sidebarOpen ? (
               <div className="flex items-center justify-between gap-2">
