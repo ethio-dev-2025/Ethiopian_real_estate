@@ -1,0 +1,118 @@
+@startuml EstateLink_Use_Case
+
+left to right direction
+
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+ 
+
+' =========================
+' ACTORS
+' =========================
+
+actor "Property Owner" as Owner
+actor "Property Seeker" as Seeker
+actor "Administrator" as Admin
+
+
+' =========================
+' SYSTEM
+' =========================
+
+rectangle "EstateLink System" {
+
+    ' --- Authentication ---
+    usecase "Register Account" as UC_Register
+    usecase "Login" as UC_Login
+    usecase "Reset Password" as UC_Reset
+
+    ' --- Property Seeker ---
+    usecase "Browse Properties" as UC_Browse
+    usecase "Search & Filter\nProperties" as UC_Search
+    usecase "View Property\nDetails" as UC_View
+    usecase "Save Favorite" as UC_Favorite
+    usecase "Contact Owner" as UC_Contact
+    usecase "Send & Receive\nMessages" as UC_Message
+
+    ' --- Property Owner ---
+    usecase "Create Listing" as UC_Create
+    usecase "Edit Listing" as UC_Edit
+    usecase "Delete Listing" as UC_Delete
+    usecase "Publish Listing" as UC_Publish
+    usecase "Save Draft" as UC_Draft
+    usecase "Upload Property\nImages" as UC_Images
+    usecase "Manage Listing\nStatus" as UC_Status
+    usecase "Submit Verification\nDocuments" as UC_Verify
+    usecase "Subscribe to Plan" as UC_Subscribe
+
+    ' --- Administrator ---
+    usecase "Review Activation\nRequest" as UC_Review
+    usecase "Approve / Reject\nActivation" as UC_Approve
+    usecase "Review Payment\nProof" as UC_Payment
+    usecase "Manage Users" as UC_Users
+    usecase "Suspend / Ban User" as UC_Ban
+    usecase "Manage Listings" as UC_ManageListings
+    usecase "Send Notifications" as UC_Notify
+}
+
+
+' =========================
+' PROPERTY SEEKER
+' =========================
+
+Seeker --> UC_Register
+Seeker --> UC_Login
+Seeker --> UC_Reset
+Seeker --> UC_Browse
+Seeker --> UC_Search
+Seeker --> UC_View
+Seeker --> UC_Favorite
+Seeker --> UC_Contact
+Seeker --> UC_Message
+
+
+' =========================
+' PROPERTY OWNER
+' =========================
+
+Owner --> UC_Register
+Owner --> UC_Login
+Owner --> UC_Reset
+
+Owner --> UC_Create
+Owner --> UC_Edit
+Owner --> UC_Delete
+Owner --> UC_Publish
+Owner --> UC_Draft
+Owner --> UC_Images
+Owner --> UC_Status
+Owner --> UC_Verify
+Owner --> UC_Subscribe
+Owner --> UC_Message
+
+
+' =========================
+' ADMINISTRATOR
+' =========================
+
+Admin --> UC_Login
+Admin --> UC_Review
+Admin --> UC_Approve
+Admin --> UC_Payment
+Admin --> UC_Users
+Admin --> UC_Ban
+Admin --> UC_ManageListings
+Admin --> UC_Notify
+
+
+' =========================
+' INCLUDE RELATIONSHIPS
+' =========================
+
+UC_Create ..> UC_Images : <<include>>
+UC_Publish ..> UC_Status : <<include>>
+UC_Review ..> UC_Approve : <<include>>
+UC_Contact ..> UC_Message : <<include>>
+
+@enduml
