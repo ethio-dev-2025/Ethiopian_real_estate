@@ -1,4 +1,4 @@
-py -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+#!/usr/bin/env bash
+set -euo pipefail
 
- password  Melkamu123@
- emails   melkamuenyew90@gmail.com
+exec python -m uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
