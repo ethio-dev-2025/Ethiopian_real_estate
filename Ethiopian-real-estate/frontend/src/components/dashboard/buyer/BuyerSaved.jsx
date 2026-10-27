@@ -81,10 +81,8 @@ const BuyerSaved = () => {
 
   const formatPrice = (price, type) => {
     if (!price) return 'ETB 0';
-    if (type === 'rent') return `ETB ${price.toLocaleString()}/month`;
-    if (price >= 10000000) return `ETB ${(price / 10000000).toFixed(1)} Cr`;
-    if (price >= 1000000) return `ETB ${(price / 1000000).toFixed(1)} M`;
-    return `ETB ${price.toLocaleString()}`;
+    if (type === 'rent') return `ETB ${price.toLocaleString('en-US')}/month`;
+    return `ETB ${price.toLocaleString('en-US')}`;
   };
 
   const getImageUrl = (property) => {

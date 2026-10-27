@@ -119,9 +119,9 @@ const BuyerProperties = () => {
     }
     return [
       { value: 'all', label: 'Any Price' },
-      { value: 'under-5m', label: 'Under ETB 5M' },
-      { value: '5m-15m', label: 'ETB 5M - 15M' },
-      { value: 'above-15m', label: 'Above ETB 15M' }
+      { value: 'under-5m', label: 'Under ETB 5,000,000' },
+      { value: '5m-15m', label: 'ETB 5,000,000 - 15,000,000' },
+      { value: 'above-15m', label: 'Above ETB 15,000,000' }
     ];
   };
 
@@ -271,10 +271,8 @@ const BuyerProperties = () => {
 
   const formatPrice = (price, type) => {
     if (!price) return 'ETB 0';
-    if (type === 'rent') return `ETB ${price.toLocaleString()}/month`;
-    if (price >= 10000000) return `ETB ${(price / 10000000).toFixed(1)} Cr`;
-    if (price >= 1000000) return `ETB ${(price / 1000000).toFixed(1)} M`;
-    return `ETB ${price.toLocaleString()}`;
+    if (type === 'rent') return `ETB ${price.toLocaleString('en-US')}/month`;
+    return `ETB ${price.toLocaleString('en-US')}`;
   };
 
   const resetFilters = () => {

@@ -63,10 +63,7 @@ const DashboardOverview = () => {
   }
 
   const formatPrice = (price) => {
-    if (!price) return 'ETB 0'
-    if (price >= 10000000) return `${(price / 10000000).toFixed(1)} Cr`
-    if (price >= 1000000) return `${(price / 1000000).toFixed(1)} M`
-    return `ETB ${price.toLocaleString()}`
+    return `ETB ${(price || 0).toLocaleString('en-US')}`
   }
 
   const StatCard = ({ title, value, icon: Icon, color, trend, onClick }) => (

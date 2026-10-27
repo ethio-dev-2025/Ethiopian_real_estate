@@ -9,23 +9,29 @@ const RoleSelectionModal = ({ open, onClose }) => {
   const [selectedRole, setSelectedRole] = useState('buyer');
   const [loading, setLoading] = useState(false);
 
-  if (!open) return null;
+  // ✅ Do not show for admin, seller, landlord, dual — or any user with an explicit role
+  const currentRole = user?.role_type || user?.role;
+  const autoHiddenRoles = ['admin', 'seller', 'landlord', 'dual'];
+  const shouldHide = autoHiddenRoles.includes(currentRole);
+  const isOpen = open && !shouldHide;
+
+  if (!isOpen) return null;
 
   const handleConfirm = async () => {
     setLoading(true);
-    
+
     try {
       console.log('🎯 Role selected:', selectedRole);
-      
+
       localStorage.setItem('user_role', selectedRole);
       localStorage.setItem('role_selected', 'true');
-      
+
       if (user && updateUser) {
         const updatedUser = { ...user, role_type: selectedRole, role: selectedRole };
         localStorage.setItem('user', JSON.stringify(updatedUser));
         updateUser(updatedUser);
       }
-      
+
       // Redirect based on selected role
       if (selectedRole === 'buyer') {
         navigate('/dashboard/buyer');
@@ -39,12 +45,10 @@ const RoleSelectionModal = ({ open, onClose }) => {
     }
   };
 
-  // If onClose is provided, show close button
   const handleClose = () => {
     if (onClose) {
       onClose();
     } else {
-      // If no onClose, just navigate back
       navigate('/');
     }
   };
@@ -59,13 +63,13 @@ const RoleSelectionModal = ({ open, onClose }) => {
           <h2 className="text-2xl font-bold text-gray-900">Choose Your Role</h2>
           <p className="text-gray-500 text-sm mt-1">Select how you want to use EstateHub</p>
         </div>
-        
+
         <div className="grid grid-cols-2 gap-4 mb-6">
           <button
             onClick={() => setSelectedRole('buyer')}
             className={`p-4 rounded-xl border-2 transition-all text-center ${
-              selectedRole === 'buyer' 
-                ? 'border-blue-600 bg-blue-50' 
+              selectedRole === 'buyer'
+                ? 'border-blue-600 bg-blue-50'
                 : 'border-gray-200 hover:border-blue-300'
             }`}
           >
@@ -73,12 +77,12 @@ const RoleSelectionModal = ({ open, onClose }) => {
             <h3 className="font-semibold text-gray-900">Buyer</h3>
             <p className="text-xs text-gray-500 mt-1">Browse properties</p>
           </button>
-          
+
           <button
             onClick={() => setSelectedRole('seller')}
             className={`p-4 rounded-xl border-2 transition-all text-center ${
-              selectedRole === 'seller' 
-                ? 'border-blue-600 bg-blue-50' 
+              selectedRole === 'seller'
+                ? 'border-blue-600 bg-blue-50'
                 : 'border-gray-200 hover:border-blue-300'
             }`}
           >
@@ -87,7 +91,7 @@ const RoleSelectionModal = ({ open, onClose }) => {
             <p className="text-xs text-gray-500 mt-1">List properties</p>
           </button>
         </div>
-        
+
         <button
           onClick={handleConfirm}
           disabled={loading}

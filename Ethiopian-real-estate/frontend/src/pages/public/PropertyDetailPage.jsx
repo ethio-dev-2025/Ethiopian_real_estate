@@ -59,11 +59,8 @@ const PropertyDetailPage = () => {
     
     // Try multiple endpoints in order
     const endpoints = [
-      // 1. Try public listing endpoint (works for all published properties)
       { url: `${API_URL}/api/listings/public/${id}`, requiresAuth: false, name: 'public' },
-      // 2. Try buyer properties endpoint (published only)
       { url: `${API_URL}/api/buyer/properties/${id}`, requiresAuth: false, name: 'buyer' },
-      // 3. Try seller's own listing endpoint (for drafts/unpublished - requires auth)
       { url: `${API_URL}/api/listings/${id}`, requiresAuth: true, name: 'seller' },
     ];
     
@@ -81,14 +78,12 @@ const PropertyDetailPage = () => {
           data = await response.json();
           console.log(`✅ Success from ${endpoint.name} endpoint`);
           
-          // Handle different response formats
           let propertyData = data;
           if (data.listing) propertyData = data.listing;
           if (data.property) propertyData = data.property;
           
           setProperty(propertyData);
           
-          // Check if current user is the owner
           if (propertyData.user_id && currentUserId && propertyData.user_id === currentUserId) {
             setIsOwner(true);
             console.log('👤 User is the owner of this property');
@@ -106,7 +101,6 @@ const PropertyDetailPage = () => {
       }
     }
     
-    // If all endpoints failed
     console.log('❌ All endpoints failed');
     setError('Property not found or you do not have permission to view it.');
   };
@@ -175,7 +169,6 @@ const PropertyDetailPage = () => {
   };
 
   const handleContactClick = () => {
-    // Don't allow contacting if it's the owner's own property
     if (isOwner) {
       toast.info('This is your own property');
       return;
@@ -207,10 +200,8 @@ const PropertyDetailPage = () => {
 
   const formatPrice = (price, type) => {
     if (!price) return 'ETB 0';
-    if (type === 'rent') return `ETB ${price.toLocaleString()}/month`;
-    if (price >= 10000000) return `ETB ${(price / 10000000).toFixed(1)} Cr`;
-    if (price >= 1000000) return `ETB ${(price / 1000000).toFixed(1)} M`;
-    return `ETB ${price.toLocaleString()}`;
+    if (type === 'rent') return `ETB ${price.toLocaleString('en-US')}/month`;
+    return `ETB ${price.toLocaleString('en-US')}`;
   };
 
   const getImageUrl = (imagePath) => {
@@ -360,14 +351,12 @@ const PropertyDetailPage = () => {
           <ArrowLeft className="w-5 h-5" /> Back
         </button>
 
-        {/* Draft Warning - Only show to owner */}
         {isDraft && isOwner && (
           <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded-lg text-yellow-800 text-center">
             ⚠️ This property is a DRAFT and is not visible to buyers. <button onClick={() => navigate('/dashboard/my-listings')} className="underline font-semibold">Go to My Listings to publish it</button>
           </div>
         )}
 
-        {/* Not Published Warning - For owner viewing draft */}
         {isDraft && !isOwner && (
           <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded-lg text-yellow-800 text-center">
             ⚠️ This property is not yet published.

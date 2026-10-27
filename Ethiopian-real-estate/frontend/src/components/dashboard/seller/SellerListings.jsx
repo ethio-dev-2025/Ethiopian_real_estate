@@ -653,13 +653,6 @@ const handleViewClick = (listingId) => {
               <List className="w-4 h-4" />
             </button>
           </div>
-          
-          <button 
-            onClick={() => navigate('/dashboard/create-listing')} 
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center gap-2 text-sm"
-          >
-            <PlusCircle className="w-4 h-4" /> Create Listing
-          </button>
         </div>
       </div>
 

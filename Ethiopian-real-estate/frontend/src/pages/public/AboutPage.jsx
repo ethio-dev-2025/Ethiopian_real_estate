@@ -87,7 +87,7 @@ const AboutPage = () => {
   const subscriptionPlans = [
     {
       name: "Seller Plan",
-      price: "894",
+      price: "1194",
       duration: "6 months",
       pricePerMonth: "149",
       icon: Store,
@@ -102,7 +102,7 @@ const AboutPage = () => {
     },
     {
       name: "Landlord Plan",
-      price: "1,194",
+      price: "894",
       duration: "6 months",
       pricePerMonth: "199",
       icon: Key,
