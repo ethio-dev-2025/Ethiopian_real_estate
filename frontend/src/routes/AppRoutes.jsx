@@ -37,7 +37,7 @@ import AboutPage from '../pages/public/AboutPage';
 import ContactPage from '../pages/public/ContactPage';
 
 // Seller Components (lazy loaded)
-const SellerDashboard = lazy(() => import('../components/dashboard/seller/sellerDashboard'));
+const SellerDashboard = lazy(() => import('../components/dashboard/seller/SellerDashboard'));
 const SellerListings = lazy(() => import('../components/dashboard/seller/SellerListings'));
 const SellerMessages = lazy(() => import('../components/dashboard/seller/SellerMessages'));
 const SellerProperties = lazy(() => import('../components/dashboard/seller/SellerProperties'));
