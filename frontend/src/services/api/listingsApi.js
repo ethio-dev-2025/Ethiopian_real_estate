@@ -1,7 +1,8 @@
+import { API_BASE_URL } from '@/config/api';
 // src/services/api/listingsApi.js
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8000/api'
+const API_URL = API_BASE_URL;
 
 // Create axios instance with timeout and abort controller support
 const api = axios.create({

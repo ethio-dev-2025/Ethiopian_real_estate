@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import AppSidebar from '../../components/layout/AppSidebar'
@@ -8,7 +9,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const VerificationQueue = () => {
   const { user } = useAuth()

@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/App.jsx
 import React, { useEffect } from 'react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
@@ -11,7 +12,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
 import AppRoutes from './routes/AppRoutes';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 // Payment Success Handler Component
 const PaymentSuccessHandler = ({ children }) => {

@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/admin/CompanySettings.jsx
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -8,7 +9,7 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const CompanySettings = () => {
   const { user } = useAuth();

@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/pages/public/PropertyDetailPage.jsx - FULL HEIGHT IMAGE GALLERY
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const PropertyDetailPage = () => {
   const { id } = useParams();

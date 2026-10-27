@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -7,7 +8,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const MyListingsPage = () => {
   const navigate = useNavigate();

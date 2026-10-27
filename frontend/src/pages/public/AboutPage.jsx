@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/pages/public/AboutPage.jsx
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const AboutPage = () => {
   const { t, language } = useLanguage()

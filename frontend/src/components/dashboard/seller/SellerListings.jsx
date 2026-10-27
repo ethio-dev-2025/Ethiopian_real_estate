@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/seller/SellerListings.jsx - FULLY UPDATED WITH OPTION 1 COLORS
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -8,7 +9,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 // Mark as Sold Modal Component
 const MarkAsSoldModalComponent = ({ listing, isOpen, onClose, onSuccess }) => {

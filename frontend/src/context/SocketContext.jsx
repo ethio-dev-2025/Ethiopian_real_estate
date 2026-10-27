@@ -1,3 +1,4 @@
+import { API_BASE_URL, WS_BASE_URL } from '@/config/api';
 // src/context/SocketContext.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
@@ -30,7 +31,7 @@ export const SocketProvider = ({ children }) => {
     }
 
     // ✅ Correct WebSocket URL - matches backend /ws/{token}
-    const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
+    const wsBaseUrl = WS_BASE_URL;
     const websocketUrl = `${wsBaseUrl}/${encodeURIComponent(token)}`
     console.log('🔌 Connecting to WebSocket:', websocketUrl)
     
@@ -181,7 +182,7 @@ export const SocketProvider = ({ children }) => {
             try {
               const token = localStorage.getItem('access_token')
               if (token) {
-                const resp = await fetch('http://localhost:8000/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+                const resp = await fetch(`${API_BASE_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
                 if (resp.ok) {
                   const freshUser = await resp.json()
                   localStorage.setItem('user', JSON.stringify(freshUser))
@@ -213,7 +214,7 @@ export const SocketProvider = ({ children }) => {
             try {
               const token = localStorage.getItem('access_token')
               if (token) {
-                const resp = await fetch('http://localhost:8000/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+                const resp = await fetch(`${API_BASE_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
                 if (resp.ok) {
                   const freshUser = await resp.json()
                   localStorage.setItem('user', JSON.stringify(freshUser))

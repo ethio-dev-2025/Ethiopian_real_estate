@@ -1,10 +1,11 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/seller/SellerProperties.jsx
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Home, MapPin, Bed, Bath, Square, PlusCircle, Trash2, Edit, Eye, Calendar, Clock, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const SellerProperties = () => {
   const navigate = useNavigate()

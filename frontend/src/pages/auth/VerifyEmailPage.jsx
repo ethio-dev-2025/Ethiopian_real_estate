@@ -1,10 +1,11 @@
+import { API_ORIGIN } from '@/config/api';
 // src/pages/auth/VerifyEmailPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Shield, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const VerifyEmailPage = () => {
   const navigate = useNavigate();

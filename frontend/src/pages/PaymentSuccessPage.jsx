@@ -1,9 +1,10 @@
+import { API_ORIGIN } from '@/config/api';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Loader, XCircle, Download, Receipt, Calendar, CreditCard, Home, PlusCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const PaymentSuccessPage = () => {
   const navigate = useNavigate();

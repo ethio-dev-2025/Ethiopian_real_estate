@@ -1,10 +1,11 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/buyer/BuyerDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Heart, MessageCircle, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const BuyerDashboard = () => {
   const navigate = useNavigate();

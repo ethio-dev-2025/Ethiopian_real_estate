@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/buyer/BuyerMessages.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
@@ -14,7 +15,7 @@ import toast from 'react-hot-toast';
 import EmojiPicker from 'emoji-picker-react';
 import UserStatus from '../../common/UserStatus';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const formatMessageTime = (timestamp) => {
   if (!timestamp) return '';

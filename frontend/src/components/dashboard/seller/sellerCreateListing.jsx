@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/seller/SellerCreateListing.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +14,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const SellerCreateListing = () => {
   const navigate = useNavigate();

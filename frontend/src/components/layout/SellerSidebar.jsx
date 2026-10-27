@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/layout/SellerSidebar.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -10,7 +11,7 @@ import {
 import toast from 'react-hot-toast';
 import { useLanguage } from '../../context/LanguageContext'
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const { user, logout, refreshUser, updateUser, forceRefreshUser } = useAuth();

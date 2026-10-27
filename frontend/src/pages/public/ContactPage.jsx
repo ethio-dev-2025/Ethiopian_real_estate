@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/pages/public/ContactPage.jsx
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -11,7 +12,7 @@ import {
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const ContactPage = () => {
   const { t, language } = useLanguage()

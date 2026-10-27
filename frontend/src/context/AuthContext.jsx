@@ -1,9 +1,10 @@
+import { API_ORIGIN, WS_ORIGIN } from '@/config/api';
 // src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
-const WS_URL = 'ws://localhost:8000';
+const API_URL = API_ORIGIN;
+const WS_URL = WS_ORIGIN;
 
 export const AuthContext = createContext(null);
 

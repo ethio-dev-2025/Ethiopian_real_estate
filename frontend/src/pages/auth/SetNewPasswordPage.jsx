@@ -1,10 +1,11 @@
+import { API_ORIGIN } from '@/config/api';
 // src/pages/auth/SetNewPasswordPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Lock, Eye, EyeOff, Shield, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const SetNewPasswordPage = () => {
   const navigate = useNavigate();

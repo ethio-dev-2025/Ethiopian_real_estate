@@ -1,3 +1,4 @@
+import { API_BASE_URL, API_ORIGIN } from '@/config/api';
 // src/components/layout/BuyerSidebar.jsx
 import React, { useState, useEffect, memo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -9,7 +10,7 @@ import {
 import toast from 'react-hot-toast';
 import { useLanguage } from '../../context/LanguageContext'
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
   const { user, logout, refreshUser, updateUser } = useAuth();
@@ -57,7 +58,7 @@ const BuyerSidebar = memo(({ sidebarOpen, setSidebarOpen }) => {
       try {
         const token = localStorage.getItem('access_token');
         if (!token) return;
-        const response = await fetch('http://localhost:8000/api/buyer/conversations', {
+        const response = await fetch(`${API_BASE_URL}/buyer/conversations`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {

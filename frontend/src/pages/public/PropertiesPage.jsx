@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/pages/public/PropertiesPage.jsx - COMPLETE WITH LARGER BOLD VIEW DETAILS BUTTON
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -5,7 +6,7 @@ import Header from '../../components/layout/Header'
 import { Search, Grid3x3, List, MapPin, Home, Filter, ChevronDown, Award, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const PropertiesPage = () => {
   const navigate = useNavigate()

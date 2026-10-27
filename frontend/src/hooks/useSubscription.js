@@ -1,7 +1,8 @@
+import { API_ORIGIN } from '@/config/api';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const useSubscription = () => {
   const { user, refreshUser, forceRefreshUser } = useAuth();

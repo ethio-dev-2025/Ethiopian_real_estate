@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -12,7 +13,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const CreateListingWizard = ({ onSuccess }) => {
   const navigate = useNavigate()

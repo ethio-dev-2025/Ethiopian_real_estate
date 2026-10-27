@@ -1,9 +1,10 @@
+import { API_BASE_URL } from '@/config/api';
 import React, { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { X, Loader, CreditCard } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000/api'
+const API_URL = API_BASE_URL;
 
 const PaymentModal = ({ planType, amount, onClose, onSuccess }) => {
   const { user } = useAuth()

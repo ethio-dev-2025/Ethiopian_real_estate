@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/admin/AdminDashboard.jsx
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
@@ -11,7 +12,7 @@ import AdminSettings from './AdminSettings'
 import AdminMessages from './AdminMessages'
 import { useNotification } from '../../../context/NotificationContext'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const AdminDashboard = () => {
   const { showInfo } = useNotification()

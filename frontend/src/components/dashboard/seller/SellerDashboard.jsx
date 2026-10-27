@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/seller/SellerDashboard.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -5,7 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { RefreshCw, Home, Eye, ShoppingBag, List, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const SellerDashboard = () => {
   const navigate = useNavigate();

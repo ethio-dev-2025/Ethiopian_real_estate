@@ -1,9 +1,10 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/admin/Propertylisting.jsx
 import React, { useState, useEffect } from 'react'
 import { CheckCircle, XCircle, Clock, Eye, Home, MapPin, DollarSign } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const Propertylisting = () => {
   const [properties, setProperties] = useState([])

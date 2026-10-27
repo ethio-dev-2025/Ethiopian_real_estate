@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '@/config/api';
 // src/components/layout/SellerLayout.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -64,7 +65,7 @@ const SellerLayout = ({ children }) => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
       
-      const response = await fetch('http://localhost:8000/api/activation/status', {
+      const response = await fetch(`${API_BASE_URL}/activation/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       

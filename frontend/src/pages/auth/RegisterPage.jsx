@@ -1,10 +1,11 @@
+import { API_ORIGIN } from '@/config/api';
 // src/pages/auth/RegisterPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, User, Mail, Phone, Lock, UserPlus, Building2, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 // Ethiopian phone number validation
 const validateEthiopianPhone = (phone) => {

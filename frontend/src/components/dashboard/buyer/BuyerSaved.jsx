@@ -1,10 +1,11 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/buyer/BuyerSaved.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, MapPin, Bed, Bath, Square, ArrowRight, RefreshCw, Star, ImageOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 // Fallback images
 const PROPERTY_IMAGES = [

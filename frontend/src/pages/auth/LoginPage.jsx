@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/pages/auth/LoginPage.jsx
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
@@ -10,7 +11,7 @@ import { GoogleLogin } from '@react-oauth/google'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const LoginPage = () => {
   const navigate = useNavigate()
@@ -265,25 +266,29 @@ const LoginPage = () => {
               </button>
             </form>
 
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border-light"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-3 bg-white text-text-muted">Or continue with</span>
-              </div>
-            </div>
+            {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border-light"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-3 bg-white text-text-muted">Or continue with</span>
+                  </div>
+                </div>
 
-            <div className="flex justify-center">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
-                useOneTap={false}
-                theme="outline"
-                text="continue_with"
-                shape="rectangular"
-              />
-            </div>
+                <div className="flex justify-center">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={handleGoogleError}
+                    useOneTap={false}
+                    theme="outline"
+                    text="continue_with"
+                    shape="rectangular"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="mt-6 text-center">
               <p className="text-sm text-text-secondary">

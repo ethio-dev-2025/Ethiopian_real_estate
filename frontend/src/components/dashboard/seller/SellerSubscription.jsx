@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/seller/SellerSubscription.jsx
 import React, { useState, useEffect } from 'react';
 import { CreditCard, CheckCircle, Shield, Home, Crown, Lock, Wallet, X, Loader, AlertCircle, Clock, Calendar, Zap } from 'lucide-react';
@@ -5,7 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import useSubscription from '../../../hooks/useSubscription';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_ORIGIN;
 
 const SellerSubscription = () => {
   const { user, refreshUser, forceRefreshUser } = useAuth();

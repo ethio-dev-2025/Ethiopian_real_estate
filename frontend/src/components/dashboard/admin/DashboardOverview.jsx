@@ -1,8 +1,9 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/admin/DashboardOverview.jsx
 import React, { useState, useEffect } from 'react'
 import { Users, Home, FileCheck, CreditCard, DollarSign, Clock, TrendingUp, Activity } from 'lucide-react'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 const DashboardOverview = () => {
   const [stats, setStats] = useState({

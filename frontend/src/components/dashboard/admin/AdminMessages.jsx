@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/admin/AdminMessages.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { 
@@ -13,7 +14,7 @@ import toast from 'react-hot-toast'
 import EmojiPicker from 'emoji-picker-react'
 import UserStatus from '../../common/UserStatus'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = API_ORIGIN;
 
 // Real-time time formatter - shows exact time
 const formatMessageTime = (timestamp) => {

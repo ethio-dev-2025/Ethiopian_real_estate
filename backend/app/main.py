@@ -30,6 +30,12 @@ app = FastAPI(title=settings.APP_NAME, docs_url="/docs")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ============ CORS CONFIGURATION - FIXED ============
+configured_origins = os.getenv("CORS_ORIGINS", settings.FRONTEND_URL)
+frontend_origins = [
+    origin.strip().rstrip("/")
+    for origin in configured_origins.split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -38,6 +44,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
+        *frontend_origins,
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -93,4 +100,3 @@ from .routers import (
 )
 
 # ... rest of your code ...
-
