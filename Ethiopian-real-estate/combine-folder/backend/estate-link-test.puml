@@ -1,0 +1,87 @@
+@startuml UseCaseDiagram
+title Web-Based Digital Agricultural Marketplace - Use Case Diagram
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor #F4F8F3
+  BorderColor #426B52
+}
+skinparam actorStyle awesome
+
+actor Buyer
+actor Farmer
+actor "Agricultural Input Supplier" as Supplier
+actor Administrator as Admin
+actor "Payment Provider\n(optional)" as Payment
+
+rectangle "Digital Agricultural Marketplace" {
+  usecase "Register / Log in" as UCAuth
+  usecase "Manage Profile" as UCProfile
+  usecase "Browse and Search Products" as UCBrowse
+  usecase "View Product Details" as UCDetails
+  usecase "Place Order" as UCOrder
+  usecase "Track / Cancel Own Order" as UCTrack
+  usecase "Manage Favorites and Reviews" as UCFav
+  usecase "Send / Receive Messages" as UCMessage
+
+  usecase "Create / Edit Product Listing" as UCListing
+  usecase "Manage Stock and Availability" as UCStock
+  usecase "Review and Process Orders" as UCProcess
+  usecase "View Sales Reports" as UCSales
+
+  usecase "Manage Users and Roles" as UCUsers
+  usecase "Verify Sellers" as UCVerify
+  usecase "Moderate Product Listings" as UCModerate
+  usecase "Manage Categories" as UCCategories
+  usecase "Monitor Orders and Reports" as UCAdminReports
+
+  usecase "Validate Quantity and Price" as UCValidate
+  usecase "Check Product Availability" as UCAvailability
+  usecase "Process Online Payment" as UCPayment
+}
+
+Buyer --> UCAuth
+Buyer --> UCProfile
+Buyer --> UCBrowse
+Buyer --> UCDetails
+Buyer --> UCOrder
+Buyer --> UCTrack
+Buyer --> UCFav
+Buyer --> UCMessage
+
+Farmer --> UCAuth
+Farmer --> UCProfile
+Farmer --> UCListing
+Farmer --> UCStock
+Farmer --> UCProcess
+Farmer --> UCMessage
+Farmer --> UCSales
+
+Supplier --> UCAuth
+Supplier --> UCProfile
+Supplier --> UCListing
+Supplier --> UCStock
+Supplier --> UCProcess
+Supplier --> UCMessage
+Supplier --> UCSales
+
+Admin --> UCAuth
+Admin --> UCUsers
+Admin --> UCVerify
+Admin --> UCModerate
+Admin --> UCCategories
+Admin --> UCAdminReports
+
+UCOrder .> UCValidate : <<include>>
+UCOrder .> UCAvailability : <<include>>
+UCPayment .> UCOrder : <<extend>>
+Payment --> UCPayment
+
+note right of UCListing
+Same seller dashboard interface;
+product fields differ by seller role.
+Farmer: produce and harvest details.
+Supplier: brand and input specifications.
+end note
+@enduml

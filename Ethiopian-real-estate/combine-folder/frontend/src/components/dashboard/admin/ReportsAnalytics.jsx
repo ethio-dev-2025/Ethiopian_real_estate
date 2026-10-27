@@ -1,0 +1,520 @@
+// src/components/dashboard/admin/ReportsAnalytics.jsx
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { 
+  Users, Home, DollarSign, TrendingUp, Calendar, BarChart3, PieChart, 
+  ArrowUp, ArrowDown, RefreshCw, Eye, Building2, CreditCard, UserCheck, 
+  Clock, CheckCircle, XCircle, Activity, Zap, Award, Target, Globe,
+  Sparkles, Shield, Star, Wallet, Landmark, Briefcase, MapPin,
+  FileText, Headphones, Store
+} from 'lucide-react'
+import toast from 'react-hot-toast'
+
+const API_URL = 'http://localhost:8000'
+
+const ReportsAnalytics = () => {
+  const [reports, setReports] = useState({
+    user_registrations: [],
+    property_stats: {
+      total: 0,
+      for_sale: 0,
+      for_rent: 0,
+      active: 0,
+      pending: 0,
+      draft: 0,
+      by_property_type: {}
+    },
+    revenue_stats: {
+      total: 0,
+      this_month: 0,
+      last_month: 0,
+      trend: []
+    }
+  })
+  const [userStats, setUserStats] = useState({
+    total: 0,
+    active: 0,
+    pending: 0,
+    suspended: 0,
+    verified: 0,
+    growth: []
+  })
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [hoveredCard, setHoveredCard] = useState(null)
+  const abortControllerRef = useRef(null)
+
+  const fetchReports = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+    
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        toast.error('Authentication required')
+        return
+      }
+      
+      console.log('📊 Fetching reports data...')
+      
+      const userStatsResponse = await fetch(`${API_URL}/api/admin/stats/users`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      })
+      
+      if (userStatsResponse.ok) {
+        const data = await userStatsResponse.json()
+        console.log('📊 User stats:', data)
+        setUserStats(data)
+      }
+      
+      const listingsResponse = await fetch(`${API_URL}/api/admin/stats/listings`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      })
+      
+      if (listingsResponse.ok) {
+        const data = await listingsResponse.json()
+        console.log('📊 Listings stats:', data)
+        setReports(prev => ({
+          ...prev,
+          property_stats: {
+            total: data.total || 0,
+            for_sale: data.for_sale || 0,
+            for_rent: data.for_rent || 0,
+            active: data.active || 0,
+            pending: data.pending || 0,
+            draft: data.draft || 0,
+            by_property_type: data.by_property_type || {}
+          }
+        }))
+      }
+      
+      const revenueResponse = await fetch(`${API_URL}/api/admin/stats/revenue`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      })
+      
+      if (revenueResponse.ok) {
+        const data = await revenueResponse.json()
+        console.log('📊 Revenue stats:', data)
+        setReports(prev => ({
+          ...prev,
+          revenue_stats: {
+            total: data.total || 0,
+            this_month: data.this_month || 0,
+            last_month: data.last_month || 0,
+            trend: data.trend || []
+          }
+        }))
+      }
+      
+      const reportsResponse = await fetch(`${API_URL}/api/admin/reports`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      })
+      
+      if (reportsResponse.ok) {
+        const data = await reportsResponse.json()
+        console.log('📊 Reports data:', data)
+        setReports(prev => ({
+          ...prev,
+          user_registrations: data.user_registrations || [],
+          property_stats: {
+            ...prev.property_stats,
+            ...data.property_stats
+          }
+        }))
+      }
+      
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Error fetching reports:', error)
+        toast.error('Failed to load reports')
+      }
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchReports()
+    const interval = setInterval(fetchReports, 60000)
+    return () => {
+      clearInterval(interval)
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [fetchReports])
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchReports()
+    toast.success('📊 Reports refreshed successfully!')
+  }
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'ETB',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount || 0)
+  }
+
+  const formatNumber = (num) => {
+    return new Intl.NumberFormat('en-US').format(num || 0)
+  }
+
+  const statsCards = [
+    { 
+      title: 'Total Users', 
+      value: formatNumber(userStats.total || 0), 
+      icon: Users, 
+      gradient: 'from-primary-500 to-primary-600',
+      iconBg: 'bg-primary-100',
+      iconColor: 'text-primary-600',
+      detail: `${formatNumber(userStats.active || 0)} active users`
+    },
+    { 
+      title: 'Total Properties', 
+      value: formatNumber(reports.property_stats?.total || 0), 
+      icon: Home, 
+      gradient: 'from-secondary-500 to-secondary-600',
+      iconBg: 'bg-secondary-100',
+      iconColor: 'text-secondary-600',
+      detail: `${formatNumber(reports.property_stats?.active || 0)} active listings`
+    },
+    { 
+      title: 'Total Revenue', 
+      value: formatCurrency(reports.revenue_stats?.total || 0), 
+      icon: DollarSign, 
+      gradient: 'from-success to-green-600',
+      iconBg: 'bg-success/10',
+      iconColor: 'text-success',
+      detail: `This month: ${formatCurrency(reports.revenue_stats?.this_month || 0)}`
+    },
+  ]
+
+  const additionalStats = [
+    { title: 'Verified Users', value: formatNumber(userStats.verified || 0), icon: Shield, color: 'text-success', bgColor: 'bg-success/10' },
+    { title: 'Pending Users', value: formatNumber(userStats.pending || 0), icon: Clock, color: 'text-warning', bgColor: 'bg-warning/10' },
+    { title: 'Suspended Users', value: formatNumber(userStats.suspended || 0), icon: XCircle, color: 'text-error', bgColor: 'bg-error/10' },
+    { title: 'Properties for Sale', value: formatNumber(reports.property_stats?.for_sale || 0), icon: TrendingUp, color: 'text-primary-600', bgColor: 'bg-primary-50' },
+    { title: 'Properties for Rent', value: formatNumber(reports.property_stats?.for_rent || 0), icon: Home, color: 'text-secondary-600', bgColor: 'bg-secondary-50' },
+    { title: 'Pending Listings', value: formatNumber(reports.property_stats?.pending || 0), icon: Clock, color: 'text-warning', bgColor: 'bg-warning/10' },
+  ]
+
+  const propertyDistribution = [
+    { label: 'Properties for Sale', value: reports.property_stats?.for_sale || 0, color: 'from-primary-500 to-primary-600', icon: TrendingUp },
+    { label: 'Properties for Rent', value: reports.property_stats?.for_rent || 0, color: 'from-secondary-500 to-secondary-600', icon: Home },
+    { label: 'Active Properties', value: reports.property_stats?.active || 0, color: 'from-success to-green-600', icon: CheckCircle },
+    { label: 'Pending Properties', value: reports.property_stats?.pending || 0, color: 'from-warning to-orange-500', icon: Clock },
+    { label: 'Draft Properties', value: reports.property_stats?.draft || 0, color: 'from-gray-500 to-slate-500', icon: FileText },
+  ]
+
+  const totalForDistribution = reports.property_stats?.total || 1
+  const chartData = userStats.growth?.length > 0 ? userStats.growth : reports.user_registrations || []
+  const maxRegistration = Math.max(...(chartData.map(r => r.count || r.registrations || 0)), 1)
+
+  if (loading && chartData.length === 0) {
+    return (
+      <div className="p-8 bg-gradient-to-br from-background to-gray-100 min-h-screen">
+        <div className="mb-8">
+          <div className="h-10 bg-gray-200 rounded-xl w-64 mb-3 animate-pulse"></div>
+          <div className="h-5 bg-gray-200 rounded-xl w-96 animate-pulse"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-white rounded-2xl shadow-lg p-6 animate-pulse">
+              <div className="h-6 bg-gray-200 rounded-lg w-32 mb-4"></div>
+              <div className="h-10 bg-gray-200 rounded-lg w-40"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-8 bg-gradient-to-br from-background via-white to-background min-h-screen">
+      {/* Header Section */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-3 bg-gradient-to-r from-primary-600 to-primary-700 rounded-2xl shadow-lg">
+                <BarChart3 className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">
+                Reports & Analytics
+              </h1>
+            </div>
+            <p className="text-text-muted ml-14">Real-time platform performance insights and analytics</p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="group px-5 py-2.5 bg-white border border-border-light rounded-xl hover:shadow-md transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-text-muted group-hover:rotate-180 transition-transform duration-500 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="text-sm font-medium text-text-secondary">{refreshing ? 'Refreshing...' : 'Refresh Data'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {statsCards.map((stat, index) => {
+          const Icon = stat.icon
+          const isHovered = hoveredCard === index
+          return (
+            <div
+              key={index}
+              className="relative group cursor-pointer"
+              onMouseEnter={() => setHoveredCard(index)}
+              onMouseLeave={() => setHoveredCard(null)}
+            >
+              <div className={`absolute inset-0 bg-gradient-to-r ${stat.gradient} rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-500`}></div>
+              <div className={`relative bg-white rounded-2xl shadow-lg border border-border-light p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`p-3 rounded-xl ${stat.iconBg} group-hover:scale-110 transition-transform duration-300`}>
+                    <Icon className={`w-6 h-6 ${stat.iconColor}`} />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-bold text-text-primary mb-1">{stat.value}</h3>
+                <p className="text-sm text-text-muted mb-2">{stat.title}</p>
+                <p className="text-xs text-text-muted">{stat.detail}</p>
+                <div className="mt-4 h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full w-0 bg-gradient-to-r ${stat.gradient} rounded-full transition-all duration-1000 ${isHovered ? 'w-full' : 'w-3/4'}`}></div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Quick Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        {additionalStats.map((stat, index) => {
+          const Icon = stat.icon
+          return (
+            <div
+              key={index}
+              className="bg-white rounded-xl border border-border-light p-4 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 group"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <div className={`p-2 rounded-lg ${stat.bgColor} group-hover:scale-110 transition-transform duration-300`}>
+                  <Icon className={`w-4 h-4 ${stat.color}`} />
+                </div>
+                <p className="text-xs font-medium text-text-muted uppercase tracking-wider">{stat.title}</p>
+              </div>
+              <p className="text-2xl font-bold text-text-primary">{stat.value}</p>
+              <div className="mt-2 w-full bg-gray-100 rounded-full h-1">
+                <div className={`h-full w-0 ${stat.bgColor} rounded-full transition-all duration-700 group-hover:w-full`}></div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* User Growth Chart */}
+      <div className="bg-white rounded-2xl shadow-lg border border-border-light p-6 mb-8 hover:shadow-xl transition-all duration-300">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+              <div className="p-2 bg-primary-100 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-primary-600" />
+              </div>
+              User Growth Over Time
+            </h2>
+            <p className="text-sm text-text-muted mt-1">Monthly user registration trends</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-primary-500 rounded-full"></div>
+              <span className="text-xs text-text-muted">New Users</span>
+            </div>
+            <div className="px-3 py-1 bg-gray-100 rounded-lg">
+              <span className="text-xs text-text-muted">Last 6 months</span>
+            </div>
+          </div>
+        </div>
+        <div className="h-80 flex items-end gap-4">
+          {chartData.length > 0 ? (
+            chartData.slice(-6).map((item, idx) => {
+              const count = item.count || item.registrations || 0
+              const month = item.month || ''
+              const height = (count / maxRegistration) * 250
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center group">
+                  <div className="relative w-full">
+                    <div 
+                      className="w-full bg-gradient-to-t from-primary-500 to-primary-400 rounded-t-xl transition-all duration-500 hover:from-primary-600 hover:to-primary-500 cursor-pointer relative overflow-hidden"
+                      style={{ height: `${height}px` }}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                    </div>
+                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap shadow-lg">
+                      📊 {count} new users
+                    </div>
+                  </div>
+                  <p className="text-xs font-medium text-text-secondary mt-3">{month}</p>
+                  <p className="text-xs font-bold text-text-primary mt-1">{formatNumber(count)}</p>
+                </div>
+              )
+            })
+          ) : (
+            <div className="w-full text-center text-text-muted py-12">
+              <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>No registration data available</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Property Distribution and Platform Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Property Distribution */}
+        <div className="bg-white rounded-2xl shadow-lg border border-border-light p-6 hover:shadow-xl transition-all duration-300">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+                <div className="p-2 bg-secondary-100 rounded-lg">
+                  <PieChart className="w-5 h-5 text-secondary-600" />
+                </div>
+                Property Distribution
+              </h2>
+              <p className="text-sm text-text-muted mt-1">Breakdown by property status</p>
+            </div>
+          </div>
+          <div className="space-y-5">
+            {propertyDistribution.map((item, idx) => {
+              const Icon = item.icon
+              const percentage = totalForDistribution > 0 ? (item.value / totalForDistribution) * 100 : 0
+              return (
+                <div key={idx} className="group">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-2">
+                      <Icon className="w-4 h-4 text-text-muted" />
+                      <span className="text-sm font-medium text-text-secondary">{item.label}</span>
+                    </div>
+                    <div className="flex gap-3">
+                      <span className="text-sm font-bold text-text-primary">{formatNumber(item.value)}</span>
+                      <span className="text-xs text-text-muted">({percentage.toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className={`bg-gradient-to-r ${item.color} rounded-full h-2 transition-all duration-700 ease-out group-hover:opacity-80`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Platform Overview */}
+        <div className="bg-white rounded-2xl shadow-lg border border-border-light p-6 hover:shadow-xl transition-all duration-300">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+                <div className="p-2 bg-success/10 rounded-lg">
+                  <Activity className="w-5 h-5 text-success" />
+                </div>
+                Platform Overview
+              </h2>
+              <p className="text-sm text-text-muted mt-1">Key metrics at a glance</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {[
+              { icon: Users, label: 'Total Users', value: formatNumber(userStats.total || 0), color: 'text-primary-600', bg: 'bg-primary-50' },
+              { icon: Shield, label: 'Verified Users', value: formatNumber(userStats.verified || 0), color: 'text-success', bg: 'bg-success/10' },
+              { icon: Home, label: 'Properties for Sale', value: formatNumber(reports.property_stats?.for_sale || 0), color: 'text-primary-600', bg: 'bg-primary-50' },
+              { icon: Building2, label: 'Properties for Rent', value: formatNumber(reports.property_stats?.for_rent || 0), color: 'text-secondary-600', bg: 'bg-secondary-50' },
+              { icon: CheckCircle, label: 'Active Properties', value: formatNumber(reports.property_stats?.active || 0), color: 'text-success', bg: 'bg-success/10' },
+              { icon: Clock, label: 'Pending Properties', value: formatNumber(reports.property_stats?.pending || 0), color: 'text-warning', bg: 'bg-warning/10' },
+              { icon: DollarSign, label: 'Total Revenue', value: formatCurrency(reports.revenue_stats?.total || 0), color: 'text-success', bg: 'bg-success/10' },
+            ].map((item, idx) => {
+              const Icon = item.icon
+              return (
+                <div key={idx} className="flex justify-between items-center py-3 px-4 rounded-xl hover:bg-gray-50 transition-all duration-300 group">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${item.bg} group-hover:scale-110 transition-transform duration-300`}>
+                      <Icon className={`w-4 h-4 ${item.color}`} />
+                    </div>
+                    <span className="text-sm text-text-secondary">{item.label}</span>
+                  </div>
+                  <span className="font-bold text-text-primary text-lg">{item.value}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Property Type Breakdown */}
+      {reports.property_stats?.by_property_type && Object.keys(reports.property_stats.by_property_type).length > 0 && (
+        <div className="bg-white rounded-2xl shadow-lg border border-border-light p-6 hover:shadow-xl transition-all duration-300">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <Building2 className="w-5 h-5 text-indigo-600" />
+                </div>
+                Property Type Breakdown
+              </h2>
+              <p className="text-sm text-text-muted mt-1">Distribution by property category</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {Object.entries(reports.property_stats.by_property_type).map(([type, count], idx) => {
+              const gradients = [
+                'from-primary-500 to-primary-600',
+                'from-secondary-500 to-secondary-600',
+                'from-success to-green-600',
+                'from-warning to-orange-500',
+                'from-indigo-500 to-purple-500',
+                'from-cyan-500 to-sky-500'
+              ]
+              const gradient = gradients[idx % gradients.length]
+              return (
+                <div key={type} className="relative group cursor-pointer">
+                  <div className={`absolute inset-0 bg-gradient-to-r ${gradient} rounded-xl blur-md opacity-0 group-hover:opacity-30 transition-opacity duration-500`}></div>
+                  <div className="relative bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 text-center border border-border-light group-hover:border-transparent transition-all duration-300">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-r bg-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <Building2 className="w-6 h-6 text-text-secondary" />
+                    </div>
+                    <p className="text-xs font-medium text-text-muted capitalize mb-1">{type}</p>
+                    <p className="text-2xl font-bold text-text-primary">{formatNumber(count)}</p>
+                    <div className="mt-2 w-full bg-gray-100 rounded-full h-1">
+                      <div className={`h-full w-0 bg-gradient-to-r ${gradient} rounded-full transition-all duration-700 group-hover:w-full`}></div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="mt-8 text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-border-light">
+          <Activity className="w-3 h-3 text-success animate-pulse" />
+          <span className="text-xs text-text-muted">Live Data • Last updated: {new Date().toLocaleString()}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default ReportsAnalytics
