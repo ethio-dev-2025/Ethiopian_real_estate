@@ -5,12 +5,8 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Lock, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Input from '@/components/ui/Input';
-import Button from '@/components/ui/Button';
-import ErrorMessage from '@/components/common/ErrorMessage';
-import { authApi } from '@/features/auth/services/authApi';
-import { getApiError } from '@/services/api/interceptors';
-import { ROUTES } from '@/constants/routes';
+import Button from '@/components/common/Button';
+import { authAPI } from '@/services/api';
 
 const schema = z.object({
   password: z.string().min(8, 'At least 8 characters'),
@@ -38,7 +34,7 @@ export default function ResetPasswordPage() {
         </div>
         <h1 className="mt-5 text-2xl font-bold text-[#24332A]">Invalid reset link</h1>
         <p className="mt-2 text-sm text-[#647067]">This password reset link is missing its token.</p>
-        <Link to={ROUTES.FORGOT_PASSWORD} className="inline-block mt-6">
+        <Link to="/forgot-password" className="inline-block mt-6">
           <Button>Request new link</Button>
         </Link>
       </div>
@@ -49,12 +45,17 @@ export default function ResetPasswordPage() {
     setLoading(true);
     setApiError('');
     try {
-      await authApi.resetPassword(token, password);
+      await authAPI.resetPassword(token, password);
       setSuccess(true);
       toast.success('Password updated!');
-      setTimeout(() => navigate(ROUTES.LOGIN, { replace: true }), 2200);
+      setTimeout(() => navigate('/login', { replace: true }), 2200);
     } catch (err) {
-      setApiError(getApiError(err));
+      setApiError(
+        err.response?.data?.detail
+        || err.response?.data?.message
+        || err.message
+        || 'Unable to update password. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -78,33 +79,67 @@ export default function ResetPasswordPage() {
       <p className="mt-1 text-sm text-[#647067]">Choose a strong password with at least 8 characters.</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
-        {apiError && <ErrorMessage message={apiError} />}
-        
-        <Input
-          label="New password"
-          type="password"
-          placeholder="At least 8 characters"
-          icon={Lock}
-          autoComplete="new-password"
-          error={errors.password?.message}
-          {...register('password')}
-        />
-        <Input
-          label="Confirm password"
-          type="password"
-          placeholder="Repeat password"
-          icon={Lock}
-          autoComplete="new-password"
-          error={errors.confirm?.message}
-          {...register('confirm')}
-        />
-        <Button type="submit" className="w-full bg-[#176B3A] hover:bg-[#0D4528] text-white py-3.5 text-lg font-bold" loading={loading}>
+        {apiError && (
+          <p role="alert" className="rounded-lg border border-[#F2C7C4] bg-[#FDECEB] px-3 py-2 text-sm text-[#C0392B]">
+            {apiError}
+          </p>
+        )}
+
+        <div>
+          <label htmlFor="password" className="mb-2 block text-sm font-medium text-[#24332A]">
+            New password
+          </label>
+          <div className="relative">
+            <Lock aria-hidden="true" className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#647067]" />
+            <input
+              id="password"
+              type="password"
+              placeholder="At least 8 characters"
+              autoComplete="new-password"
+              aria-invalid={Boolean(errors.password)}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              className="w-full rounded-xl border border-[#D7DED9] py-3 pl-10 pr-4 text-[#24332A] focus:border-[#176B3A] focus:outline-none focus:ring-2 focus:ring-[#176B3A]/20"
+              {...register('password')}
+            />
+          </div>
+          {errors.password && (
+            <p id="password-error" className="mt-1 text-sm text-[#C0392B]">
+              {errors.password.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="confirm" className="mb-2 block text-sm font-medium text-[#24332A]">
+            Confirm password
+          </label>
+          <div className="relative">
+            <Lock aria-hidden="true" className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#647067]" />
+            <input
+              id="confirm"
+              type="password"
+              placeholder="Repeat password"
+              autoComplete="new-password"
+              aria-invalid={Boolean(errors.confirm)}
+              aria-describedby={errors.confirm ? 'confirm-error' : undefined}
+              className="w-full rounded-xl border border-[#D7DED9] py-3 pl-10 pr-4 text-[#24332A] focus:border-[#176B3A] focus:outline-none focus:ring-2 focus:ring-[#176B3A]/20"
+              {...register('confirm')}
+            />
+          </div>
+          {errors.confirm && (
+            <p id="confirm-error" className="mt-1 text-sm text-[#C0392B]">
+              {errors.confirm.message}
+            </p>
+          )}
+        </div>
+
+        <Button type="submit" className="w-full bg-[#176B3A] py-3.5 text-lg font-bold text-white hover:bg-[#0D4528]" loading={loading}>
           Update password
         </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-[#647067]">
-        <Link to={ROUTES.LOGIN} className="text-[#176B3A] font-bold hover:underline inline-flex items-center gap-1">
+        <Link to="/login" className="text-[#176B3A] font-bold hover:underline inline-flex items-center gap-1">
           <ArrowLeft className="h-4 w-4" /> Back to sign in
         </Link>
       </p>
