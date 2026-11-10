@@ -1,5 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
-// src/components/dashboard/admin/AdminMessages.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { 
   MessageCircle, Search, Send, CheckCircle, Users, RefreshCw, 
@@ -14,9 +12,8 @@ import toast from 'react-hot-toast'
 import EmojiPicker from 'emoji-picker-react'
 import UserStatus from '../../common/UserStatus'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
-// Real-time time formatter - shows exact time
 const formatMessageTime = (timestamp) => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
@@ -89,6 +86,7 @@ const AdminMessages = () => {
   const imageInputRef = useRef(null)
   const inputRef = useRef(null)
   const emojiPickerRef = useRef(null)
+  const replyTextareaRef = useRef(null)
   const hasSentReadReceipt = useRef(false)
 
   const scrollToBottom = () => {
@@ -97,7 +95,6 @@ const AdminMessages = () => {
     }, 100)
   }
 
-  // Telegram-style status icons
   const getStatusIcon = (status, isOwn) => {
     if (!isOwn) return null
     switch (status) {
@@ -143,7 +140,6 @@ const AdminMessages = () => {
     localStorage.setItem('admin_unread_count', count.toString())
   }, [])
 
-  // Fetch conversations
   const fetchConversations = useCallback(async () => {
     try {
       const accessToken = localStorage.getItem('access_token')
@@ -163,7 +159,6 @@ const AdminMessages = () => {
     }
   }, [updateGlobalUnreadBadge])
 
-  // Fetch all users
   const fetchAllUsers = useCallback(async () => {
     try {
       setLoading(true)
@@ -193,7 +188,6 @@ const AdminMessages = () => {
     }
   }, [user?.id])
 
-  // Fetch contact messages
   const fetchContactMessages = useCallback(async () => {
     try {
       const accessToken = localStorage.getItem('access_token')
@@ -210,13 +204,13 @@ const AdminMessages = () => {
     }
   }, [])
 
-  // Mark contact message as read
   const markContactMessageRead = async (messageId) => {
     try {
       const accessToken = localStorage.getItem('access_token')
-      await fetch(`${API_URL}/api/contact/admin/messages/${messageId}/read`, {
+      await fetch(`${API_URL}/api/contact/admin/mark-read`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}` }
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId })
       })
       fetchContactMessages()
       toast.success('Message marked as read')
@@ -225,8 +219,9 @@ const AdminMessages = () => {
     }
   }
 
-  // Delete contact message
   const deleteContactMessage = async (messageId) => {
+    if (!window.confirm('Are you sure you want to delete this message?')) return
+    
     try {
       const accessToken = localStorage.getItem('access_token')
       await fetch(`${API_URL}/api/contact/admin/messages/${messageId}`, {
@@ -237,19 +232,21 @@ const AdminMessages = () => {
       toast.success('Message deleted')
     } catch (error) {
       console.error('Error deleting message:', error)
+      toast.error('Failed to delete message')
     }
   }
 
-  // Open reply modal for contact message
   const openReplyModal = (message) => {
     setSelectedContactMessage(message)
     setReplyEmail(message.email)
     setReplySubject(`Re: ${message.subject}`)
-    setReplyMessage(`\n\n--- Original Message ---\nFrom: ${message.name}\nEmail: ${message.email}\nSubject: ${message.subject}\n\n${message.message}`)
+    
+    const replyBody = `Dear ${message.name},\n\n`
+    
+    setReplyMessage(replyBody)
     setShowReplyModal(true)
   }
 
-  // Send reply email
   const sendReplyEmail = async () => {
     if (!replyMessage.trim()) {
       toast.error('Please enter a reply message')
@@ -257,9 +254,11 @@ const AdminMessages = () => {
     }
 
     setSendingReply(true)
+    const toastId = toast.loading('Sending reply...')
+    
     try {
       const accessToken = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/api/contact/admin/send-reply`, {
+      const response = await fetch(`${API_URL}/api/contact/admin/reply`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -267,33 +266,36 @@ const AdminMessages = () => {
         },
         body: JSON.stringify({
           message_id: selectedContactMessage?.id,
-          to_email: replyEmail,
-          subject: replySubject,
-          message: replyMessage
+          reply_content: replyMessage,
+          reply_subject: replySubject
         })
       })
 
       const data = await response.json()
       
       if (response.ok && data.success) {
-        toast.success('Reply sent successfully!')
+        if (data.email_sent) {
+          toast.success('Reply sent successfully! The customer will receive an email.', { id: toastId })
+        } else {
+          toast.warning('Reply saved (email not sent). Please check SMTP settings.', { id: toastId })
+        }
         setShowReplyModal(false)
         setReplyEmail('')
         setReplySubject('')
         setReplyMessage('')
         setSelectedContactMessage(null)
+        fetchContactMessages()
       } else {
-        toast.error(data.detail || 'Failed to send reply')
+        toast.error(data.detail || data.message || 'Failed to send reply', { id: toastId })
       }
     } catch (error) {
       console.error('Error sending reply:', error)
-      toast.error('Failed to send reply. Please try again.')
+      toast.error('Failed to send reply. Please try again.', { id: toastId })
     } finally {
       setSendingReply(false)
     }
   }
 
-  // Fetch messages with proper status handling
   const fetchMessages = useCallback(async (userId) => {
     try {
       const accessToken = localStorage.getItem('access_token')
@@ -328,7 +330,6 @@ const AdminMessages = () => {
             reader_id: user?.id,
             sender_id: userId
           })
-          console.log(`📤 Sent read receipt to user ${userId}`)
         }
         
         const newTotal = conversations.filter(c => c.user_id !== userId).reduce((sum, c) => sum + (c.unread_count || 0), 0)
@@ -341,8 +342,6 @@ const AdminMessages = () => {
   }, [socket, isConnected, emit, user?.id, conversations, updateGlobalUnreadBadge])
 
   const openConversation = useCallback(async (userId, userName, userRole) => {
-    console.log('🔔 Opening conversation with user:', userId, userName)
-    
     let conversation = conversations.find(c => c.user_id === userId)
     
     if (!conversation) {
@@ -368,8 +367,6 @@ const AdminMessages = () => {
     setTimeout(() => {
       scrollToBottom()
     }, 500)
-    
-    toast.success(`Now chatting with ${userName}`)
   }, [conversations, fetchMessages, getUserPresence])
 
   const sendMessage = async () => {
@@ -562,11 +559,17 @@ const AdminMessages = () => {
   const onEmojiClick = (emojiData) => {
     if (showReplyModal) {
       setReplyMessage(prev => prev + emojiData.emoji)
+      // Focus back on textarea after emoji selection
+      setTimeout(() => {
+        if (replyTextareaRef.current) {
+          replyTextareaRef.current.focus()
+        }
+      }, 50)
     } else {
       setNewMessage(prev => prev + emojiData.emoji)
+      setShowEmojiPicker(false)
+      inputRef.current?.focus()
     }
-    setShowEmojiPicker(false)
-    inputRef.current?.focus()
   }
 
   const handleInputChange = (e) => {
@@ -617,13 +620,10 @@ const AdminMessages = () => {
 
   useEffect(() => {
     if (!socket || !isConnected) {
-      console.log('⚠️ WebSocket not available')
       return
     }
 
     const handleWebSocketMessage = (data) => {
-      console.log('📨 WebSocket message:', data.type)
-      
       if (data.type === 'new_message') {
         const msg = data.message
         const isCurrentConversation = selectedConversation?.user_id === msg.sender_id
@@ -686,7 +686,6 @@ const AdminMessages = () => {
       
       if (data.type === 'messages_read') {
         const readerId = data.reader_id
-        console.log(`📖 READ RECEIPT RECEIVED: User ${readerId} read messages`)
         
         setConversations(prev => prev.map(c =>
           c.user_id === readerId ? { ...c, unread_count: 0 } : c
@@ -696,7 +695,6 @@ const AdminMessages = () => {
         setMessages(prev => {
           const updated = prev.map(m => {
             if (m.sender_id === user?.id && m.receiver_id === readerId && m.status !== 'read') {
-              console.log(`   ✅ Updating message ${m.id} status from '${m.status}' to 'read'`)
               hasUpdates = true
               return { ...m, status: 'read' }
             }
@@ -706,7 +704,6 @@ const AdminMessages = () => {
         })
         
         if (hasUpdates) {
-          console.log('🔄 Messages updated with read receipts, refreshing UI')
           setTimeout(() => {
             scrollToBottom()
           }, 100)
@@ -717,7 +714,6 @@ const AdminMessages = () => {
         updateGlobalUnreadBadge(newTotal)
       }
       
-      // Contact message notification
       if (data.type === 'new_contact_message') {
         toast.info(`📬 New contact message from ${data.message.name}`, {
           duration: 8000,
@@ -925,9 +921,34 @@ const AdminMessages = () => {
     }
   }
 
-  // Reply Modal Component
+  // ============ FIXED REPLY MODAL - NO CURSOR ISSUE ============
   const ReplyModal = () => {
-    if (!showReplyModal) return null
+    const subject = encodeURIComponent(replySubject)
+    const body = encodeURIComponent(replyMessage)
+    const mailtoUrl = `mailto:${replyEmail}?subject=${subject}&body=${body}`
+    
+    // Track if we've set the cursor position
+    const hasSetCursorRef = useRef(false)
+    
+    // Focus and set cursor position when modal opens
+    useEffect(() => {
+      if (showReplyModal && replyTextareaRef.current && !hasSetCursorRef.current) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          if (replyTextareaRef.current) {
+            replyTextareaRef.current.focus()
+            const len = replyMessage.length
+            replyTextareaRef.current.setSelectionRange(len, len)
+            hasSetCursorRef.current = true
+          }
+        }, 150)
+      }
+      
+      // Reset flag when modal closes
+      if (!showReplyModal) {
+        hasSetCursorRef.current = false
+      }
+    }, [showReplyModal, replyMessage.length])
     
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -965,13 +986,23 @@ const AdminMessages = () => {
               <div>
                 <label className="block text-sm font-medium text-text-primary mb-1">Message:</label>
                 <textarea
-                  value={replyMessage}
+                  key={selectedContactMessage?.id || 'reply-textarea'}
+                  ref={replyTextareaRef}
+                  defaultValue={replyMessage}
                   onChange={(e) => setReplyMessage(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  rows={10}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !sendingReply) {
+                      e.preventDefault()
+                      sendReplyEmail()
+                    }
+                  }}
+                  rows={12}
                   className="w-full px-3 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                  placeholder="Type your reply here..."
+                  placeholder="Type your reply here... (Press Enter to send, Shift+Enter for new line)"
                 />
+                <p className="text-xs text-text-muted mt-2">
+                  💡 Tip: Press Enter to send, Shift+Enter for new line
+                </p>
               </div>
             </div>
           </div>
@@ -983,6 +1014,18 @@ const AdminMessages = () => {
             >
               Cancel
             </button>
+            
+            <button
+              onClick={() => {
+                window.open(mailtoUrl, '_blank')
+              }}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
+              title="Opens your default email client"
+            >
+              <Mail className="w-4 h-4" />
+              Open in Email
+            </button>
+            
             <button
               onClick={sendReplyEmail}
               disabled={sendingReply}
@@ -1005,6 +1048,7 @@ const AdminMessages = () => {
       </div>
     )
   }
+  // ============ END OF FIXED REPLY MODAL ============
 
   // Contact Messages List Component
   const ContactMessagesList = () => {
@@ -1045,7 +1089,7 @@ const AdminMessages = () => {
             <h4 className="font-medium text-text-primary mb-2">{msg.subject}</h4>
             <p className="text-text-secondary text-sm mb-4">{msg.message}</p>
             
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               {!msg.is_read && (
                 <button
                   onClick={() => markContactMessageRead(msg.id)}
@@ -1067,7 +1111,7 @@ const AdminMessages = () => {
                 <Trash2 className="w-3 h-3" /> Delete
               </button>
               <a
-                href={`mailto:${msg.email}`}
+                href={`mailto:${msg.email}?subject=${encodeURIComponent(`Re: ${msg.subject}`)}&body=${encodeURIComponent(`\n\n--- Original Message ---\nFrom: ${msg.name}\nEmail: ${msg.email}\nSubject: ${msg.subject}\n\n${msg.message}\n---\n`)}`}
                 className="text-sm text-text-muted hover:text-text-secondary flex items-center gap-1"
                 target="_blank"
                 rel="noopener noreferrer"

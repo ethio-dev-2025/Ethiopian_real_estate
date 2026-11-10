@@ -1,4 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/buyer/BuyerProperties.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +9,7 @@ import {
 import { listingsAPI } from '../../../services/api/listingsApi';
 import toast from 'react-hot-toast';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Simple Select Component
 const SimpleSelect = ({ value, onChange, options, label }) => {
@@ -120,9 +119,9 @@ const BuyerProperties = () => {
     }
     return [
       { value: 'all', label: 'Any Price' },
-      { value: 'under-5m', label: 'Under ETB 5M' },
-      { value: '5m-15m', label: 'ETB 5M - 15M' },
-      { value: 'above-15m', label: 'Above ETB 15M' }
+      { value: 'under-5m', label: 'Under ETB 5,000,000' },
+      { value: '5m-15m', label: 'ETB 5,000,000 - 15,000,000' },
+      { value: 'above-15m', label: 'Above ETB 15,000,000' }
     ];
   };
 
@@ -272,10 +271,8 @@ const BuyerProperties = () => {
 
   const formatPrice = (price, type) => {
     if (!price) return 'ETB 0';
-    if (type === 'rent') return `ETB ${price.toLocaleString()}/month`;
-    if (price >= 10000000) return `ETB ${(price / 10000000).toFixed(1)} Cr`;
-    if (price >= 1000000) return `ETB ${(price / 1000000).toFixed(1)} M`;
-    return `ETB ${price.toLocaleString()}`;
+    if (type === 'rent') return `ETB ${price.toLocaleString('en-US')}/month`;
+    return `ETB ${price.toLocaleString('en-US')}`;
   };
 
   const resetFilters = () => {

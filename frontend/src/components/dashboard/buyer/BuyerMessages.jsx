@@ -1,5 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
-// src/components/dashboard/buyer/BuyerMessages.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
@@ -9,13 +7,13 @@ import {
   Search, Send, Paperclip, Image, File, X, CheckCheck,
   Check, Clock, MessageCircle, AlertCircle, Loader,
   ArrowLeft, Download, User, Users, MessageSquare, RefreshCw,
-  Maximize2, Minimize2, Eye, Smile, Reply, Copy
+  Maximize2, Minimize2, Eye, Smile, Reply, Copy, Shield
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import EmojiPicker from 'emoji-picker-react';
 import UserStatus from '../../common/UserStatus';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const formatMessageTime = (timestamp) => {
   if (!timestamp) return '';
@@ -143,7 +141,7 @@ const BuyerMessages = () => {
 
   const getRoleBadge = (role) => {
     switch(role?.toLowerCase()) {
-      case 'admin': return <span className="text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded">Admin</span>;
+      case 'admin': return <span className="text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded flex items-center gap-1"><Shield className="w-3 h-3" /> Admin</span>;
       case 'seller': return <span className="text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded">Seller</span>;
       case 'landlord': return <span className="text-xs text-success bg-success/10 px-2 py-0.5 rounded">Landlord</span>;
       case 'dual': return <span className="text-xs text-secondary-600 bg-secondary-50 px-2 py-0.5 rounded">Dual</span>;
@@ -223,6 +221,7 @@ const BuyerMessages = () => {
     }
   }, [updateGlobalUnreadBadge]);
 
+  // FIXED: fetchAllUsers with MANUAL ADMIN added
   const fetchAllUsers = useCallback(async () => {
     try {
       setLoading(true);
@@ -232,36 +231,115 @@ const BuyerMessages = () => {
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/buyer/users`, {
+      // Get existing conversations first
+      const convResponse = await fetch(`${API_URL}/api/buyer/conversations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        const usersList = Array.isArray(data) ? data : data.users || [];
-        
-        const formattedUsers = usersList.map(u => ({
-          id: u.user_id || u.id,
-          user_id: u.user_id || u.id,
-          user_name: u.user_name || u.full_name || u.username,
-          user_role: u.user_role || u.role_type,
-          user_avatar: u.user_avatar || u.avatar_url,
-          email: u.email,
-          last_message: u.last_message || null,
-          last_message_at: u.last_message_at || null,
-          unread_count: u.unread_count || 0,
-          is_online: u.is_online || false,
-          active_listing_count: u.active_listing_count || 0,
-          conversation_id: u.conversation_id || null
+      
+      let conversationUsers = [];
+      if (convResponse.ok) {
+        const convData = await convResponse.json();
+        conversationUsers = (Array.isArray(convData) ? convData : []).map(c => ({
+          id: c.user_id,
+          user_id: c.user_id,
+          user_name: c.user_name,
+          user_role: c.user_role,
+          user_avatar: c.user_avatar,
+          last_message: c.last_message,
+          last_message_at: c.last_message_at,
+          unread_count: c.unread_count || 0,
+          conversation_id: c.id,
+          active_listing_count: c.active_listing_count || 0
         }));
-
-        console.log('📋 Buyers can message these users (Admins + Existing Conversations only):', 
-          formattedUsers.map(u => `${u.user_name} (${u.user_role}) - Has conversation: ${!!u.conversation_id}`));
-        
-        setAllUsers(formattedUsers);
       }
+      
+      // MANUAL ADMIN - Add admin user directly (ID 2 - melkamuenyew90@gmail.com)
+      const manualAdminUsers = [
+        {
+          id: 2,
+          user_id: 2,
+          user_name: 'System Admin',
+          user_role: 'admin',
+          user_avatar: null,
+          last_message: null,
+          last_message_at: null,
+          unread_count: 0,
+          conversation_id: null,
+          active_listing_count: 0
+        }
+      ];
+      
+      // Try to fetch admin users from API (as backup)
+      let apiAdminUsers = [];
+      try {
+        const adminResponse = await fetch(`${API_URL}/api/users/admins`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (adminResponse.ok) {
+          const adminData = await adminResponse.json();
+          if (Array.isArray(adminData)) {
+            apiAdminUsers = adminData.map(admin => ({
+              id: admin.id,
+              user_id: admin.id,
+              user_name: admin.full_name || admin.username || 'Admin',
+              user_role: 'admin',
+              user_avatar: admin.avatar_url,
+              last_message: null,
+              last_message_at: null,
+              unread_count: 0,
+              conversation_id: null,
+              active_listing_count: 0
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching admins from API:', err);
+      }
+      
+      // Use manual admin if API returned nothing, otherwise use API results
+      let adminUsers = apiAdminUsers.length > 0 ? apiAdminUsers : manualAdminUsers;
+      
+      console.log('📋 Admin users to display:', adminUsers);
+      
+      // Combine admin users and conversation users (no duplicates)
+      const allUsersMap = new Map();
+      
+      // Add admin users first (so they appear at the top)
+      adminUsers.forEach(admin => {
+        allUsersMap.set(admin.user_id, {
+          ...admin,
+          source: 'admin'
+        });
+      });
+      
+      // Add conversation users (skip if already added as admin)
+      conversationUsers.forEach(user => {
+        if (!allUsersMap.has(user.user_id)) {
+          allUsersMap.set(user.user_id, {
+            ...user,
+            source: 'conversation'
+          });
+        }
+      });
+      
+      const combinedUsers = Array.from(allUsersMap.values());
+      
+      // Sort: Admin first, then by last_message_at
+      combinedUsers.sort((a, b) => {
+        if (a.user_role === 'admin' && b.user_role !== 'admin') return -1;
+        if (a.user_role !== 'admin' && b.user_role === 'admin') return 1;
+        const dateA = a.last_message_at ? new Date(a.last_message_at) : 0;
+        const dateB = b.last_message_at ? new Date(b.last_message_at) : 0;
+        return dateB - dateA;
+      });
+      
+      console.log('📋 Final All Users for buyer messaging:', combinedUsers.map(u => `${u.user_name} (${u.user_role})`));
+      
+      setAllUsers(combinedUsers);
+      
     } catch (error) {
-      console.error('Error fetching all users:', error);
+      console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
@@ -960,6 +1038,7 @@ const BuyerMessages = () => {
             <div className="text-center py-12 text-text-muted">
               <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p className="text-sm">No conversations yet. Switch to "All Users" to start a new chat.</p>
+              <p className="text-xs mt-2 text-gray-400">Admin users are always available to contact</p>
             </div>
           ) : (
             filteredList.map(item => (
@@ -983,7 +1062,11 @@ const BuyerMessages = () => {
                 }`}
               >
                 <div className="relative flex-shrink-0">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-primary-600 to-secondary-500 flex items-center justify-center text-white font-bold text-lg">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                    item.user_role === 'admin' 
+                      ? 'bg-gradient-to-r from-red-600 to-red-700' 
+                      : 'bg-gradient-to-r from-primary-600 to-secondary-500'
+                  }`}>
                     {item.user_name?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                   {isUserOnline(item.user_id) && (
@@ -998,8 +1081,9 @@ const BuyerMessages = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1">
-                      <h3 className={`font-semibold truncate ${item.unread_count > 0 ? 'text-text-primary' : 'text-text-secondary'}`}>
+                      <h3 className={`font-semibold truncate flex items-center gap-1 ${item.unread_count > 0 ? 'text-text-primary' : 'text-text-secondary'}`}>
                         {item.user_name}
+                        {item.user_role === 'admin' && <Shield className="w-4 h-4 text-red-500" />}
                       </h3>
                     </div>
                     {item.last_message_at && (
@@ -1008,7 +1092,7 @@ const BuyerMessages = () => {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {getRoleBadge(item.user_role)}
                     {item.active_listing_count > 0 && (
                       <span className="text-xs text-success bg-success/10 px-1.5 py-0.5 rounded">
@@ -1041,18 +1125,20 @@ const BuyerMessages = () => {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {selectedConversation ? (
           <>
-            <div className="bg-gradient-to-r from-primary-700 to-primary-800 text-white border-b border-primary-900 p-4 flex items-center gap-3 flex-shrink-0 shadow-md">
+            <div className={`bg-gradient-to-r ${selectedConversation.user_role === 'admin' ? 'from-red-700 to-red-800' : 'from-primary-700 to-primary-800'} text-white border-b border-primary-900 p-4 flex items-center gap-3 flex-shrink-0 shadow-md`}>
               <button 
                 onClick={() => {
                   setSelectedConversation(null);
                   navigate('/dashboard/buyer/messages');
                 }}
-                className="p-2 hover:bg-primary-600 rounded-lg transition text-white"
+                className="p-2 hover:bg-white/20 rounded-lg transition text-white"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-white text-primary-600 flex items-center justify-center font-bold shadow-md">
+                <div className={`w-10 h-10 rounded-full bg-white flex items-center justify-center font-bold shadow-md ${
+                  selectedConversation.user_role === 'admin' ? 'text-red-600' : 'text-primary-600'
+                }`}>
                   {selectedConversation.user_name?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
                 {isUserOnline(selectedConversation.user_id) && (
@@ -1060,7 +1146,10 @@ const BuyerMessages = () => {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-white truncate">{selectedConversation.user_name}</h3>
+                <h3 className="font-semibold text-white truncate flex items-center gap-1">
+                  {selectedConversation.user_name}
+                  {selectedConversation.user_role === 'admin' && <Shield className="w-4 h-4 text-yellow-300" />}
+                </h3>
                 <div className="flex items-center gap-2 flex-wrap">
                   {getRoleBadge(selectedConversation.user_role)}
                   <UserStatus userId={selectedConversation.user_id} showText={true} />
@@ -1179,6 +1268,7 @@ const BuyerMessages = () => {
               <MessageCircle className="w-20 h-20 mx-auto mb-4" />
               <h3 className="text-xl font-semibold">Select a conversation</h3>
               <p className="text-sm">Choose a conversation to start messaging</p>
+              <p className="text-xs mt-2 text-gray-400">Admin users are always available to contact</p>
             </div>
           </div>
         )}

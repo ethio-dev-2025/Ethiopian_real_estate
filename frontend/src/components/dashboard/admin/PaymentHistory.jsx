@@ -1,5 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
-// src/components/dashboard/admin/PaymentHistory.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   CheckCircle, XCircle, Clock, Eye, RefreshCw, 
@@ -11,7 +9,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const PaymentHistory = () => {
   const [allPayments, setAllPayments] = useState([])
@@ -315,15 +313,12 @@ const PaymentHistory = () => {
     return <span className="px-2 py-1 bg-gray-100 text-text-muted rounded-full text-xs">{status}</span>
   }
 
-  // Calculate totals
+  // Calculate totals - ONLY Total Payments and Total Revenue
   const approvedRevenue = allPayments
     .filter(p => p.status === 'approved')
     .reduce((sum, p) => sum + (p.amount || 0), 0)
 
   const totalPayments = allPayments.length
-  const approvedCount = allPayments.filter(p => p.status === 'approved').length
-  const pendingCount = allPayments.filter(p => p.status === 'pending').length
-  const rejectedCount = allPayments.filter(p => p.status === 'rejected').length
 
   // Filter payments
   const filteredPayments = [...allPayments].filter(payment => 
@@ -430,22 +425,11 @@ const PaymentHistory = () => {
             <p className="text-text-muted mt-1">Payment records from database - Newest payments shown first</p>
           </div>
           
+          {/* REMOVED: Approved, Pending, Rejected buttons - ONLY Total Payments and Total Revenue */}
           <div className="flex gap-3">
             <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-border-light">
               <p className="text-xs text-text-muted">Total Payments</p>
               <p className="text-xl font-bold text-text-primary">{totalPayments}</p>
-            </div>
-            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-border-light">
-              <p className="text-xs text-text-muted">Approved</p>
-              <p className="text-xl font-bold text-success">{approvedCount}</p>
-            </div>
-            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-border-light">
-              <p className="text-xs text-text-muted">Pending</p>
-              <p className="text-xl font-bold text-warning">{pendingCount}</p>
-            </div>
-            <div className="bg-white rounded-lg px-4 py-2 text-center shadow-sm border border-border-light">
-              <p className="text-xs text-text-muted">Rejected</p>
-              <p className="text-xl font-bold text-error">{rejectedCount}</p>
             </div>
             <div className="bg-success/10 rounded-lg px-4 py-2 text-center shadow-sm border border-success/20">
               <p className="text-xs text-text-muted">Total Revenue</p>
@@ -473,20 +457,12 @@ const PaymentHistory = () => {
         />
       </div>
 
-      {/* Stats */}
+      {/* Stats - REMOVED the 3 buttons completely */}
       <div className="flex justify-between items-center mb-4">
         <div className="text-sm text-text-muted">
           Showing {filteredPayments.length > 0 ? indexOfFirstItem + 1 : 0} - {Math.min(indexOfLastItem, filteredPayments.length)} of {filteredPayments.length} payments
           <span className="ml-2 text-xs text-primary-600 font-medium">(Newest first - 12-hour format)</span>
         </div>
-        <button 
-          onClick={handleManualRefresh} 
-          disabled={loading}
-          className="px-3 py-2 text-sm border border-border-light rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50 text-text-secondary transition"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> 
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
       </div>
 
       {filteredPayments.length === 0 ? (
@@ -523,7 +499,7 @@ const PaymentHistory = () => {
                           {isNewest && (
                             <span className="inline-block mt-1 px-1.5 py-0.5 bg-success/10 text-success text-xs rounded-full">🔥 Newest</span>
                           )}
-                        </td>
+                         </td>
                         <td className="p-4">
                           <div className="flex items-center gap-1 text-sm text-text-secondary mb-1">
                             <Mail className="w-3 h-3" />
@@ -533,22 +509,22 @@ const PaymentHistory = () => {
                             <Phone className="w-3 h-3" />
                             <span>{payment.phone_number || 'No phone'}</span>
                           </div>
-                        </td>
+                         </td>
                         <td className="p-4">
                           <span className="capitalize text-sm font-medium text-text-primary">{payment.plan_type}</span>
-                        </td>
+                         </td>
                         <td className="p-4">
                           <span className="font-bold text-success">{formatAmount(payment.amount)}</span>
-                        </td>
+                         </td>
                         <td className="p-4">
                           {getStatusBadge(payment.status)}
-                        </td>
+                         </td>
                         <td className="p-4">
                           <div className="flex items-center gap-1 text-sm text-text-primary">
                             <Calendar className="w-3 h-3" />
                             <span className="font-mono">{formatRealDateTime(payment.created_at)}</span>
                           </div>
-                        </td>
+                         </td>
                         <td className="p-4 text-center">
                           <button 
                             onClick={() => { setSelectedPayment(payment); setShowDetailsModal(true); }} 
@@ -556,12 +532,12 @@ const PaymentHistory = () => {
                           >
                             <Eye className="w-4 h-4" /> Details
                           </button>
-                        </td>
-                      </tr>
+                         </td>
+                       </tr>
                     )
                   })}
                 </tbody>
-              </table>
+               </table>
             </div>
           </div>
 

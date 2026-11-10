@@ -1,4 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
 // src/pages/public/PropertiesPage.jsx - COMPLETE WITH LARGER BOLD VIEW DETAILS BUTTON
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -6,7 +5,7 @@ import Header from '../../components/layout/Header'
 import { Search, Grid3x3, List, MapPin, Home, Filter, ChevronDown, Award, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const PropertiesPage = () => {
   const navigate = useNavigate()
@@ -31,8 +30,8 @@ const PropertiesPage = () => {
   const priceRanges = [
     { value: 'any', label: 'Any Price' },
     { value: 'under_5m', label: 'Under ETB 5,000,000', min: 0, max: 5000000 },
-    { value: '5m_15m', label: 'ETB 5M - 15M', min: 5000000, max: 15000000 },
-    { value: 'above_15m', label: 'Above ETB 15M', min: 15000000, max: null }
+    { value: '5m_15m', label: 'ETB 5,000,000 - 15,000,000', min: 5000000, max: 15000000 },
+    { value: 'above_15m', label: 'Above ETB 15,000,000', min: 15000000, max: null }
   ]
 
   const propertyTypeOptions = [
@@ -152,10 +151,8 @@ const PropertiesPage = () => {
 
   const formatPrice = (price, type) => {
     if (!price) return 'Price on request'
-    if (type === 'rent') return `ETB ${price.toLocaleString()}/mo`
-    if (price >= 10000000) return `ETB ${(price / 10000000).toFixed(1)}Cr`
-    if (price >= 1000000) return `ETB ${(price / 1000000).toFixed(1)}M`
-    return `ETB ${price.toLocaleString()}`
+    if (type === 'rent') return `ETB ${price.toLocaleString('en-US')}/mo`
+    return `ETB ${price.toLocaleString('en-US')}`
   }
 
   const resetFilters = () => {

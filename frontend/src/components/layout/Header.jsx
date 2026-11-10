@@ -70,13 +70,10 @@ const Header = () => {
                 >
                   {t('signin')}
                 </Link>
+                {/* ONLY CHANGE HERE: Removed button styling, now same as other links */}
                 <Link
                   to="/register"
-                  className={`px-4 py-2 rounded-lg transition font-medium ${
-                    scrolled 
-                      ? 'bg-primary-800 text-white hover:bg-primary-900' 
-                      : 'bg-secondary-500 text-white hover:bg-secondary-600'
-                  }`}
+                  className={`transition font-medium ${scrolled ? 'text-gray-700 hover:text-primary-800' : 'text-white hover:text-secondary-400'}`}
                 >
                   {t('signup')}
                 </Link>
@@ -162,9 +159,10 @@ const Header = () => {
                 >
                   {t('signin')}
                 </Link>
+                {/* ONLY CHANGE HERE: Removed button styling for mobile as well */}
                 <Link
                   to="/register"
-                  className="block py-3 mt-2 bg-primary-800 text-white text-center rounded-lg hover:bg-primary-900 transition"
+                  className="block py-3 text-gray-700 hover:text-primary-800 transition font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   {t('signup')}

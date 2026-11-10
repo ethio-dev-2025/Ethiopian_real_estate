@@ -1,4 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/admin/UserManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react'
 import { 
@@ -9,7 +8,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const UserManagement = () => {
   const [users, setUsers] = useState([])

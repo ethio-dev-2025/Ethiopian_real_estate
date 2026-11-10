@@ -1,4 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -7,12 +6,12 @@ import {
   Wifi, Wind, Thermometer, Coffee, Dumbbell, Tv,
   Microwave, Refrigerator, Car, Activity, Lock,
   TreePine, Heart, Zap, Sofa, Loader, Droplet,
-  Phone, Mail, Calendar, Trash2, Image, Save
+  Phone, Mail, Calendar, Trash2, Image, Save, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
   const navigate = useNavigate();
@@ -105,12 +104,12 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         }
       }
       
-      let amenitiesList = [];
+      let amenitiesListData = [];
       if (data.amenities) {
         try {
-          amenitiesList = typeof data.amenities === 'string' ? JSON.parse(data.amenities) : data.amenities;
+          amenitiesListData = typeof data.amenities === 'string' ? JSON.parse(data.amenities) : data.amenities;
         } catch (e) {
-          amenitiesList = [];
+          amenitiesListData = [];
         }
       }
       
@@ -128,6 +127,8 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         if (coverIdx !== -1) {
           setCoverImageIndex(coverIdx);
         }
+      } else if (imagesList.length > 0) {
+        setCoverImageIndex(0);
       }
       
       setFormData({
@@ -145,7 +146,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
         sub_city: data.sub_city || '',
         kebele: data.kebele || '',
         description: data.description || '',
-        amenities: amenitiesList,
+        amenities: amenitiesListData,
         phone_number: data.phone_number || '',
         email: data.email || ''
       });
@@ -153,7 +154,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
     } catch (error) {
       console.error('Error fetching listing:', error);
       toast.error('Failed to load listing');
-      onCancel();
+      if (onCancel) onCancel();
     } finally {
       setFetchLoading(false);
     }
@@ -216,6 +217,8 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
     setExistingImages(prev => prev.filter((_, i) => i !== index));
     if (coverImageIndex >= index && coverImageIndex > 0) {
       setCoverImageIndex(coverImageIndex - 1);
+    } else if (coverImageIndex === index && existingImages.length === 1 && newImages.length === 0) {
+      setCoverImageIndex(0);
     }
   };
 
@@ -286,12 +289,18 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
       const allImages = [...keptExistingImages, ...newImageUrls];
       
       let coverImage = null;
-      if (coverImageIndex < keptExistingImages.length) {
-        coverImage = keptExistingImages[coverImageIndex];
-      } else {
-        const newImageIndex = coverImageIndex - keptExistingImages.length;
-        if (newImageIndex < newImageUrls.length) {
-          coverImage = newImageUrls[newImageIndex];
+      if (allImages.length > 0) {
+        if (coverImageIndex < keptExistingImages.length) {
+          coverImage = keptExistingImages[coverImageIndex];
+        } else {
+          const newImageIndex = coverImageIndex - keptExistingImages.length;
+          if (newImageIndex < newImageUrls.length) {
+            coverImage = newImageUrls[newImageIndex];
+          } else if (keptExistingImages.length > 0) {
+            coverImage = keptExistingImages[0];
+          } else if (newImageUrls.length > 0) {
+            coverImage = newImageUrls[0];
+          }
         }
       }
       
@@ -341,7 +350,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
           setTimeout(() => navigate('/dashboard/listings'), 1500);
         }
       } else {
-        toast.error(data.detail || 'Failed to update listing', { id: toastId });
+        toast.error(data.detail || data.message || 'Failed to update listing', { id: toastId });
       }
     } catch (error) {
       console.error('Update error:', error);
@@ -352,25 +361,36 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
   };
 
   const nextStep = () => {
-    if (step === 1 && !formData.title) {
-      toast.error('Please enter a title');
-      return;
+    if (step === 1) {
+      if (!formData.title || formData.title.trim() === '') {
+        toast.error('Please enter a title');
+        return;
+      }
+      if (!formData.price || parseFloat(formData.price) <= 0) {
+        toast.error('Please enter a valid price');
+        return;
+      }
     }
-    if (step === 1 && !formData.price) {
-      toast.error('Please enter a price');
-      return;
+    if (step === 2) {
+      if (!formData.address || formData.address.trim() === '') {
+        toast.error('Please enter an address');
+        return;
+      }
+      if (!formData.city || formData.city.trim() === '') {
+        toast.error('Please enter a city');
+        return;
+      }
     }
-    if (step === 2 && !formData.address) {
-      toast.error('Please enter an address');
-      return;
-    }
-    if (step === 2 && !formData.city) {
-      toast.error('Please enter a city');
-      return;
-    }
-    if (step === 5 && !formData.description) {
-      toast.error('Please enter a description');
-      return;
+    if (step === 5) {
+      if (!formData.description || formData.description.trim() === '') {
+        toast.error('Please enter a description');
+        return;
+      }
+      const totalImages = existingImages.length + newImages.length;
+      if (totalImages === 0) {
+        toast.error('Please upload at least one photo');
+        return;
+      }
     }
     setStep(step + 1);
     window.scrollTo(0, 0);
@@ -385,7 +405,19 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
 
   const allImages = [...existingImages, ...newImages];
   const totalImages = allImages.length;
-  const isValid = formData.title && formData.price && formData.address && formData.city && formData.description && totalImages > 0;
+  
+  const isFormValid = () => {
+    const hasTitle = formData.title && formData.title.trim() !== '';
+    const hasPrice = formData.price && parseFloat(formData.price) > 0;
+    const hasAddress = formData.address && formData.address.trim() !== '';
+    const hasCity = formData.city && formData.city.trim() !== '';
+    const hasDescription = formData.description && formData.description.trim() !== '';
+    const hasImages = totalImages > 0;
+    
+    return hasTitle && hasPrice && hasAddress && hasCity && hasDescription && hasImages;
+  };
+  
+  const isValid = isFormValid();
 
   const PreviewModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={() => setShowPreview(false)}>
@@ -421,8 +453,9 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
 
   if (fetchLoading) {
     return (
-      <div className="flex justify-center py-12">
+      <div className="flex justify-center items-center py-12">
         <Loader className="w-8 h-8 animate-spin text-primary-700" />
+        <span className="ml-3 text-gray-500">Loading listing...</span>
       </div>
     );
   }
@@ -468,7 +501,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             <h2 className="text-lg font-bold mb-4">Basic Information</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Property Title *</label>
+                <label className="block text-sm font-medium mb-1">Property Title <span className="text-error">*</span></label>
                 <input name="title" value={formData.title} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all" placeholder="e.g., Luxury Apartment in Bole" />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -478,9 +511,16 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
                     {propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
+                {/* <div>
+                  <label className="block text-sm font-medium mb-1">Listing Type</label>
+                  <select name="listing_type" value={formData.listing_type} onChange={handleChange} className="w-full p-3 border rounded-lg">
+                    <option value="sale">For Sale</option>
+                    <option value="rent">For Rent</option>
+                  </select>
+                </div> */}
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">{formData.listing_type === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} *</label>
+                <label className="block text-sm font-medium mb-1">{formData.listing_type === 'sale' ? 'Price (ETB)' : 'Rent (ETB/mo)'} <span className="text-error">*</span></label>
                 <input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" placeholder={formData.listing_type === 'sale' ? "e.g., 15000000" : "e.g., 25000"} />
               </div>
               <div className="grid grid-cols-3 gap-4">
@@ -510,12 +550,12 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             <h2 className="text-lg font-bold mb-4">Location</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Address *</label>
+                <label className="block text-sm font-medium mb-1">Address <span className="text-error">*</span></label>
                 <input name="address" value={formData.address} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" placeholder="Street name, building number" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">City *</label>
+                  <label className="block text-sm font-medium mb-1">City <span className="text-error">*</span></label>
                   <input name="city" value={formData.city} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" placeholder="e.g., Addis Ababa" />
                 </div>
                 <div>
@@ -571,7 +611,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
             <h2 className="text-lg font-bold mb-4">Photos & Contact</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Photos *</label>
+                <label className="block text-sm font-medium mb-1">Photos <span className="text-error">*</span></label>
                 <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary-500 transition">
                   <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                   <p className="text-gray-600 text-sm">Click to upload new photos</p>
@@ -617,7 +657,7 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Description *</label>
+                <label className="block text-sm font-medium mb-1">Description <span className="text-error">*</span></label>
                 <textarea name="description" rows="4" value={formData.description} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-600" placeholder="Describe your property in detail..." />
               </div>
 
@@ -654,7 +694,11 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
               <button 
                 onClick={() => handleUpdate(false)} 
                 disabled={loading || !isValid}
-                className="px-4 py-2 bg-primary-700 text-white rounded-lg font-medium hover:bg-primary-800 transition disabled:opacity-50 flex items-center gap-1"
+                className={`px-4 py-2 rounded-lg font-medium flex items-center gap-1 transition ${
+                  isValid 
+                    ? 'bg-primary-700 text-white hover:bg-primary-800' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 {loading ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Save Changes
@@ -666,8 +710,16 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
               Continue <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
-            originalListing?.is_draft && (
-              <button onClick={() => handleUpdate(true)} disabled={loading || !isValid} className="px-5 py-2 bg-success text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 transition disabled:opacity-50">
+            originalListing?.is_draft === true && (
+              <button 
+                onClick={() => handleUpdate(true)} 
+                disabled={loading || !isValid} 
+                className={`px-5 py-2 rounded-lg font-medium flex items-center gap-1 transition ${
+                  isValid 
+                    ? 'bg-success text-white hover:bg-green-700' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
                 {loading ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 Publish Listing
               </button>
@@ -675,6 +727,23 @@ const EditListingWizard = ({ listingId, onSuccess, onCancel }) => {
           )}
         </div>
       </div>
+      
+      {step === 5 && !isValid && (
+        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-700 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            Please complete all required fields:
+          </p>
+          <ul className="text-xs text-amber-600 mt-1 ml-5 list-disc">
+            {!formData.title && <li>Property Title is required</li>}
+            {(!formData.price || parseFloat(formData.price) <= 0) && <li>Valid Price is required</li>}
+            {!formData.address && <li>Address is required</li>}
+            {!formData.city && <li>City is required</li>}
+            {!formData.description && <li>Description is required</li>}
+            {totalImages === 0 && <li>At least one photo is required</li>}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };

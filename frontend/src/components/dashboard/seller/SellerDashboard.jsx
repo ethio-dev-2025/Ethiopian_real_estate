@@ -1,12 +1,10 @@
-import { API_ORIGIN } from '@/config/api';
-// src/components/dashboard/seller/SellerDashboard.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import { RefreshCw, Home, Eye, ShoppingBag, List, AlertCircle } from 'lucide-react';
+import { RefreshCw, Home, ShoppingBag, List, TrendingUp, Building2, DollarSign, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const SellerDashboard = () => {
   const navigate = useNavigate();
@@ -14,8 +12,8 @@ const SellerDashboard = () => {
   const [stats, setStats] = useState({
     totalListings: 0,
     activeProperties: 0,
-    totalViews: 0,
-    rentalUnits: 0
+    soldProperties: 0,
+    rentedProperties: 0
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,20 +49,22 @@ const SellerDashboard = () => {
         const listingsData = data.listings || [];
         console.log('📊 Listings fetched:', listingsData.length);
         setListings(listingsData);
+        
         const activeListings = listingsData.filter(l => l.status === 'active' && !l.is_draft);
-        const rentalListings = listingsData.filter(l => l.listing_type === 'rent');
-        const totalViewsCount = listingsData.reduce((sum, l) => sum + (l.views_count || 0), 0);
+        const soldListings = listingsData.filter(l => l.listing_status === 'sold');
+        const rentedListings = listingsData.filter(l => l.listing_status === 'rented');
+        
         setStats({
           totalListings: listingsData.length,
           activeProperties: activeListings.length,
-          totalViews: totalViewsCount,
-          rentalUnits: rentalListings.length
+          soldProperties: soldListings.length,
+          rentedProperties: rentedListings.length
         });
         console.log('📊 Stats updated:', {
           total: listingsData.length,
           active: activeListings.length,
-          views: totalViewsCount,
-          rentals: rentalListings.length
+          sold: soldListings.length,
+          rented: rentedListings.length
         });
       } else {
         console.error('Failed to fetch listings:', response.status);
@@ -115,7 +115,7 @@ const SellerDashboard = () => {
           <p className="text-3xl font-bold text-text-primary">{typeof value === 'number' ? value.toLocaleString() : value}</p>
           {subtitle && <p className="text-text-muted text-xs mt-1">{subtitle}</p>}
         </div>
-        <div className="w-14 h-14 rounded-xl bg-primary-50 flex items-center justify-center text-primary-600">
+        <div className={`w-14 h-14 rounded-xl ${gradient || 'bg-primary-50'} flex items-center justify-center ${color || 'text-primary-600'}`}>
           {icon}
         </div>
       </div>
@@ -162,19 +162,22 @@ const SellerDashboard = () => {
           onClick={() => navigate('/dashboard/listings?status=active')}
         />
         <StatCard
-          title="Total Views"
-          value={stats.totalViews}
-          icon={<Eye className="w-6 h-6" />}
+          title="Sold Properties"
+          value={stats.soldProperties}
+          icon={<DollarSign className="w-6 h-6" />}
+          gradient="bg-success/10"
+          color="text-success"
+          onClick={() => navigate('/dashboard/listings?status=sold')}
         />
         <StatCard
-          title="Rental Units"
-          value={stats.rentalUnits}
-          icon={<ShoppingBag className="w-6 h-6" />}
-          onClick={() => navigate('/dashboard/listings?type=rent')}
+          title="Rented Properties"
+          value={stats.rentedProperties}
+          icon={<Building2 className="w-6 h-6" />}
+          gradient="bg-info/10"
+          color="text-info"
+          onClick={() => navigate('/dashboard/listings?status=rented')}
         />
       </div>
-
-      
     </div>
   );
 };

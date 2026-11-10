@@ -1,4 +1,3 @@
-import { API_BASE_URL, WS_BASE_URL } from '@/config/api';
 // src/context/SocketContext.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
@@ -30,8 +29,8 @@ export const SocketProvider = ({ children }) => {
       return
     }
 
-    // ✅ Correct WebSocket URL - matches backend /ws/{token}
-    const wsBaseUrl = WS_BASE_URL;
+    // ✅ FIXED: Correct WebSocket URL format - /ws/token (no extra slash)
+    const wsBaseUrl = 'ws://localhost:8000/ws'
     const websocketUrl = `${wsBaseUrl}/${encodeURIComponent(token)}`
     console.log('🔌 Connecting to WebSocket:', websocketUrl)
     
@@ -65,12 +64,10 @@ export const SocketProvider = ({ children }) => {
         handlers.forEach((handler) => handler(payload))
 
         switch (type) {
-          // Step 2: New message received by User B
           case 'new_message':
             console.log('📨 New message received:', payload.message)
             window.dispatchEvent(new CustomEvent('new_chat_message', { detail: payload.message }))
             
-            // Auto-send delivered receipt
             if (socketRef.current?.readyState === WebSocket.OPEN && payload.message) {
               socketRef.current.send(JSON.stringify({
                 type: 'message_delivered',
@@ -92,13 +89,11 @@ export const SocketProvider = ({ children }) => {
             }
             break
             
-          // Step 3: Message sent confirmation to User A (Single gray check)
           case 'message_sent':
             console.log('✅ Message sent confirmation:', payload.message)
             window.dispatchEvent(new CustomEvent('message_sent', { detail: payload.message }))
             break
             
-          // Step 5: Delivered receipt to User A (Gray double check)
           case 'message_delivered':
             console.log('📦 Message delivered receipt:', payload)
             window.dispatchEvent(new CustomEvent('message_delivered', { 
@@ -109,7 +104,6 @@ export const SocketProvider = ({ children }) => {
             }))
             break
             
-          // Step 8: Read receipt to User A (Blue double check)
           case 'messages_read':
             console.log('📖 Messages read event received:', payload)
             window.dispatchEvent(new CustomEvent('messages_read', { 
@@ -121,7 +115,6 @@ export const SocketProvider = ({ children }) => {
             }))
             break
             
-          // Handle read_receipt events from backend
           case 'read_receipt':
             console.log('📖 Read receipt received:', payload)
             window.dispatchEvent(new CustomEvent('messages_read', { 
@@ -182,7 +175,7 @@ export const SocketProvider = ({ children }) => {
             try {
               const token = localStorage.getItem('access_token')
               if (token) {
-                const resp = await fetch(`${API_BASE_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+                const resp = await fetch('http://localhost:8000/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
                 if (resp.ok) {
                   const freshUser = await resp.json()
                   localStorage.setItem('user', JSON.stringify(freshUser))
@@ -214,7 +207,7 @@ export const SocketProvider = ({ children }) => {
             try {
               const token = localStorage.getItem('access_token')
               if (token) {
-                const resp = await fetch(`${API_BASE_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+                const resp = await fetch('http://localhost:8000/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
                 if (resp.ok) {
                   const freshUser = await resp.json()
                   localStorage.setItem('user', JSON.stringify(freshUser))

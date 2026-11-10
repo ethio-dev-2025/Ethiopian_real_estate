@@ -8,7 +8,7 @@ const API_URL = API_BASE_URL;
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: 60000,
 })
 
 // Request interceptor - Add token and log requests
@@ -62,8 +62,14 @@ export const listingsAPI = {
       const response = await api.get('/listings/public-fast', { params })
       return response.data
     } catch (error) {
-      console.error('Error fetching fast public listings:', error)
-      return { success: false, listings: [] }
+      console.warn('Error fetching fast public listings, retrying...', error)
+      try {
+        const retryResp = await api.get('/listings/public-fast', { params })
+        return retryResp.data
+      } catch (retryErr) {
+        console.error('Retry fetching fast public listings failed:', retryErr)
+        return { success: false, listings: [] }
+      }
     }
   },
 

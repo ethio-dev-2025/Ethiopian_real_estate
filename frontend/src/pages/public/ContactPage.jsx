@@ -1,5 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
-// src/pages/public/ContactPage.jsx
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../context/LanguageContext'
@@ -7,12 +5,12 @@ import Header from '../../components/layout/Header'
 import { 
   Building2, Phone, Mail, MapPin, Clock, Send, 
   User, MessageCircle, CheckCircle,
-  Sparkles, ArrowRight, ChevronRight
+  ChevronRight
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const ContactPage = () => {
   const { t, language } = useLanguage()
@@ -43,22 +41,19 @@ const ContactPage = () => {
       city: 'Addis Ababa',
       address: 'Bole Road, Dembel City Center, 4th Floor',
       phone: '+251-960724272',
-      email: 'addis@estatehub.com',
-      mapUrl: 'https://maps.google.com/?q=Bole+Addis+Ababa+Ethiopia'
+      email: 'addis@estatehub.com'
     },
     {
       city: 'Adama',
       address: 'Megenagna, Adama City, 2nd Floor',
       phone: '+251-221-123456',
-      email: 'adama@estatehub.com',
-      mapUrl: 'https://maps.google.com/?q=Adama+Ethiopia'
+      email: 'adama@estatehub.com'
     },
     {
       city: 'Bahir Dar',
       address: 'Tana Mall, Bahir Dar, 3rd Floor',
       phone: '+251-581-123456',
-      email: 'bahirdar@estatehub.com',
-      mapUrl: 'https://maps.google.com/?q=Bahir+Dar+Ethiopia'
+      email: 'bahirdar@estatehub.com'
     }
   ]
 
@@ -142,11 +137,11 @@ const ContactPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
       <Header />
 
-      {/* Hero Section */}
-      <section className="relative pt-24 pb-16 bg-gradient-to-r from-primary-800 to-primary-900 overflow-hidden">
+      {/* Hero Section - Blue to Purple Gradient */}
+      <section className="relative pt-24 pb-16 bg-gradient-to-r from-blue-600 to-purple-700 overflow-hidden">
         <div className="absolute inset-0 bg-black/20"></div>
         <div className="absolute top-20 right-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 left-10 w-80 h-80 bg-primary-400/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 left-10 w-80 h-80 bg-purple-400/10 rounded-full blur-3xl"></div>
         
         <div className="relative z-10 container mx-auto px-4 text-center text-white">
           <motion.h1 
@@ -155,13 +150,13 @@ const ContactPage = () => {
             transition={{ delay: 0.1 }}
             className="text-4xl md:text-6xl font-bold mb-4"
           >
-            Contact <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-300">Us</span>
+            Contact <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-pink-300">Us</span>
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-lg md:text-xl text-primary-100 max-w-2xl mx-auto"
+            className="text-lg md:text-xl text-blue-100 max-w-2xl mx-auto"
           >
             Have questions? We're here to help. Reach out to us anytime.
           </motion.p>
@@ -178,7 +173,7 @@ const ContactPage = () => {
               viewport={{ once: true }}
               className="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300"
             >
-              <div className="w-16 h-16 bg-gradient-to-r from-primary-700 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-700 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <Phone className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Phone</h3>
@@ -193,7 +188,7 @@ const ContactPage = () => {
               viewport={{ once: true }}
               className="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300"
             >
-              <div className="w-16 h-16 bg-gradient-to-r from-primary-700 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-700 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <Mail className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Email</h3>
@@ -208,7 +203,7 @@ const ContactPage = () => {
               viewport={{ once: true }}
               className="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300"
             >
-              <div className="w-16 h-16 bg-gradient-to-r from-primary-700 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-700 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <MapPin className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Address</h3>
@@ -223,7 +218,7 @@ const ContactPage = () => {
               viewport={{ once: true }}
               className="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300"
             >
-              <div className="w-16 h-16 bg-gradient-to-r from-primary-700 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-700 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <Clock className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Working Hours</h3>
@@ -250,7 +245,7 @@ const ContactPage = () => {
               <p className="text-gray-500 mb-6">Fill out the form and we'll get back to you within 24 hours</p>
               
               {submitted && (
-                <div className="mb-6 p-4 bg-success/10 rounded-xl flex items-center gap-3 text-success">
+                <div className="mb-6 p-4 bg-green-50 rounded-xl flex items-center gap-3 text-green-600">
                   <CheckCircle className="w-5 h-5" />
                   <span>Message sent successfully! We'll contact you soon.</span>
                 </div>
@@ -268,7 +263,7 @@ const ContactPage = () => {
                         value={formData.name}
                         onChange={handleInputChange}
                         required
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="John Doe"
                       />
                     </div>
@@ -283,7 +278,7 @@ const ContactPage = () => {
                         value={formData.email}
                         onChange={handleInputChange}
                         required
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="john@example.com"
                       />
                     </div>
@@ -300,7 +295,7 @@ const ContactPage = () => {
                         name="phone"
                         value={formData.phone}
                         onChange={handleInputChange}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="+251-XXX-XXXXXX"
                       />
                     </div>
@@ -315,7 +310,7 @@ const ContactPage = () => {
                         value={formData.subject}
                         onChange={handleInputChange}
                         required
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="Property Inquiry"
                       />
                     </div>
@@ -330,7 +325,7 @@ const ContactPage = () => {
                     onChange={handleInputChange}
                     required
                     rows="5"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent resize-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     placeholder="Tell us how we can help..."
                   ></textarea>
                 </div>
@@ -338,7 +333,7 @@ const ContactPage = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-700 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? (
                     <>
@@ -417,17 +412,17 @@ const ContactPage = () => {
                 viewport={{ once: true }}
                 className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300"
               >
-                <div className="w-14 h-14 bg-gradient-to-r from-primary-700 to-primary-800 rounded-xl flex items-center justify-center mb-4">
+                <div className="w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-700 rounded-xl flex items-center justify-center mb-4 shadow-md">
                   <Building2 className="w-7 h-7 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">{office.city}</h3>
                 <p className="text-gray-500 text-sm mb-3">{office.address}</p>
                 <div className="space-y-2">
                   <p className="flex items-center gap-2 text-gray-600 text-sm">
-                    <Phone className="w-4 h-4 text-primary-600" /> {office.phone}
+                    <Phone className="w-4 h-4 text-blue-600" /> {office.phone}
                   </p>
                   <p className="flex items-center gap-2 text-gray-600 text-sm">
-                    <Mail className="w-4 h-4 text-primary-600" /> {office.email}
+                    <Mail className="w-4 h-4 text-blue-600" /> {office.email}
                   </p>
                 </div>
               </motion.div>
@@ -442,7 +437,7 @@ const ContactPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Building2 className="w-8 h-8 text-primary-500" />
+                <Building2 className="w-8 h-8 text-blue-500" />
                 <span className="text-xl font-bold text-white">EstateHub</span>
               </div>
               <p className="text-sm">Your trusted partner in real estate</p>

@@ -1,4 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/seller/SellerSubscription.jsx
 import React, { useState, useEffect } from 'react';
 import { CreditCard, CheckCircle, Shield, Home, Crown, Lock, Wallet, X, Loader, AlertCircle, Clock, Calendar, Zap } from 'lucide-react';
@@ -6,7 +5,7 @@ import { useAuth } from '../../../context/AuthContext';
 import useSubscription from '../../../hooks/useSubscription';
 import toast from 'react-hot-toast';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const SellerSubscription = () => {
   const { user, refreshUser, forceRefreshUser } = useAuth();
@@ -172,8 +171,8 @@ const SellerSubscription = () => {
   }
 
   const plans = [
-    { id: 'seller', name: 'Seller Plan', price: 894, monthlyPrice: 149, icon: Shield, bgColor: 'from-primary-600 to-primary-700', description: 'Perfect for selling properties', features: ['Up to 10 active listings', 'Professional property photos', 'Virtual tour integration', '6 months subscription'] },
-    { id: 'landlord', name: 'Landlord Plan', price: 1194, monthlyPrice: 199, icon: Home, bgColor: 'from-success to-green-600', description: 'Ideal for rental properties', features: ['Up to 20 rental listings', 'Tenant management system', 'Rent collection tools', '6 months subscription'] },
+    { id: 'seller', name: 'Seller Plan', price: 1194, monthlyPrice: 199, icon: Shield, bgColor: 'from-primary-600 to-primary-700', description: 'Perfect for selling properties', features: ['Up to 10 active listings', 'Professional property photos', 'Virtual tour integration', '6 months subscription'] },
+    { id: 'landlord', name: 'Landlord Plan', price: 894, monthlyPrice: 149, icon: Home, bgColor: 'from-success to-green-600', description: 'Ideal for rental properties', features: ['Up to 20 rental listings', 'Tenant management system', 'Rent collection tools', '6 months subscription'] },
     { id: 'dual', name: 'Dual Plan', price: 1788, monthlyPrice: 298, icon: Crown, bgColor: 'from-secondary-500 to-secondary-600', description: 'Complete solution for professionals', features: ['Unlimited listings', 'Advanced analytics', 'Dedicated account manager', '6 months subscription'] }
   ];
 

@@ -1,4 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/seller/sellerDashboardOverview.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,7 +13,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const SellerDashboardOverview = () => {
   const navigate = useNavigate();

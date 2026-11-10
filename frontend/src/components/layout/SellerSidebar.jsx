@@ -1,20 +1,18 @@
-import { API_ORIGIN } from '@/config/api';
-// src/components/layout/SellerSidebar.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, PlusCircle, List, MessageSquare,
   Shield, CreditCard, Settings, LogOut, Menu, X, ChevronRight, Camera,
-  User, Lock, ChevronDown, Home
+  User, Lock, ChevronDown, Home, AlertCircle, CheckCircle, Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../../context/LanguageContext'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
-  const { user, logout, refreshUser, updateUser, forceRefreshUser } = useAuth();
+  const { user, logout, refreshUser, updateUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
@@ -22,17 +20,29 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const [imageError, setImageError] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
-  const [liveStatus, setLiveStatus] = useState(null);
-  const [daysRemaining, setDaysRemaining] = useState(() => {
-    const saved = localStorage.getItem('seller_days_remaining');
-    return saved ? parseInt(saved) : 0;
+  
+  // Shared status state - synced with layout
+  const [sharedStatus, setSharedStatus] = useState(() => {
+    const stored = localStorage.getItem('activation_status');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {}
+    }
+    return {
+      daysRemaining: 0,
+      hasActiveSubscription: false,
+      status: 'pending',
+      message: '',
+      can_create_listings: false,
+      is_activated: false
+    };
   });
+  
   const settingsButtonRef = useRef(null);
   const settingsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
-  const intervalRef = useRef(null);
   const isMountedRef = useRef(true);
-  const hasFetchedRef = useRef(false);
 
   const { t } = useLanguage()
 
@@ -41,37 +51,42 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' }
   ];
 
-  const updateDaysRemaining = (days) => {
-    setDaysRemaining(days);
-    localStorage.setItem('seller_days_remaining', days.toString());
-    
-    if (liveStatus) {
-      setLiveStatus(prev => ({
-        ...prev,
-        days_remaining: days,
-        can_create_listings: days > 0
-      }));
-    }
-    
-    window.dispatchEvent(new CustomEvent('subscription_immediate_update', { 
-      detail: { 
-        daysRemaining: days, 
-        hasActiveSubscription: days > 0 
+  // Listen for activation status updates from layout
+  useEffect(() => {
+    const handleStatusUpdate = (event) => {
+      if (event.detail) {
+        console.log('📡 Sidebar received activation status update:', event.detail);
+        setSharedStatus(event.detail);
+        localStorage.setItem('activation_status', JSON.stringify(event.detail));
       }
-    }));
-  };
+    };
+    
+    window.addEventListener('activation_status_update', handleStatusUpdate);
+    
+    return () => {
+      window.removeEventListener('activation_status_update', handleStatusUpdate);
+    };
+  }, []);
 
-  const calculateDaysRemaining = (endDateString) => {
-    if (!endDateString) return 0;
-    try {
-      const end = new Date(endDateString);
-      const now = new Date();
-      const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      return diff > 0 ? diff : 0;
-    } catch (error) {
-      return 0;
-    }
-  };
+  // Also listen for legacy subscription updates
+  useEffect(() => {
+    const handleSubscriptionUpdate = (event) => {
+      if (event.detail) {
+        console.log('📡 Sidebar received subscription update:', event.detail);
+        setSharedStatus(prev => ({
+          ...prev,
+          daysRemaining: event.detail.daysRemaining,
+          hasActiveSubscription: event.detail.hasActiveSubscription
+        }));
+      }
+    };
+    
+    window.addEventListener('subscription_update', handleSubscriptionUpdate);
+    
+    return () => {
+      window.removeEventListener('subscription_update', handleSubscriptionUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -89,21 +104,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   useEffect(() => {
     setIsSettingsDropdownOpen(false);
   }, [location.pathname]);
-
-  useEffect(() => {
-    const handleSubscriptionUpdate = (event) => {
-      if (event.detail) {
-        console.log('📡 Sidebar received subscription update:', event.detail);
-        updateDaysRemaining(event.detail.daysRemaining);
-      }
-    };
-    
-    window.addEventListener('subscription_update', handleSubscriptionUpdate);
-    
-    return () => {
-      window.removeEventListener('subscription_update', handleSubscriptionUpdate);
-    };
-  }, [liveStatus]);
 
   useEffect(() => {
     const handleUnreadUpdate = (event) => {
@@ -125,81 +125,9 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     };
   }, []);
 
-  const fetchUnreadCount = async () => {
-    if (hasFetchedRef.current) return;
-    
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-    
-    hasFetchedRef.current = true;
-    
-    try {
-      const response = await fetch(`${API_URL}/api/messages/unread-count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok && isMountedRef.current) {
-        const data = await response.json();
-        setTotalUnreadCount(data.unread_count || data.count || 0);
-        localStorage.setItem('seller_unread_count', data.unread_count || data.count || 0);
-      }
-    } catch (error) {
-      console.error('Error fetching unread count:', error);
-    }
-  };
-
-  const fetchLiveActivationStatus = async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-    
-    try {
-      const response = await fetch(`${API_URL}/api/activation/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const statusData = await response.json();
-        console.log('📊 Sidebar - Live Status:', statusData);
-        setLiveStatus(statusData);
-        
-        const apiDays = statusData.days_remaining || 0;
-        updateDaysRemaining(apiDays);
-        localStorage.setItem('seller_has_active_subscription', (statusData.can_create_listings === true && apiDays > 0).toString());
-      }
-    } catch (error) {
-      console.error('Error fetching activation status:', error);
-    }
-  };
-
   useEffect(() => {
     isMountedRef.current = true;
-    
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const currentUser = JSON.parse(storedUser);
-        if (currentUser?.subscription_end_date) {
-          const days = calculateDaysRemaining(currentUser.subscription_end_date);
-          if (days > 0) {
-            updateDaysRemaining(days);
-          }
-        }
-      } catch (e) {}
-    }
-    
-    const timer = setTimeout(() => {
-      fetchUnreadCount();
-      fetchLiveActivationStatus();
-    }, 500);
-    
-    intervalRef.current = setInterval(() => {
-      fetchLiveActivationStatus();
-    }, 30000);
-    
     return () => {
-      clearTimeout(timer);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
       isMountedRef.current = false;
     };
   }, []);
@@ -254,48 +182,98 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   };
 
   const getUserStatus = () => {
-    if (liveStatus) {
-      if (liveStatus.can_create_listings === true && (liveStatus.days_remaining || 0) > 0) {
-        return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-      }
-      if (liveStatus.status === 'payment_pending') {
-        return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
-      }
-      if (liveStatus.status === 'documents_pending') {
-        return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
-      }
-      if (liveStatus.status === 'documents_approved') {
-        return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
-      }
-      if (liveStatus.status === 'subscription_expired') {
-        return { text: 'Payment Required', color: 'yellow', dotColor: 'bg-yellow-500' };
-      }
-      if (liveStatus.status === 'not_submitted') {
-        return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
-      }
-      return { text: 'Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
+    const { status, daysRemaining, hasActiveSubscription, can_create_listings, is_activated } = sharedStatus;
+    
+    // Use shared status for consistent display
+    if (status === 'fully_activated' && daysRemaining > 0) {
+      return { 
+        text: 'Active', 
+        color: 'green', 
+        dotColor: 'bg-green-500', 
+        action: null,
+        daysRemaining: daysRemaining
+      };
     }
     
+    if (status === 'documents_approved') {
+      return { 
+        text: 'Subscribe Now', 
+        color: 'yellow', 
+        dotColor: 'bg-yellow-500', 
+        action: '/dashboard/subscription',
+        daysRemaining: 0
+      };
+    }
+    
+    if (status === 'payment_pending') {
+      return { 
+        text: 'Payment Pending', 
+        color: 'yellow', 
+        dotColor: 'bg-yellow-500', 
+        action: '/dashboard/subscription',
+        daysRemaining: 0
+      };
+    }
+    
+    if (status === 'documents_pending') {
+      return { 
+        text: 'Pending Approval', 
+        color: 'red', 
+        dotColor: 'bg-red-500', 
+        action: '/dashboard/activation',
+        daysRemaining: 0
+      };
+    }
+    
+    if (status === 'subscription_expired') {
+      return { 
+        text: 'Expired', 
+        color: 'red', 
+        dotColor: 'bg-red-500', 
+        action: '/dashboard/subscription',
+        daysRemaining: 0
+      };
+    }
+    
+    if (status === 'not_submitted') {
+      return { 
+        text: 'pending', 
+        color: 'red', 
+        dotColor: 'bg-red-500', 
+        action: '/dashboard/activation',
+        daysRemaining: 0
+      };
+    }
+    
+    if (status === 'rejected') {
+      return { 
+        text: 'Rejected', 
+        color: 'red', 
+        dotColor: 'bg-red-500', 
+        action: '/dashboard/activation',
+        daysRemaining: 0
+      };
+    }
+    
+    // Fallback to user object
     if (user?.role_type === 'admin') {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500', action: null, daysRemaining: 999 };
     }
 
     if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining > 0) {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500', action: null, daysRemaining: daysRemaining };
     }
 
-    if (user?.is_activated === true && user?.payment_approved === true && daysRemaining > 0) {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500' };
-    }
-
-    if (user?.is_activated === true && user?.payment_approved === false) {
-      return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500' };
-    }
-
-    return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500' };
+    return { text: 'Pending', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
   };
 
   const status = getUserStatus();
+
+  const handleStatusClick = () => {
+    if (status.action) {
+      navigate(status.action);
+    }
+  };
 
   const toggleDropdown = (e) => {
     e.stopPropagation();
@@ -399,19 +377,18 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
         ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}
       `}>
         <div className="flex flex-col h-full">
-          {/* Logo Section - Professional: Icon Only When Collapsed, Icon + Text When Expanded */}
+          {/* Logo Section */}
           <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigation('/dashboard')}>
-                {/* Logo Image - Professional Design */}
                 <img 
                   src="/assets/images/image.png" 
-                  alt="BetFinder" 
+                  alt="EstateHub" 
                   className="w-10 h-10 object-contain rounded-lg shadow-md"
                 />
                 {sidebarOpen && (
                   <div className="overflow-hidden">
-                    <span className="text-xl font-bold tracking-tight block">BetFinder</span>
+                    <span className="text-xl font-bold tracking-tight block">EstateHub</span>
                     <p className="text-xs text-slate-400">Seller Portal</p>
                   </div>
                 )}
@@ -427,7 +404,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
             </div>
           </div>
 
-          {/* Navigation Menu - Same as before */}
+          {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1 mt-4">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -555,15 +532,18 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm truncate">{getUserName()}</p>
                   <p className="text-xs text-slate-400 truncate">{getRoleDisplay()}</p>
-                  <div className="flex items-center gap-1 mt-1">
+                  <button 
+                    onClick={handleStatusClick}
+                    className="flex items-center gap-1 mt-1 hover:opacity-80 transition"
+                  >
                     <div className={`w-2 h-2 ${status.dotColor} rounded-full animate-pulse`}></div>
                     <span className={`text-xs ${status.color === 'green' ? 'text-green-400' : status.color === 'yellow' ? 'text-yellow-400' : 'text-red-400'}`}>
                       {status.text}
                     </span>
-                  </div>
-                  {daysRemaining > 0 && status.text === 'Active' && (
+                  </button>
+                  {status.daysRemaining > 0 && status.text === 'Active' && (
                     <div className="text-xs text-green-400 mt-1">
-                      {daysRemaining} days left
+                      {status.daysRemaining} days left
                     </div>
                   )}
                 </div>

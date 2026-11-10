@@ -1,5 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
-// src/components/dashboard/seller/SellerActivation.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
@@ -12,7 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const SellerActivation = () => {
   const navigate = useNavigate();
@@ -145,6 +143,7 @@ const SellerActivation = () => {
       const businessLicenseUrl = await uploadFileToServer(sellerForm.business_license, 'business_license');
       const ownershipDocumentUrl = await uploadFileToServer(sellerForm.ownership_document, 'ownership_document');
       const governmentIdUrl = await uploadFileToServer(sellerForm.government_id, 'government_id');
+      
       const requestData = {
         full_name: user?.full_name || '',
         email: user?.email || '',
@@ -158,12 +157,14 @@ const SellerActivation = () => {
         government_id: governmentIdUrl,
         reason_for_activation: 'Seller account activation'
       };
+      
       const token = getToken();
       const response = await fetch(`${API_URL}/api/activation/submit-request`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData)
       });
+      
       const data = await response.json();
       if (response.ok && data.success) {
         toast.success('Seller activation submitted successfully!', { id: toastId });
@@ -188,6 +189,7 @@ const SellerActivation = () => {
       const titleDeedUrl = await uploadFileToServer(landlordForm.property_title_deed, 'title_deed');
       const taxClearanceUrl = await uploadFileToServer(landlordForm.property_tax_clearance, 'tax_clearance');
       const governmentIdUrl = await uploadFileToServer(landlordForm.government_id, 'government_id');
+      
       const requestData = {
         full_name: user?.full_name || '',
         email: user?.email || '',
@@ -199,12 +201,14 @@ const SellerActivation = () => {
         government_id: governmentIdUrl,
         reason_for_activation: 'Landlord account activation'
       };
+      
       const token = getToken();
       const response = await fetch(`${API_URL}/api/activation/submit-request`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData)
       });
+      
       const data = await response.json();
       if (response.ok && data.success) {
         toast.success('Landlord activation submitted successfully!', { id: toastId });
@@ -229,6 +233,7 @@ const SellerActivation = () => {
       const businessLicenseUrl = await uploadFileToServer(sellerForm.business_license, 'business_license');
       const ownershipDocumentUrl = await uploadFileToServer(sellerForm.ownership_document, 'ownership_document');
       const sellerGovernmentIdUrl = await uploadFileToServer(sellerForm.government_id, 'government_id');
+      
       const sellerRequestData = {
         full_name: user?.full_name || '',
         email: user?.email || '',
@@ -242,21 +247,25 @@ const SellerActivation = () => {
         government_id: sellerGovernmentIdUrl,
         reason_for_activation: 'Seller account activation'
       };
+      
       const token = getToken();
       const sellerResponse = await fetch(`${API_URL}/api/activation/submit-request`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(sellerRequestData)
       });
+      
       const sellerData = await sellerResponse.json();
       if (!sellerResponse.ok || !sellerData.success) {
         toast.error('Seller activation failed', { id: toastId });
         setLoading(false);
         return;
       }
+      
       const titleDeedUrl = await uploadFileToServer(landlordForm.property_title_deed, 'title_deed');
       const taxClearanceUrl = await uploadFileToServer(landlordForm.property_tax_clearance, 'tax_clearance');
       const landlordGovernmentIdUrl = await uploadFileToServer(landlordForm.government_id, 'government_id');
+      
       const landlordRequestData = {
         full_name: user?.full_name || '',
         email: user?.email || '',
@@ -268,11 +277,13 @@ const SellerActivation = () => {
         government_id: landlordGovernmentIdUrl,
         reason_for_activation: 'Landlord account activation'
       };
+      
       const landlordResponse = await fetch(`${API_URL}/api/activation/submit-request`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(landlordRequestData)
       });
+      
       const landlordData = await landlordResponse.json();
       if (landlordResponse.ok && landlordData.success) {
         toast.success('Both seller and landlord activation submitted successfully!', { id: toastId });

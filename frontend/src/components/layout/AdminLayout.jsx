@@ -1,4 +1,3 @@
-import { API_BASE_URL } from '@/config/api';
 // src/components/layout/AdminLayout.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -42,7 +41,7 @@ const AdminLayout = ({ children }) => {
       try {
         const token = localStorage.getItem('access_token');
         if (!token) return;
-        const response = await fetch(`${API_BASE_URL}/messages/unread-count`, {
+        const response = await fetch('http://localhost:8000/api/messages/unread-count', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {

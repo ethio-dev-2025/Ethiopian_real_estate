@@ -1,15 +1,24 @@
-import { API_ORIGIN } from '@/config/api';
-// src/components/dashboard/seller/SellerListings.jsx - FULLY UPDATED WITH OPTION 1 COLORS
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Home, MapPin, Bed, Bath, Square, PlusCircle, Trash2, Edit, Eye, 
   Calendar, Clock, CheckCircle, Image, X, Award, Search as SearchIcon,
-  Filter, Grid3x3, List
+  Filter, Grid3x3, List, ChevronDown
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
+// Fallback images for when no image is available
+const FALLBACK_IMAGES = [
+  'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=500&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=500&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=500&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1512917774080-9991f1c4c751?w=500&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop',
+]
+
+const getFallbackImage = (id) => FALLBACK_IMAGES[id % FALLBACK_IMAGES.length]
 
 // Mark as Sold Modal Component
 const MarkAsSoldModalComponent = ({ listing, isOpen, onClose, onSuccess }) => {
@@ -369,6 +378,7 @@ const SellerListings = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [activeFilter, setActiveFilter] = useState('all')
   const [viewMode, setViewMode] = useState('grid')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   
   // Modal states
   const [showSoldModal, setShowSoldModal] = useState(false)
@@ -468,20 +478,10 @@ const SellerListings = () => {
 
   const handleMarkAsSoldSuccess = () => {
     fetchListings()
-    setTimeout(() => {
-      if (window.location.pathname === '/') {
-        window.location.reload()
-      }
-    }, 1000)
   }
 
   const handleMarkAsRentedSuccess = () => {
     fetchListings()
-    setTimeout(() => {
-      if (window.location.pathname === '/') {
-        window.location.reload()
-      }
-    }, 1000)
   }
 
   const getImageUrl = (imagePath) => {
@@ -492,26 +492,39 @@ const SellerListings = () => {
   }
 
   const getFirstImage = (listing) => {
+    // Try cover_image first
     if (listing.cover_image) {
-      return getImageUrl(listing.cover_image)
+      const url = getImageUrl(listing.cover_image)
+      if (url) return url
     }
     
+    // Try images array
     if (listing.images) {
       try {
         const images = typeof listing.images === 'string' ? JSON.parse(listing.images) : listing.images
-        if (images && images.length > 0) {
-          return getImageUrl(images[0])
+        if (images && images.length > 0 && images[0]) {
+          const url = getImageUrl(images[0])
+          if (url) return url
         }
       } catch (e) {
         console.error('Error parsing images:', e)
       }
     }
     
-    return null
+    // Return fallback image based on listing ID
+    return getFallbackImage(listing.id)
   }
 
   const handleImageError = (listingId) => {
-    setImageErrors(prev => ({ ...prev, [listingId]: true }))
+    if (!imageErrors[listingId]) {
+      setImageErrors(prev => ({ ...prev, [listingId]: true }))
+      // Update the listing with fallback image
+      setListings(prev => prev.map(listing => 
+        listing.id === listingId 
+          ? { ...listing, cover_image: getFallbackImage(listingId), images: [getFallbackImage(listingId)] }
+          : listing
+      ))
+    }
   }
 
   const getStatusOverlay = (listing) => {
@@ -536,13 +549,19 @@ const SellerListings = () => {
     return null
   }
 
-  const filterTabs = [
-    { id: 'all', label: 'All Properties', icon: Home, count: listings.length },
-    { id: 'for_sale', label: 'For Sale', icon: Award, count: listings.filter(l => l.listing_type === 'sale').length },
-    { id: 'for_rent', label: 'For Rent', icon: Calendar, count: listings.filter(l => l.listing_type === 'rent').length },
-    { id: 'published', label: 'Published', icon: CheckCircle, count: listings.filter(l => l.is_draft === false && l.status === 'active').length },
-    { id: 'drafts', label: 'Drafts', icon: Clock, count: listings.filter(l => l.is_draft === true).length },
+  // Filter options for dropdown
+  const filterOptions = [
+    { id: 'all', label: 'All Properties', count: listings.length },
+    { id: 'for_sale', label: 'For Sale', count: listings.filter(l => l.listing_type === 'sale').length },
+    { id: 'for_rent', label: 'For Rent', count: listings.filter(l => l.listing_type === 'rent').length },
+    { id: 'published', label: 'Published', count: listings.filter(l => l.is_draft === false && l.status === 'active').length },
+    { id: 'drafts', label: 'Drafts', count: listings.filter(l => l.is_draft === true).length },
   ]
+
+  const getCurrentFilterLabel = () => {
+    const option = filterOptions.find(opt => opt.id === activeFilter)
+    return option ? `${option.label} (${option.count})` : 'All Properties'
+  }
 
   const DeleteConfirmModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -564,58 +583,77 @@ const SellerListings = () => {
       </div>
     )
   }
-
+  // Replace the existing handleViewClick with this:
+const handleViewClick = (listingId) => {
+  // Navigate to the property detail page - the PropertyDetailPage will handle fetching
+  navigate(`/properties/${listingId}`)
+}
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">My Listings</h1>
-          <p className="text-text-muted text-sm">Manage your properties</p>
+      {/* Header with Dropdown and View Mode in ONE ROW */}
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+        {/* Left side - Dropdown Button */}
+        <div className="relative">
+          <button
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="px-5 py-2.5 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center gap-2"
+          >
+            <Filter className="w-4 h-4" />
+            {getCurrentFilterLabel()}
+            <ChevronDown className={`w-4 h-4 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {dropdownOpen && (
+            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-20">
+              {filterOptions.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => {
+                    setActiveFilter(option.id)
+                    setDropdownOpen(false)
+                  }}
+                  className={`w-full px-4 py-2.5 text-left text-sm transition flex justify-between items-center ${
+                    activeFilter === option.id
+                      ? 'bg-primary-50 text-primary-700 font-semibold'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>{option.label}</span>
+                  <span className="text-xs text-gray-400">({option.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <button onClick={() => navigate('/dashboard/create-listing')} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center gap-2">
-          <PlusCircle className="w-4 h-4" /> Create New Listing
-        </button>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-2 mb-6 border-b pb-4">
-        {filterTabs.map((tab) => {
-          const Icon = tab.icon
-          const isActive = activeFilter === tab.id
-          return (
+        
+        {/* Right side - Create Listing Button + View Mode Toggles */}
+        <div className="flex items-center gap-3">
+          {/* View Mode Toggle Buttons */}
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
             <button
-              key={tab.id}
-              onClick={() => setActiveFilter(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                isActive
-                  ? 'bg-primary-600 text-white shadow-md'
-                  : 'bg-gray-100 text-text-secondary hover:bg-gray-200'
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-md transition ${
+                viewMode === 'grid' 
+                  ? 'bg-primary-600 text-white shadow-sm' 
+                  : 'text-gray-500 hover:bg-gray-200'
               }`}
+              title="Grid View"
             >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-              <span className={`text-xs ${isActive ? 'text-white/80' : 'text-text-muted'}`}>
-                ({tab.count})
-              </span>
+              <Grid3x3 className="w-4 h-4" />
             </button>
-          )
-        })}
-      </div>
-
-      {/* View Mode Toggle */}
-      <div className="flex justify-end items-center mb-4 gap-2">
-        <button
-          onClick={() => setViewMode('grid')}
-          className={`p-2 rounded-lg transition ${viewMode === 'grid' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-text-secondary'}`}
-        >
-          <Grid3x3 className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => setViewMode('list')}
-          className={`p-2 rounded-lg transition ${viewMode === 'list' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-text-secondary'}`}
-        >
-          <List className="w-4 h-4" />
-        </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-md transition ${
+                viewMode === 'list' 
+                  ? 'bg-primary-600 text-white shadow-sm' 
+                  : 'text-gray-500 hover:bg-gray-200'
+              }`}
+              title="List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {filteredListings.length === 0 ? (
@@ -634,6 +672,7 @@ const SellerListings = () => {
             const isDraft = listing.is_draft
             const showMarkSoldButton = !isSold && !isRented && !isDraft && listing.listing_type === 'sale'
             const showMarkRentedButton = !isSold && !isRented && !isDraft && listing.listing_type === 'rent'
+            const locationText = listing.city || listing.address || 'Location not set'
             
             return (
               <div key={listing.id} className="bg-white rounded-xl shadow-sm border border-border-light overflow-hidden hover:shadow-md transition flex flex-col relative">
@@ -676,7 +715,7 @@ const SellerListings = () => {
                   
                   <div className="flex items-center gap-1 text-text-muted text-xs mt-1">
                     <MapPin className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate">{listing.city || 'Addis Ababa'}</span>
+                    <span className="truncate">{locationText}</span>
                   </div>
                   
                   <div className="flex gap-2 mt-1 text-xs text-text-muted">
@@ -689,7 +728,7 @@ const SellerListings = () => {
                   
                   <div className="flex gap-1 mt-2 flex-wrap">
                     <button 
-                      onClick={() => window.open(`/properties/${listing.id}`, '_blank')} 
+                      onClick={() => handleViewClick(listing.id)} 
                       className="flex-1 py-1.5 bg-gray-100 text-text-secondary rounded-md text-xs font-semibold hover:bg-gray-200 transition flex items-center justify-center gap-1"
                     >
                       <Eye className="w-3 h-3" /> View
@@ -756,6 +795,7 @@ const SellerListings = () => {
             const isDraft = listing.is_draft
             const showMarkSoldButton = !isSold && !isRented && !isDraft && listing.listing_type === 'sale'
             const showMarkRentedButton = !isSold && !isRented && !isDraft && listing.listing_type === 'rent'
+            const locationText = listing.city || listing.address || 'Location not set'
             
             return (
               <div key={listing.id} className="bg-white rounded-xl shadow-sm border border-border-light overflow-hidden hover:shadow-md transition flex flex-col sm:flex-row relative">
@@ -796,7 +836,7 @@ const SellerListings = () => {
                       </div>
                       <div className="flex items-center gap-1 text-text-muted text-xs">
                         <MapPin className="w-3 h-3" />
-                        <span>{listing.city || 'Addis Ababa'}</span>
+                        <span>{locationText}</span>
                       </div>
                       <div className="flex gap-2 mt-1 text-xs text-text-muted">
                         <span><Bed className="w-3 h-3 inline mr-1" /> {listing.bedrooms || 0}</span>
@@ -807,7 +847,7 @@ const SellerListings = () => {
                     <div className="text-right">
                       <p className="text-base font-bold text-primary-600">ETB {listing.price?.toLocaleString()}</p>
                       <div className="flex gap-1 mt-1">
-                        <button onClick={() => window.open(`/properties/${listing.id}`, '_blank')} className="px-2 py-1 bg-gray-100 rounded text-xs">View</button>
+                        <button onClick={() => handleViewClick(listing.id)} className="px-2 py-1 bg-gray-100 rounded text-xs">View</button>
                         <button onClick={() => navigate(`/dashboard/edit-listing/${listing.id}`)} className="px-2 py-1 bg-gray-100 rounded text-xs">Edit</button>
                         {isDraft && (
                           <button onClick={() => handlePublish(listing.id)} className="px-2 py-1 bg-success text-white rounded text-xs">Pub</button>

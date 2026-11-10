@@ -1,5 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
-// src/components/dashboard/seller/SellerMessages.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
@@ -9,65 +7,38 @@ import {
   Search, Send, Paperclip, Image, File, X, CheckCheck,
   Check, Clock, MessageCircle, AlertCircle, Loader,
   ArrowLeft, Download, User, Users, MessageSquare, RefreshCw,
-  Maximize2, Minimize2, Eye, Smile, Reply, Copy
+  Maximize2, Minimize2, Eye, Smile, Reply, Copy, Shield
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import EmojiPicker from 'emoji-picker-react';
 import UserStatus from '../../common/UserStatus';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// ✅ FIXED: Exact time formatter (no relative time)
 const formatMessageTime = (timestamp) => {
   if (!timestamp) return '';
   const date = new Date(timestamp);
   const now = new Date();
   
-  // For today's messages, show time only (e.g., "2:30 PM")
   if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   }
   
-  // For messages from this year, show month/day and time
   if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
   }
   
-  // For older messages, show full date and time
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric', 
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
-// ✅ FIXED: Telegram-style status icons
 const getStatusIcon = (status, isOwn) => {
   if (!isOwn) return null;
   switch (status) {
-    case 'read':
-      return <CheckCheck className="w-3 h-3 text-primary-500" title="Seen" />;
-    case 'delivered':
-      return <CheckCheck className="w-3 h-3 text-gray-500" title="Delivered" />;
-    case 'sent':
-      return <Check className="w-3 h-3 text-gray-400" title="Sent" />;
-    case 'sending':
-      return <Loader className="w-3 h-3 animate-spin text-gray-400" title="Sending" />;
-    default:
-      return <Clock className="w-3 h-3 text-gray-400" title="Pending" />;
+    case 'read': return <CheckCheck className="w-3 h-3 text-primary-500" title="Seen" />;
+    case 'delivered': return <CheckCheck className="w-3 h-3 text-gray-500" title="Delivered" />;
+    case 'sent': return <Check className="w-3 h-3 text-gray-400" title="Sent" />;
+    case 'sending': return <Loader className="w-3 h-3 animate-spin text-gray-400" title="Sending" />;
+    default: return <Clock className="w-3 h-3 text-gray-400" title="Pending" />;
   }
 };
 
@@ -111,9 +82,7 @@ const SellerMessages = () => {
   const getToken = () => localStorage.getItem('access_token');
 
   const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
   const updateGlobalUnreadBadge = useCallback((count) => {
@@ -152,8 +121,9 @@ const SellerMessages = () => {
 
   const getRoleBadge = (role) => {
     switch(role?.toLowerCase()) {
-      case 'admin': return <span className="text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded">Admin</span>;
+      case 'admin': return <span className="text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded flex items-center gap-1"><Shield className="w-3 h-3" /> Admin</span>;
       case 'buyer': return <span className="text-xs text-secondary-600 bg-secondary-100 px-2 py-0.5 rounded">Buyer</span>;
+      case 'seller': return <span className="text-xs text-primary-600 bg-primary-100 px-2 py-0.5 rounded">Seller</span>;
       case 'landlord': return <span className="text-xs text-success bg-green-100 px-2 py-0.5 rounded">Landlord</span>;
       case 'dual': return <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded">Dual</span>;
       default: return null;
@@ -218,55 +188,151 @@ const SellerMessages = () => {
     }
   }, [updateGlobalUnreadBadge]);
 
-  // ✅ FIXED: fetchAllUsers - ONLY show Admin + Users with existing conversations (buyers only)
-  const fetchAllUsers = useCallback(async () => {
+  // NEW: Fetch admin users directly from the system
+  const fetchAdminUsers = useCallback(async () => {
     try {
-      setLoading(true);
       const token = getToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      // Use the new seller-specific endpoint
-      const response = await fetch(`${API_URL}/api/messages/seller/recipients`, {
+      if (!token) return [];
+      
+      // Try to get admin users from the users endpoint
+      const response = await fetch(`${API_URL}/api/users/admins`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-
+      
       if (response.ok) {
         const data = await response.json();
-        const usersList = Array.isArray(data) ? data : [];
-        
-        // No additional filtering needed - backend now returns only:
-        // 1. Admin users
-        // 2. Buyers with existing conversations
-        const formattedUsers = usersList.map(u => ({
-          id: u.user_id || u.id,
-          user_id: u.user_id || u.id,
-          user_name: u.user_name || u.full_name || u.username,
-          user_role: u.user_role || u.role_type,
-          user_avatar: u.user_avatar || u.avatar_url,
-          email: u.email,
-          last_message: u.last_message || null,
-          last_message_at: u.last_message_at || null,
-          unread_count: u.unread_count || 0,
-          is_online: u.is_online || false,
-          conversation_id: u.conversation_id || null
-        }));
-
-        console.log('📋 Sellers can message these users (Admins + Existing Buyer Conversations only):', 
-          formattedUsers.map(u => `${u.user_name} (${u.user_role}) - Has conversation: ${!!u.conversation_id}`));
-        
-        setAllUsers(formattedUsers);
-      } else {
-        console.error('Failed to fetch seller recipients:', response.status);
+        return Array.isArray(data) ? data : [];
       }
+      
+      // Fallback: If no dedicated endpoint, return empty array
+      return [];
     } catch (error) {
-      console.error('Error fetching users:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching admin users:', error);
+      return [];
     }
   }, []);
+
+  // Fetch all users for "All Users" tab (Admin + existing conversation users)
+const fetchAllUsers = useCallback(async () => {
+  try {
+    setLoading(true);
+    const token = getToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    // Get existing conversations first
+    const convResponse = await fetch(`${API_URL}/api/messages/conversations`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    let conversationUsers = [];
+    if (convResponse.ok) {
+      const convData = await convResponse.json();
+      conversationUsers = convData.map(c => ({
+        id: c.user_id,
+        user_id: c.user_id,
+        user_name: c.user_name,
+        user_role: c.user_role,
+        user_avatar: c.user_avatar,
+        last_message: c.last_message,
+        last_message_at: c.last_message_at,
+        unread_count: c.unread_count || 0,
+        conversation_id: c.id
+      }));
+    }
+    
+    // MANUAL ADMIN - Add admin user directly since we know it exists
+    // Admin user ID 2 (melkamuenyew90@gmail.com)
+    const manualAdminUsers = [
+      {
+        id: 2,
+        user_id: 2,
+        user_name: 'System Admin',
+        user_role: 'admin',
+        user_avatar: null,
+        last_message: null,
+        last_message_at: null,
+        unread_count: 0,
+        conversation_id: null
+      }
+    ];
+    
+    // Try to fetch admin users from API (as backup)
+    let apiAdminUsers = [];
+    try {
+      const adminResponse = await fetch(`${API_URL}/api/users/admins`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (adminResponse.ok) {
+        const adminData = await adminResponse.json();
+        if (Array.isArray(adminData)) {
+          apiAdminUsers = adminData.map(admin => ({
+            id: admin.id,
+            user_id: admin.id,
+            user_name: admin.full_name || admin.username || 'Admin',
+            user_role: 'admin',
+            user_avatar: admin.avatar_url,
+            last_message: null,
+            last_message_at: null,
+            unread_count: 0,
+            conversation_id: null
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching admins from API:', err);
+    }
+    
+    // Use manual admin if API returned nothing, otherwise use API results
+    let adminUsers = apiAdminUsers.length > 0 ? apiAdminUsers : manualAdminUsers;
+    
+    console.log('📋 Admin users to display:', adminUsers);
+    
+    // Combine admin users and conversation users (no duplicates)
+    const allUsersMap = new Map();
+    
+    // Add admin users first (so they appear at the top)
+    adminUsers.forEach(admin => {
+      allUsersMap.set(admin.user_id, {
+        ...admin,
+        source: 'admin'
+      });
+    });
+    
+    // Add conversation users (skip if already added as admin)
+    conversationUsers.forEach(user => {
+      if (!allUsersMap.has(user.user_id)) {
+        allUsersMap.set(user.user_id, {
+          ...user,
+          source: 'conversation'
+        });
+      }
+    });
+    
+    const combinedUsers = Array.from(allUsersMap.values());
+    
+    // Sort: Admin first, then by last_message_at
+    combinedUsers.sort((a, b) => {
+      if (a.user_role === 'admin' && b.user_role !== 'admin') return -1;
+      if (a.user_role !== 'admin' && b.user_role === 'admin') return 1;
+      const dateA = a.last_message_at ? new Date(a.last_message_at) : 0;
+      const dateB = b.last_message_at ? new Date(b.last_message_at) : 0;
+      return dateB - dateA;
+    });
+    
+    console.log('📋 Final All Users:', combinedUsers.map(u => `${u.user_name} (${u.user_role})`));
+    
+    setAllUsers(combinedUsers);
+    
+  } catch (error) {
+    console.error('Error fetching users:', error);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   const markConversationRead = async (userId) => {
     try {
@@ -496,25 +562,16 @@ const SellerMessages = () => {
       if (data.type === 'messages_read') {
         const readerId = data.reader_id;
         
-        console.log(`📖 READ RECEIPT: User ${readerId} read messages`);
-        
         setConversations(prev => prev.map(c =>
           c.user_id === readerId ? { ...c, unread_count: 0 } : c
         ));
         
-        let hasUpdates = false;
         setMessages(prev => prev.map(m => {
           if (m.sender_id === user?.id && m.receiver_id === readerId && m.status !== 'read') {
-            console.log(`   ✅ Updating message ${m.id} status to 'read'`);
-            hasUpdates = true;
             return { ...m, status: 'read' };
           }
           return m;
         }));
-        
-        if (hasUpdates) {
-          setTimeout(() => scrollToBottom(), 100);
-        }
         
         const newTotal = conversations.filter(c => c.user_id !== readerId).reduce((sum, c) => sum + (c.unread_count || 0), 0);
         setTotalUnreadCount(newTotal);
@@ -702,14 +759,9 @@ const SellerMessages = () => {
     
     e.target.value = '';
     
-    toast.success(`File "${file.name}" ready. Press Enter to send.`, {
-      duration: 3000,
-      icon: '📎'
-    });
+    toast.success(`File "${file.name}" ready. Press Enter to send.`, { duration: 3000, icon: '📎' });
     
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 10);
+    setTimeout(() => inputRef.current?.focus(), 10);
   };
 
   const removeAttachment = () => {
@@ -822,18 +874,10 @@ const SellerMessages = () => {
           
           {showActions && (
             <div className={`absolute -top-8 flex gap-1 bg-white rounded-lg shadow-lg p-1 z-10 ${isOwn ? 'right-0' : 'left-0'}`}>
-              <button 
-                onClick={() => copyMessage(message.content)}
-                className="p-1 hover:bg-gray-100 rounded"
-                title="Copy message"
-              >
+              <button onClick={() => copyMessage(message.content)} className="p-1 hover:bg-gray-100 rounded" title="Copy message">
                 <Copy className="w-3 h-3 text-gray-600" />
               </button>
-              <button 
-                onClick={() => setReplyingTo(message)}
-                className="p-1 hover:bg-gray-100 rounded"
-                title="Reply"
-              >
+              <button onClick={() => setReplyingTo(message)} className="p-1 hover:bg-gray-100 rounded" title="Reply">
                 <Reply className="w-3 h-3 text-gray-600" />
               </button>
             </div>
@@ -993,6 +1037,9 @@ const SellerMessages = () => {
                   ? 'No conversations yet. Switch to "All Users" to start a new chat.'
                   : 'No users available to message'}
               </p>
+              {activeView === 'all_users' && (
+                <p className="text-xs mt-2 text-gray-400">Admin users are always available to contact</p>
+              )}
             </div>
           ) : (
             filteredList.map(item => (
@@ -1016,7 +1063,11 @@ const SellerMessages = () => {
                 }`}
               >
                 <div className="relative flex-shrink-0">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-primary-600 to-primary-700 flex items-center justify-center text-white font-bold text-lg">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                    item.user_role === 'admin' 
+                      ? 'bg-gradient-to-r from-red-600 to-red-700' 
+                      : 'bg-gradient-to-r from-primary-600 to-primary-700'
+                  }`}>
                     {item.user_name?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                   {isUserOnline(item.user_id) && (
@@ -1031,8 +1082,9 @@ const SellerMessages = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1">
-                      <h3 className={`font-semibold truncate ${item.unread_count > 0 ? 'text-text-primary' : 'text-text-secondary'}`}>
+                      <h3 className={`font-semibold truncate flex items-center gap-1 ${item.unread_count > 0 ? 'text-text-primary' : 'text-text-secondary'}`}>
                         {item.user_name}
+                        {item.user_role === 'admin' && <Shield className="w-4 h-4 text-red-500" />}
                       </h3>
                     </div>
                     {item.last_message_at && (
@@ -1041,7 +1093,7 @@ const SellerMessages = () => {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {getRoleBadge(item.user_role)}
                   </div>
                   <p className={`text-sm truncate mt-1 ${item.unread_count > 0 ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
@@ -1069,18 +1121,20 @@ const SellerMessages = () => {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {selectedConversation ? (
           <>
-            <div className="bg-gradient-to-r from-primary-700 to-primary-800 text-white border-b p-4 flex items-center gap-3 flex-shrink-0 shadow-md">
+            <div className={`bg-gradient-to-r ${selectedConversation.user_role === 'admin' ? 'from-red-700 to-red-800' : 'from-primary-700 to-primary-800'} text-white border-b p-4 flex items-center gap-3 flex-shrink-0 shadow-md`}>
               <button 
                 onClick={() => {
                   setSelectedConversation(null);
                   navigate('/dashboard/messages');
                 }}
-                className="p-2 hover:bg-primary-600 rounded-lg transition text-white"
+                className="p-2 hover:bg-white/20 rounded-lg transition text-white"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-white text-primary-700 flex items-center justify-center font-bold shadow-md">
+                <div className={`w-10 h-10 rounded-full bg-white flex items-center justify-center font-bold shadow-md ${
+                  selectedConversation.user_role === 'admin' ? 'text-red-600' : 'text-primary-700'
+                }`}>
                   {selectedConversation.user_name?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
                 {isUserOnline(selectedConversation.user_id) && (
@@ -1088,7 +1142,10 @@ const SellerMessages = () => {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-white truncate">{selectedConversation.user_name}</h3>
+                <h3 className="font-semibold text-white truncate flex items-center gap-1">
+                  {selectedConversation.user_name}
+                  {selectedConversation.user_role === 'admin' && <Shield className="w-4 h-4 text-yellow-300" />}
+                </h3>
                 <div className="flex items-center gap-2 flex-wrap">
                   {getRoleBadge(selectedConversation.user_role)}
                   <UserStatus userId={selectedConversation.user_id} showText={true} />
@@ -1208,8 +1265,9 @@ const SellerMessages = () => {
             <p className="text-sm text-gray-400">
               {activeView === 'conversations' 
                 ? 'Choose a conversation from the list to start messaging'
-                : 'Switch to "Conversations" tab to see your chats, or click on a user to start a new conversation'}
+                : 'Switch to "All Users" tab to start a new conversation with admin or other users'}
             </p>
+            <p className="text-xs text-gray-400 mt-2">Admin users are always available to contact</p>
           </div>
         )}
       </div>

@@ -1,4 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
 import React, { useState, useRef } from 'react'
 import { 
   Home, MapPin, DollarSign, Bed, Bath, Square, Camera, Upload, 
@@ -11,7 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const AddPropertyWizard = ({ onSuccess }) => {
   const [step, setStep] = useState(1)

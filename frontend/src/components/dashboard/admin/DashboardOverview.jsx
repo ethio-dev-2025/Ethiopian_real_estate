@@ -1,9 +1,8 @@
-import { API_ORIGIN } from '@/config/api';
 // src/components/dashboard/admin/DashboardOverview.jsx
 import React, { useState, useEffect } from 'react'
 import { Users, Home, FileCheck, CreditCard, DollarSign, Clock, TrendingUp, Activity } from 'lucide-react'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const DashboardOverview = () => {
   const [stats, setStats] = useState({
@@ -64,10 +63,7 @@ const DashboardOverview = () => {
   }
 
   const formatPrice = (price) => {
-    if (!price) return 'ETB 0'
-    if (price >= 10000000) return `${(price / 10000000).toFixed(1)} Cr`
-    if (price >= 1000000) return `${(price / 1000000).toFixed(1)} M`
-    return `ETB ${price.toLocaleString()}`
+    return `ETB ${(price || 0).toLocaleString('en-US')}`
   }
 
   const StatCard = ({ title, value, icon: Icon, color, trend, onClick }) => (

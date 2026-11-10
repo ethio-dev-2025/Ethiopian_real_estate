@@ -1,4 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -13,11 +12,12 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const CreateListingWizard = ({ onSuccess }) => {
   const navigate = useNavigate()
-  const { user, refreshUser } = useAuth()
+  const { user } = useAuth()
+  
   const [step, setStep] = useState(1)
   const [listingType, setListingType] = useState(null)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
@@ -26,173 +26,27 @@ const CreateListingWizard = ({ onSuccess }) => {
   const [showPreview, setShowPreview] = useState(false)
   const fileInputRef = useRef(null)
   
-  const [checkingActivation, setCheckingActivation] = useState(true)
-  const [isActivated, setIsActivated] = useState(false)
-  const [activationMessage, setActivationMessage] = useState('')
-  const [activationStatus, setActivationStatus] = useState(null)
-  const checkCompletedRef = useRef(false)
-  
-  const [subscriptionValid, setSubscriptionValid] = useState(true)
-  const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState(0)
-  const [checkingSubscription, setCheckingSubscription] = useState(true)
-
-  const checkActivationStatus = async () => {
-    try {
-      const token = localStorage.getItem('access_token')
-      if (!token) {
-        navigate('/login')
-        return
-      }
-      
-      console.log('🔍 Checking activation status...')
-      const response = await fetch(`${API_URL}/api/activation/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to check activation')
-      }
-      
-      const data = await response.json()
-      console.log('📊 Activation status:', data)
-      setActivationStatus(data)
-      
-      if (data.status === 'subscription_expired') {
-        setIsActivated(false)
-        setActivationMessage('Your subscription has expired. Please renew to continue creating listings.')
-        return
-      }
-      
-      const canCreate = data.can_create_listings === true
-      
-      if (canCreate) {
-        setIsActivated(true)
-        await refreshUser()
-      } else {
-        setIsActivated(false)
-        if (data.status === 'documents_pending') {
-          setActivationMessage('Your documents are under review by admin. Please wait for approval.')
-        } else if (data.status === 'documents_approved') {
-          setActivationMessage('Your documents are approved! Please subscribe to activate your account.')
-        } else if (data.status === 'payment_pending') {
-          setActivationMessage('Your payment is being verified by admin. This usually takes 24-48 hours.')
-        } else if (data.status === 'rejected') {
-          setActivationMessage('Your activation request was rejected. Please contact support.')
-        } else {
-          setActivationMessage('Your account must be activated before you can create listings.')
-        }
-      }
-    } catch (error) {
-      console.error('Error checking activation:', error)
-      setIsActivated(false)
-      setActivationMessage('Unable to verify account status. Please try again.')
-    } finally {
-      setCheckingActivation(false)
-    }
-  }
-
-  const checkSubscriptionValidity = async () => {
-    try {
-      const token = localStorage.getItem('access_token')
-      if (!token) {
-        setSubscriptionValid(false)
-        setCheckingSubscription(false)
-        return
-      }
-      
-      const response = await fetch(`${API_URL}/api/listings/check-subscription-before-listing`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        console.log('📊 Subscription check:', data)
-        
-        if (data.can_create === false) {
-          setSubscriptionValid(false)
-          if (data.expired) {
-            setActivationMessage('Your subscription has expired. Please renew to create listings.')
-          } else {
-            setActivationMessage(data.message || 'Please subscribe to create listings.')
-          }
-        } else {
-          setSubscriptionValid(true)
-          setSubscriptionDaysLeft(data.days_remaining || 0)
-        }
-      } else {
-        setSubscriptionValid(false)
-        setActivationMessage('Unable to verify subscription status.')
-      }
-    } catch (error) {
-      console.error('Error checking subscription:', error)
-      setSubscriptionValid(false)
-      setActivationMessage('Unable to verify subscription status. Please try again.')
-    } finally {
-      setCheckingSubscription(false)
-    }
-  }
-
-  useEffect(() => {
-    const checkAll = async () => {
-      await checkActivationStatus()
-      await checkSubscriptionValidity()
-    }
+  const [checkingStatus, setCheckingStatus] = useState(false)
+  const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState(() => {
+    const saved = localStorage.getItem('seller_days_remaining')
+    if (saved) return parseInt(saved)
     
-    if (!checkCompletedRef.current) {
-      checkCompletedRef.current = true
-      checkAll()
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser)
+        if (userData.subscription_end_date) {
+          const endDate = new Date(userData.subscription_end_date)
+          const now = new Date()
+          const days = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24))
+          return days > 0 ? days : 0
+        }
+      } catch (e) {}
     }
-  }, [navigate, refreshUser])
-
-  if (checkingActivation || checkingSubscription) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-700"></div>
-        <p className="ml-3 text-gray-500">Checking account status...</p>
-      </div>
-    )
-  }
-
-  const isExpired = (!subscriptionValid && subscriptionDaysLeft === 0) || 
-                    activationStatus?.status === 'subscription_expired' ||
-                    (activationStatus?.status === 'fully_activated' && activationStatus?.days_remaining === 0)
-
-  if (!isActivated || !subscriptionValid || isExpired) {
-    return (
-      <div className="max-w-2xl mx-auto mt-12">
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="p-8 text-center">
-            <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
-              <AlertCircle className="w-12 h-12 text-amber-500" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {isExpired ? 'Subscription Expired' : 'Account Not Activated'}
-            </h2>
-            <p className="text-gray-600 mb-6">
-              {isExpired 
-                ? 'Your subscription has expired. Please renew to continue creating listings.'
-                : activationMessage}
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => navigate(isExpired ? '/dashboard/subscription' : '/dashboard/activation')}
-                className="px-6 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg transition"
-              >
-                {isExpired ? 'Renew Subscription' : 'Go to Activation'}
-              </button>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="px-6 py-3 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition"
-              >
-                Back to Dashboard
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+    return 0
+  })
+  
+  // Form state
   const [formData, setFormData] = useState({
     title: '',
     property_type: 'house',
@@ -243,41 +97,71 @@ const CreateListingWizard = ({ onSuccess }) => {
     { icon: Zap, name: 'Backup Power' }
   ]
 
-  if (!listingType) {
+  // Calculate days using PC LOCAL TIME
+  const calculateDaysRemaining = useCallback(() => {
+    const storedUser = localStorage.getItem('user')
+    if (!storedUser) return 0
+    
+    try {
+      const userData = JSON.parse(storedUser)
+      if (userData.subscription_end_date) {
+        const endDate = new Date(userData.subscription_end_date)
+        const now = new Date()
+        const days = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24))
+        return days > 0 ? days : 0
+      }
+    } catch (e) {}
+    return 0
+  }, [])
+
+  // Auto-refresh every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newDays = calculateDaysRemaining()
+      if (newDays !== subscriptionDaysLeft) {
+        setSubscriptionDaysLeft(newDays)
+        localStorage.setItem('seller_days_remaining', newDays.toString())
+        localStorage.setItem('seller_has_active_subscription', (newDays > 0).toString())
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [subscriptionDaysLeft, calculateDaysRemaining])
+
+  // Initial load
+  useEffect(() => {
+    const days = calculateDaysRemaining()
+    setSubscriptionDaysLeft(days)
+    setCheckingStatus(false)
+  }, [calculateDaysRemaining])
+
+  const isExpired = subscriptionDaysLeft === 0
+
+  if (isExpired) {
     return (
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-lg border p-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Create New Listing</h1>
-          <p className="text-gray-500 mb-8">Choose what type of listing you want to create</p>
-          
-          <div className="grid grid-cols-2 gap-6">
-            <button
-              onClick={() => setListingType('sale')}
-              className="p-8 border-2 rounded-2xl hover:border-primary-600 hover:bg-primary-50 transition-all group"
-            >
-              <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-primary-200 transition">
-                <DollarSign className="w-10 h-10 text-primary-700" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">For Sale</h2>
-              <p className="text-gray-500">Sell your property to potential buyers</p>
-            </button>
+      <div className="max-w-2xl mx-auto mt-12">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="p-8 text-center">
+            <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+              <AlertCircle className="w-12 h-12 text-amber-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Subscription Expired</h2>
+            <p className="text-gray-600 mb-6">Your subscription has expired. Please renew to continue creating listings.</p>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <button
+                onClick={() => navigate('/dashboard/subscription')}
+                className="px-6 py-3 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-xl font-semibold hover:shadow-lg transition"
+              >
+                Renew Subscription
+              </button>
             
-            <button
-              onClick={() => setListingType('rent')}
-              className="p-8 border-2 rounded-2xl hover:border-secondary-500 hover:bg-secondary-50 transition-all group"
-            >
-              <div className="w-20 h-20 bg-secondary-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-secondary-200 transition">
-                <Calendar className="w-10 h-10 text-secondary-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">For Rent</h2>
-              <p className="text-gray-500">Find tenants for your property</p>
-            </button>
+            </div>
           </div>
         </div>
       </div>
     )
   }
 
+  // Form handlers
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
@@ -604,6 +488,43 @@ const CreateListingWizard = ({ onSuccess }) => {
     </div>
   )
 
+  // Render listing type selection
+  if (!listingType) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-lg border p-8 text-center">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Create New Listing</h1>
+          <p className="text-gray-500 mb-8">Choose what type of listing you want to create</p>
+          
+          <div className="grid grid-cols-2 gap-6">
+            <button
+              onClick={() => setListingType('sale')}
+              className="p-8 border-2 rounded-2xl hover:border-primary-600 hover:bg-primary-50 transition-all group"
+            >
+              <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-primary-200 transition">
+                <DollarSign className="w-10 h-10 text-primary-700" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">For Sale</h2>
+              <p className="text-gray-500">Sell your property to potential buyers</p>
+            </button>
+            
+            <button
+              onClick={() => setListingType('rent')}
+              className="p-8 border-2 rounded-2xl hover:border-secondary-500 hover:bg-secondary-50 transition-all group"
+            >
+              <div className="w-20 h-20 bg-secondary-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-secondary-200 transition">
+                <Calendar className="w-10 h-10 text-secondary-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">For Rent</h2>
+              <p className="text-gray-500">Find tenants for your property</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Render main form
   return (
     <div className="max-w-5xl mx-auto">
       {showPreview && <PreviewModal />}
@@ -614,8 +535,8 @@ const CreateListingWizard = ({ onSuccess }) => {
             <h1 className="text-3xl font-bold text-gray-900">
               {listingType === 'sale' ? 'List Property for Sale' : 'List Property for Rent'}
             </h1>
-            <p className="text-primary-600 text-sm mt-1">
-              ✓ Account fully activated • {subscriptionDaysLeft} days remaining on subscription
+            <p className="text-success text-sm mt-1">
+              ✓ Account active • {subscriptionDaysLeft} days remaining
             </p>
           </div>
           <div className="text-right">

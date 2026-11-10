@@ -1,11 +1,10 @@
-import { API_ORIGIN } from '@/config/api';
 // src/pages/auth/RegisterPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, User, Mail, Phone, Lock, UserPlus, Building2, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Ethiopian phone number validation
 const validateEthiopianPhone = (phone) => {
@@ -339,19 +338,6 @@ const RegisterPage = () => {
                 </Link>
               </p>
             </div>
-          </div>
-        </div>
-
-        {/* Footer Security Badges */}
-        <div className="mt-6 flex justify-center gap-6">
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Shield className="w-3 h-3" /> Secure
-          </div>
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Shield className="w-3 h-3" /> Fast
-          </div>
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Shield className="w-3 h-3" /> Private
           </div>
         </div>
       </div>

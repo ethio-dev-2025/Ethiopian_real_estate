@@ -1,5 +1,3 @@
-import { API_ORIGIN } from '@/config/api';
-// src/pages/public/HomePage.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Header from '../../components/layout/Header'
@@ -15,9 +13,20 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
-const API_URL = API_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
-// Simple Select Component that works reliably on mobile
+// Fallback images for when no image is available
+const FALLBACK_IMAGES = [
+  'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=500&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=500&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=500&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1512917774080-9991f1c4c751?w=500&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop',
+];
+
+const getFallbackImage = (id) => FALLBACK_IMAGES[id % FALLBACK_IMAGES.length];
+
+// Simple Select Component - UPDATED to blue theme
 const SimpleSelect = ({ value, onChange, options, label }) => {
   const [isOpen, setIsOpen] = useState(false)
   const selectRef = useRef(null)
@@ -40,7 +49,7 @@ const SimpleSelect = ({ value, onChange, options, label }) => {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2.5 text-left bg-white border border-gray-300 rounded-lg flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-primary-600 min-h-[44px]"
+        className="w-full px-3 py-2.5 text-left bg-white border border-gray-300 rounded-lg flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
       >
         <span className={selectedOption ? 'text-gray-900 text-sm' : 'text-gray-500 text-sm'}>
           {selectedOption ? selectedOption.label : 'Select'}
@@ -59,7 +68,7 @@ const SimpleSelect = ({ value, onChange, options, label }) => {
                 setIsOpen(false)
               }}
               className={`w-full px-3 py-2.5 text-left hover:bg-gray-50 transition text-sm ${
-                value === option.value ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700'
+                value === option.value ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
               }`}
             >
               {option.label}
@@ -77,7 +86,7 @@ const HomePage = () => {
   const [filteredProperties, setFilteredProperties] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [activeTab, setActiveTab] = useState('all')
+  const [activeType, setActiveType] = useState('all')
   const [viewMode, setViewMode] = useState('grid')
   const [searchTerm, setSearchTerm] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -88,40 +97,59 @@ const HomePage = () => {
   const [locations, setLocations] = useState([])
   const [selectedLocation, setSelectedLocation] = useState('all')
   const [imageErrors, setImageErrors] = useState({})
+  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false)
+  const typeDropdownRef = useRef(null)
   const { t } = useLanguage()
+
+  // Type options for dropdown
+  const typeOptions = [
+    { value: 'all', label: 'All Properties', count: allProperties.length },
+    { value: 'sale', label: 'For Sale', count: allProperties.filter(p => p.type === 'sale').length },
+    { value: 'rent', label: 'For Rent', count: allProperties.filter(p => p.type === 'rent').length }
+  ]
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target)) {
+        setTypeDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const getCurrentTypeLabel = () => {
+    const option = typeOptions.find(opt => opt.value === activeType)
+    return option ? `${option.label} (${option.count})` : 'All Properties'
+  }
+
+  // Get image URL
+  const getImageUrl = (imagePath, propertyId) => {
+    if (!imagePath) return getFallbackImage(propertyId);
+    if (imagePath.startsWith('http')) return imagePath;
+    if (imagePath.startsWith('/uploads')) return `${API_URL}${imagePath}`;
+    return `${API_URL}/uploads/${imagePath}`;
+  }
 
   // Format API property
   const formatApiProperty = (apiProp) => {
-    let imageUrl = null
+    let imageUrl = null;
     
     if (apiProp.cover_image) {
-      let coverImg = apiProp.cover_image
-      if (coverImg.startsWith('http')) {
-        imageUrl = coverImg
-      } else if (coverImg.startsWith('/uploads')) {
-        imageUrl = `${API_URL}${coverImg}`
-      } else {
-        imageUrl = `${API_URL}/uploads/${coverImg}`
-      }
+      imageUrl = getImageUrl(apiProp.cover_image, apiProp.id);
     }
     
-    if (!imageUrl && apiProp.images && apiProp.images.length > 0) {
-      const img = apiProp.images[0]
-      if (img) {
-        if (img.startsWith('http')) {
-          imageUrl = img
-        } else if (img.startsWith('/uploads')) {
-          imageUrl = `${API_URL}${img}`
-        } else {
-          imageUrl = `${API_URL}/uploads/${img}`
+    if (!imageUrl && apiProp.images) {
+      try {
+        let imagesArray = typeof apiProp.images === 'string' ? JSON.parse(apiProp.images) : apiProp.images;
+        if (imagesArray && imagesArray.length > 0 && imagesArray[0]) {
+          imageUrl = getImageUrl(imagesArray[0], apiProp.id);
         }
-      }
+      } catch (e) {}
     }
     
     if (!imageUrl) {
-      imageUrl = apiProp.listing_type === 'sale' 
-        ? 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&h=400&fit=crop'
-        : 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&h=400&fit=crop'
+      imageUrl = getFallbackImage(apiProp.id);
     }
     
     return {
@@ -177,8 +205,8 @@ const HomePage = () => {
   useEffect(() => {
     let filtered = [...allProperties]
 
-    if (activeTab !== 'all') {
-      filtered = filtered.filter(prop => prop.type === activeTab)
+    if (activeType !== 'all') {
+      filtered = filtered.filter(prop => prop.type === activeType)
     }
 
     if (searchTerm && searchTerm.trim() !== '') {
@@ -190,7 +218,7 @@ const HomePage = () => {
     }
 
     if (priceRange !== 'all') {
-      const currentType = activeTab === 'all' ? 'sale' : activeTab
+      const currentType = activeType === 'all' ? 'sale' : activeType
       
       if (currentType === 'rent') {
         if (priceRange === 'under-20k') {
@@ -234,7 +262,7 @@ const HomePage = () => {
     }
 
     setFilteredProperties(filtered)
-  }, [allProperties, activeTab, searchTerm, priceRange, bedrooms, bathrooms, selectedLocation, sortBy])
+  }, [allProperties, activeType, searchTerm, priceRange, bedrooms, bathrooms, selectedLocation, sortBy])
 
   // Fetch data on mount
   useEffect(() => {
@@ -243,11 +271,14 @@ const HomePage = () => {
 
   const handleImageError = (propertyId) => {
     setImageErrors(prev => ({ ...prev, [propertyId]: true }))
+    setAllProperties(prev => prev.map(p => 
+      p.id === propertyId ? { ...p, image: getFallbackImage(propertyId) } : p
+    ))
   }
 
   const resetFilters = () => {
     setSearchTerm('')
-    setActiveTab('all')
+    setActiveType('all')
     setPriceRange('all')
     setBedrooms('any')
     setBathrooms('any')
@@ -267,23 +298,12 @@ const HomePage = () => {
 
   const formatPrice = (price, type) => {
     if (!price) return 'ETB 0'
-    if (type === 'rent') {
-      if (price >= 1000000) {
-        return `ETB ${(price / 1000000).toFixed(1)}M/mo`
-      }
-      return `ETB ${price.toLocaleString()}/mo`
-    }
-    if (price >= 10000000) {
-      return `ETB ${(price / 10000000).toFixed(1)}Cr`
-    }
-    if (price >= 1000000) {
-      return `ETB ${(price / 1000000).toFixed(1)}M`
-    }
-    return `ETB ${price.toLocaleString()}`
+    if (type === 'rent') return `ETB ${price.toLocaleString('en-US')}/month`
+    return `ETB ${price.toLocaleString('en-US')}`
   }
 
   const getPriceOptions = () => {
-    const currentType = activeTab === 'all' ? 'sale' : activeTab
+    const currentType = activeType === 'all' ? 'sale' : activeType
     
     if (currentType === 'rent') {
       return [
@@ -295,17 +315,11 @@ const HomePage = () => {
     }
     return [
       { value: 'all', label: 'Any Price' },
-      { value: 'under-5m', label: 'Under ETB 5M' },
-      { value: '5m-15m', label: 'ETB 5M - 15M' },
-      { value: 'above-15m', label: 'Above ETB 15M' }
+      { value: 'under-5m', label: 'Under ETB 5,000,000' },
+      { value: '5m-15m', label: 'ETB 5,000,000 - 15,000,000' },
+      { value: 'above-15m', label: 'Above ETB 15,000,000' }
     ]
   }
-
-  const tabs = [
-    { id: 'all', label: 'All Properties', count: allProperties.length },
-    { id: 'sale', label: 'For Sale', count: allProperties.filter(p => p.type === 'sale').length },
-    { id: 'rent', label: 'For Rent', count: allProperties.filter(p => p.type === 'rent').length }
-  ]
 
   const displayedProperties = filteredProperties.slice(0, 6)
 
@@ -318,7 +332,7 @@ const HomePage = () => {
     return (
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
         <div className={`transform -rotate-45 px-6 py-1 text-white font-bold text-sm uppercase tracking-wider shadow-lg ${
-          isSold ? 'bg-error' : 'bg-purple-600'
+          isSold ? 'bg-red-600' : 'bg-purple-600'
         }`}>
           {isSold ? 'SOLD' : 'RENTED'}
         </div>
@@ -328,10 +342,10 @@ const HomePage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
         <Header />
         <div className="flex justify-center items-center h-96">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-700"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
       </div>
     )
@@ -341,17 +355,20 @@ const HomePage = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 overflow-x-hidden">
       <Header />
 
-      {/* Hero Section */}
-      <section className="relative pt-20 pb-8 bg-gradient-to-r from-primary-800 to-primary-900">
-        <div className="container mx-auto px-4 text-center text-white">
+      {/* Hero Section - UPDATED to blue/purple gradient */}
+      <section className="relative pt-20 pb-8 bg-gradient-to-r from-blue-600 to-purple-700">
+        <div className="absolute inset-0 bg-black/20"></div>
+        <div className="absolute top-20 right-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 left-10 w-80 h-80 bg-purple-400/10 rounded-full blur-3xl"></div>
+        
+        <div className="relative z-10 container mx-auto px-4 text-center text-white">
           <h1 className="text-3xl md:text-5xl font-bold mb-3">
-            Find Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-300">Dream Property</span>
+            Find Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-pink-300">Dream Property</span>
           </h1>
-          <p className="text-sm md:text-lg text-primary-100 mb-6 max-w-2xl mx-auto">
+          <p className="text-sm md:text-lg text-blue-100 mb-6 max-w-2xl mx-auto">
             Discover the best properties in Ethiopia. Buy, sell, or rent with confidence.
           </p>
           
-          {/* ROW 1: Search Bar + Filter Button + Reset Button */}
           <div className="flex justify-center">
             <div className="flex items-center gap-3 bg-white rounded-xl shadow-2xl p-2 w-full max-w-3xl">
               <div className="relative flex-1">
@@ -361,14 +378,14 @@ const HomePage = () => {
                   placeholder="Search by location, property name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-600 text-sm"
+                  className="w-full pl-10 pr-3 py-2 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
               <button 
                 onClick={() => setShowFilters(!showFilters)}
                 className={`px-4 py-2 rounded-lg transition flex items-center gap-1.5 text-sm whitespace-nowrap ${
                   showFilters 
-                    ? 'bg-primary-700 text-white' 
+                    ? 'bg-blue-600 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -465,33 +482,41 @@ const HomePage = () => {
             )}
           </AnimatePresence>
 
-          {/* ROW 2: Tabs + View Mode Buttons */}
-          <div className="flex items-start justify-between gap-2 mb-5">
-            <div className="flex-1 overflow-x-auto overflow-y-visible no-scrollbar pb-1">
-              <div className="flex gap-1.5 bg-white rounded-full p-1 shadow-sm w-max">
-                {tabs.map((tab) => {
-                  const isActive = activeTab === tab.id
-                  return (
+          {/* ROW 2: Property Type Dropdown + View Mode Buttons */}
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <div className="relative" ref={typeDropdownRef}>
+              <button
+                onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
+                className="px-4 py-2.5 bg-white border border-gray-300 rounded-xl flex items-center justify-between gap-2 hover:border-blue-500 transition min-w-[160px] shadow-sm"
+              >
+                <span className="text-gray-700 text-sm font-medium">
+                  {getCurrentTypeLabel()}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${typeDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {typeDropdownOpen && (
+                <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-30">
+                  {typeOptions.map((option) => (
                     <button
-                      key={tab.id}
+                      key={option.value}
                       onClick={() => {
-                        setActiveTab(tab.id)
+                        setActiveType(option.value)
                         setPriceRange('all')
+                        setTypeDropdownOpen(false)
                       }}
-                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full font-medium text-xs sm:text-sm transition whitespace-nowrap ${
-                        isActive
-                          ? 'bg-gradient-to-r from-primary-700 to-primary-800 text-white shadow-md'
-                          : 'text-gray-600 hover:text-gray-900'
+                      className={`w-full px-4 py-3 text-left text-sm transition flex justify-between items-center ${
+                        activeType === option.value
+                          ? 'bg-blue-50 text-blue-600 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
                       }`}
                     >
-                      {tab.label}
-                      <span className={`text-xs ${isActive ? 'text-white/80' : 'text-gray-400'}`}>
-                        ({tab.count})
-                      </span>
+                      <span>{option.label}</span>
+                      <span className="text-xs text-gray-400">({option.count})</span>
                     </button>
-                  )
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
             
             <div className="flex-shrink-0 flex gap-1.5 bg-white rounded-lg p-1 shadow-sm">
@@ -499,7 +524,7 @@ const HomePage = () => {
                 onClick={() => setViewMode('grid')}
                 className={`p-1.5 rounded-md transition ${
                   viewMode === 'grid' 
-                    ? 'bg-gradient-to-r from-primary-700 to-primary-800 text-white' 
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' 
                     : 'text-gray-500 hover:bg-gray-100'
                 }`}
                 title="Grid View"
@@ -510,7 +535,7 @@ const HomePage = () => {
                 onClick={() => setViewMode('list')}
                 className={`p-1.5 rounded-md transition ${
                   viewMode === 'list' 
-                    ? 'bg-gradient-to-r from-primary-700 to-primary-800 text-white' 
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' 
                     : 'text-gray-500 hover:bg-gray-100'
                 }`}
                 title="List View"
@@ -524,14 +549,13 @@ const HomePage = () => {
             <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <Home className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 text-lg">No properties found</p>
-              <button onClick={resetFilters} className="mt-4 text-primary-700 hover:underline text-sm">
+              <button onClick={resetFilters} className="mt-4 text-blue-600 hover:underline text-sm">
                 Clear filters
               </button>
             </div>
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
               {displayedProperties.map((property) => {
-                const hasError = imageErrors[property.id]
                 const isSold = property.listing_status === 'sold'
                 const isRented = property.listing_status === 'rented'
                 const isAvailable = !isSold && !isRented
@@ -543,28 +567,21 @@ const HomePage = () => {
                     className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition cursor-pointer group ${!isAvailable ? 'opacity-90' : ''}`}
                   >
                     <div className="relative h-44 sm:h-48 overflow-hidden bg-gray-200">
-                      {!hasError && property.image ? (
-                        <img 
-                          src={property.image} 
-                          alt={property.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                          loading="lazy"
-                          onError={() => handleImageError(property.id)}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                          <ImageOff className="w-6 h-6 mb-1" />
-                          <p className="text-xs">No Image</p>
-                        </div>
-                      )}
+                      <img 
+                        src={property.image} 
+                        alt={property.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                        loading="lazy"
+                        onError={() => handleImageError(property.id)}
+                      />
                       
                       <DiagonalBadge status={property.listing_status} />
                       
-                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-800">
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600">
                         {property.type === 'sale' ? 'For Sale' : 'For Rent'}
                       </div>
                       {property.featured && (
-                        <div className="absolute top-2 left-2 bg-secondary-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <div className="absolute top-2 left-2 bg-yellow-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">
                           <Star className="w-3 h-3" /> Featured
                         </div>
                       )}
@@ -581,11 +598,11 @@ const HomePage = () => {
                         <div className="flex items-center gap-1"><Square className="w-3 h-3" /> {property.sqft}</div>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className={`text-base sm:text-lg font-bold ${isSold || isRented ? 'text-gray-500 line-through' : 'text-primary-700'}`}>
+                        <span className={`text-base sm:text-lg font-bold ${isSold || isRented ? 'text-gray-500 line-through' : 'text-blue-600'}`}>
                           {formatPrice(property.price, property.type)}
                         </span>
                         {isAvailable && (
-                          <button className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold text-xs hover:shadow-lg transition flex items-center gap-1">
+                          <button className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-xs hover:shadow-lg transition flex items-center gap-1">
                             View Details <ArrowRight className="w-3 h-3" />
                           </button>
                         )}
@@ -614,10 +631,11 @@ const HomePage = () => {
                         alt={property.title}
                         className="w-full h-full object-cover"
                         loading="lazy"
+                        onError={() => handleImageError(property.id)}
                       />
                       {(isSold || isRented) && (
                         <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${isSold ? 'bg-error' : 'bg-purple-600'}`}>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${isSold ? 'bg-red-600' : 'bg-purple-600'}`}>
                             {isSold ? 'SOLD' : 'RENTED'}
                           </span>
                         </div>
@@ -627,11 +645,11 @@ const HomePage = () => {
                       <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-semibold ${property.type === 'sale' ? 'bg-primary-100 text-primary-700' : 'bg-success/10 text-success'}`}>
+                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-semibold ${property.type === 'sale' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                               {property.type === 'sale' ? 'For Sale' : 'For Rent'}
                             </span>
                             {property.featured && (
-                              <span className="inline-flex items-center gap-1 bg-secondary-100 text-secondary-700 px-1.5 py-0.5 rounded-full text-xs font-semibold">
+                              <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full text-xs font-semibold">
                                 <Star className="w-3 h-3" /> Featured
                               </span>
                             )}
@@ -648,11 +666,11 @@ const HomePage = () => {
                           </div>
                         </div>
                         <div className="text-left sm:text-right w-full sm:w-auto">
-                          <p className={`text-base sm:text-lg font-bold ${isSold || isRented ? 'text-gray-500 line-through' : 'text-primary-700'}`}>
+                          <p className={`text-base sm:text-lg font-bold ${isSold || isRented ? 'text-gray-500 line-through' : 'text-blue-600'}`}>
                             {formatPrice(property.price, property.type)}
                           </p>
                           {isAvailable && (
-                            <button className="mt-1 px-2.5 py-1 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold text-xs hover:shadow-lg transition inline-flex items-center gap-1">
+                            <button className="mt-1 px-2.5 py-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-xs hover:shadow-lg transition inline-flex items-center gap-1">
                               View <ArrowRight className="w-3 h-3" />
                             </button>
                           )}
@@ -669,7 +687,7 @@ const HomePage = () => {
             <div className="text-center mt-10">
               <button
                 onClick={handleSeeMore}
-                className="px-5 py-2.5 bg-gradient-to-r from-primary-700 to-primary-800 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition inline-flex items-center gap-1"
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition inline-flex items-center gap-1"
               >
                 See More Properties <ChevronRight className="w-4 h-4" />
               </button>
@@ -678,13 +696,13 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Footer - UPDATED to blue accent */}
       <footer className="bg-gray-900 text-gray-400 py-8 px-4">
         <div className="container mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Building2 className="w-7 h-7 text-primary-500" />
+                <Building2 className="w-7 h-7 text-blue-500" />
                 <span className="text-lg font-bold text-white">EstateHub</span>
               </div>
               <p className="text-sm">Your trusted partner in real estate</p>

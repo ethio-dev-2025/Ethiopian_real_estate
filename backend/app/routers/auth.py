@@ -186,16 +186,27 @@ class GoogleAuthRequest(BaseModel):
 
 # ============ HELPER FUNCTIONS ============
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    """Hash password using raw bcrypt (Python 3.14 / cross-platform compatible)"""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password using bcrypt with fallback"""
     try:
-        result = pwd_context.verify(plain_password, hashed_password)
+        result = bcrypt.checkpw(
+            plain_password.encode('utf-8'),
+            hashed_password.encode('utf-8')
+        )
         print(f"🔐 Password verification: {'SUCCESS' if result else 'FAILED'}")
         return result
     except Exception as e:
-        print(f"❌ Password verification error: {e}")
-        return False
+        print(f"⚠️ bcrypt checkpw note: {e}, trying fallback...")
+        try:
+            return pwd_context.verify(plain_password, hashed_password)
+        except Exception as e2:
+            print(f"❌ Fallback password verification failed: {e2}")
+            return False
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()

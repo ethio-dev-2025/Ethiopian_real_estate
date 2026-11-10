@@ -1,27 +1,27 @@
-import { API_BASE_URL } from '@/config/api';
-// src/components/layout/SellerLayout.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import SellerSidebar from './SellerSidebar';
-import { Menu, Zap, Clock } from 'lucide-react';
+import { Menu, Zap, Clock, Shield, CreditCard, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const SellerLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [daysRemaining, setDaysRemaining] = useState(() => {
-    const saved = localStorage.getItem('seller_days_remaining');
-    return saved ? parseInt(saved) : 0;
-  });
-  const [hasActiveSubscription, setHasActiveSubscription] = useState(() => {
-    const saved = localStorage.getItem('seller_has_active_subscription');
-    return saved === 'true';
-  });
-  const [isExpiringSoon, setIsExpiringSoon] = useState(false);
+  const [activationStatus, setActivationStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, forceRefreshUser } = useAuth();
+
+  // Shared state that will be passed to sidebar via event
+  const [sharedStatus, setSharedStatus] = useState({
+    daysRemaining: 0,
+    hasActiveSubscription: false,
+    status: 'pending',
+    message: ''
+  });
 
   const calculateDaysRemaining = (endDateString) => {
     if (!endDateString) return 0;
@@ -31,50 +31,27 @@ const SellerLayout = ({ children }) => {
       const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       return diff > 0 ? diff : 0;
     } catch (error) {
-      console.error('Error calculating days:', error);
       return 0;
     }
   };
 
-  const updateDaysRemaining = (days, hasActive) => {
-    setDaysRemaining(days);
-    setHasActiveSubscription(hasActive);
-    setIsExpiringSoon(days > 0 && days <= 30);
-    
-    localStorage.setItem('seller_days_remaining', days.toString());
-    localStorage.setItem('seller_has_active_subscription', hasActive.toString());
-  };
-
-  useEffect(() => {
-    const handleImmediateUpdate = (event) => {
-      if (event.detail) {
-        console.log('📡 Layout received immediate update:', event.detail);
-        updateDaysRemaining(event.detail.daysRemaining, event.detail.hasActiveSubscription);
-      }
-    };
-    
-    window.addEventListener('subscription_immediate_update', handleImmediateUpdate);
-    
-    return () => {
-      window.removeEventListener('subscription_immediate_update', handleImmediateUpdate);
-    };
-  }, []);
-
-  const refreshSubscriptionStatus = async () => {
+  const fetchActivationStatus = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
       if (!token) return;
       
-      const response = await fetch(`${API_BASE_URL}/activation/status`, {
+      const response = await fetch(`${API_URL}/api/activation/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 SellerLayout - API Status (background):', data);
+        console.log('📊 SellerLayout - Activation Status:', data);
+        setActivationStatus(data);
         
         let days = data.days_remaining || 0;
         
+        // Calculate days from subscription_end_date if available
         let currentUser = user;
         if (!currentUser) {
           const storedUser = localStorage.getItem('user');
@@ -92,36 +69,53 @@ const SellerLayout = ({ children }) => {
         
         const hasActive = data.can_create_listings === true && days > 0;
         
-        updateDaysRemaining(days, hasActive);
+        const newSharedStatus = {
+          daysRemaining: days,
+          hasActiveSubscription: hasActive,
+          status: data.status,
+          message: data.message,
+          can_create_listings: data.can_create_listings,
+          is_activated: data.is_activated
+        };
         
+        setSharedStatus(newSharedStatus);
+        
+        // Dispatch event for sidebar to sync
+        window.dispatchEvent(new CustomEvent('activation_status_update', { 
+          detail: newSharedStatus
+        }));
+        
+        // Also dispatch subscription update for backward compatibility
         window.dispatchEvent(new CustomEvent('subscription_update', { 
           detail: { daysRemaining: days, hasActiveSubscription: hasActive }
         }));
+        
+        // Store in localStorage for persistence
+        localStorage.setItem('seller_days_remaining', days.toString());
+        localStorage.setItem('seller_has_active_subscription', hasActive.toString());
+        localStorage.setItem('activation_status', JSON.stringify(newSharedStatus));
       }
     } catch (error) {
-      console.error('Error refreshing subscription status:', error);
+      console.error('Error fetching activation status:', error);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
+    // Load from localStorage first for immediate display
+    const storedStatus = localStorage.getItem('activation_status');
+    if (storedStatus) {
       try {
-        const currentUser = JSON.parse(storedUser);
-        if (currentUser?.subscription_end_date) {
-          const days = calculateDaysRemaining(currentUser.subscription_end_date);
-          const hasActive = (currentUser.has_active_subscription === true || 
-                            currentUser.can_create_listings === true) && days > 0;
-          updateDaysRemaining(days, hasActive);
-        }
+        const parsed = JSON.parse(storedStatus);
+        setSharedStatus(parsed);
       } catch (e) {}
     }
     
-    refreshSubscriptionStatus();
+    fetchActivationStatus();
     
-    const interval = setInterval(refreshSubscriptionStatus, 30000);
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchActivationStatus, 30000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [fetchActivationStatus]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -157,29 +151,81 @@ const SellerLayout = ({ children }) => {
     return 'Dashboard';
   };
 
-  const getSubscriptionBadge = () => {
-    if (!hasActiveSubscription || daysRemaining === 0) {
+  const getBadgeInfo = () => {
+    const { status, daysRemaining, hasActiveSubscription } = sharedStatus;
+    
+    // Check activation status first
+    if (status === 'documents_pending') {
       return {
-        text: 'Inactive',
+        text: 'Pending Approval',
         color: 'bg-red-500',
-        icon: <Zap className="w-3 h-3" />
+        icon: <Shield className="w-3 h-3" />,
+        action: '/dashboard/activation'
       };
     }
-    if (isExpiringSoon) {
+    
+    if (status === 'documents_approved') {
+      return {
+        text: 'Subscribe Now',
+        color: 'bg-yellow-500',
+        icon: <CreditCard className="w-3 h-3" />,
+        action: '/dashboard/subscription'
+      };
+    }
+    
+    if (status === 'payment_pending') {
+      return {
+        text: 'Payment Pending',
+        color: 'bg-orange-500',
+        icon: <Clock className="w-3 h-3" />,
+        action: '/dashboard/subscription'
+      };
+    }
+    
+    if (status === 'not_submitted') {
+      return {
+        text: 'inactive',
+        color: 'bg-red-500',
+        icon: <Shield className="w-3 h-3" />,
+        action: '/dashboard/activation'
+      };
+    }
+    
+    if (status === 'fully_activated' && daysRemaining > 0) {
+      if (daysRemaining <= 30) {
+        return {
+          text: `${daysRemaining}d left`,
+          color: 'bg-orange-500',
+          icon: <Clock className="w-3 h-3" />,
+          action: '/dashboard/subscription'
+        };
+      }
       return {
         text: `${daysRemaining}d left`,
-        color: 'bg-orange-500',
-        icon: <Clock className="w-3 h-3" />
+        color: 'bg-green-500',
+        icon: <Clock className="w-3 h-3" />,
+        action: '/dashboard/subscription'
       };
     }
+    
+    if (status === 'subscription_expired' || daysRemaining === 0) {
+      return {
+        text: 'Renew',
+        color: 'bg-red-500',
+        icon: <CreditCard className="w-3 h-3" />,
+        action: '/dashboard/subscription'
+      };
+    }
+    
     return {
-      text: `${daysRemaining}d left`,
-      color: 'bg-green-500',
-      icon: <Clock className="w-3 h-3" />
+      text: 'Pending',
+      color: 'bg-gray-500',
+      icon: <AlertCircle className="w-3 h-3" />,
+      action: '/dashboard/activation'
     };
   };
 
-  const badge = getSubscriptionBadge();
+  const badge = getBadgeInfo();
 
   const getUserName = () => {
     try {
@@ -205,6 +251,13 @@ const SellerLayout = ({ children }) => {
     }
   };
 
+  const handleBadgeClick = () => {
+    navigate(badge.action);
+  };
+
+  // Pass shared status to sidebar via context or prop
+  // Using window event for now
+
   return (
     <div className="min-h-screen bg-gray-50">
       <SellerSidebar 
@@ -228,7 +281,7 @@ const SellerLayout = ({ children }) => {
             <h1 className="text-lg font-bold text-gray-900">{getPageTitle()}</h1>
             
             <button
-              onClick={() => navigate('/dashboard/subscription')}
+              onClick={handleBadgeClick}
               className={`${badge.color} text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1`}
             >
               {badge.icon}
@@ -249,7 +302,7 @@ const SellerLayout = ({ children }) => {
               
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => navigate('/dashboard/subscription')}
+                  onClick={handleBadgeClick}
                   className={`${badge.color} text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 hover:opacity-80 transition`}
                 >
                   {badge.icon}

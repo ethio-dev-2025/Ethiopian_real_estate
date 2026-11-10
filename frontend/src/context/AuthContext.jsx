@@ -1,10 +1,8 @@
-import { API_ORIGIN, WS_ORIGIN } from '@/config/api';
-// src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 
-const API_URL = API_ORIGIN;
-const WS_URL = WS_ORIGIN;
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const WS_URL = 'ws://localhost:8000';
 
 export const AuthContext = createContext(null);
 
@@ -26,18 +24,30 @@ export const AuthProvider = ({ children }) => {
   const reconnectTimeoutRef = useRef(null);
   const [token, setToken] = useState(localStorage.getItem('access_token'));
   const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 3;
   const messageHandlersRef = useRef(new Map());
   const pingIntervalRef = useRef(null);
   const isRefreshingRef = useRef(false);
   const refreshInProgressRef = useRef(false);
   const lastRefreshTimeRef = useRef(0);
-  const [webSocketEnabled, setWebSocketEnabled] = useState(true);
+  
+  const isProduction = window.location.hostname !== 'localhost';
+  const [webSocketEnabled, setWebSocketEnabled] = useState(() => {
+    if (isProduction) {
+      console.log('🔌 WebSocket disabled on production to prevent connection loops');
+      return false;
+    }
+    const savedSetting = localStorage.getItem('webSocketEnabled');
+    return savedSetting === 'true';
+  });
 
   const clearAuthData = useCallback(() => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     localStorage.removeItem('user_role');
     localStorage.removeItem('role_selected');
+    localStorage.removeItem('seller_days_remaining');
+    localStorage.removeItem('seller_has_active_subscription');
     sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('user_role');
@@ -77,17 +87,25 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const connectWebSocket = useCallback((authToken) => {
+    if (isProduction) {
+      return null;
+    }
+    
     if (!authToken || !webSocketEnabled) {
-      console.log('🔌 WebSocket not enabled or no token');
+      return null;
+    }
+    
+    if (reconnectAttempts.current >= maxReconnectAttempts) {
+      console.log(`🔌 Max WebSocket retry attempts reached. Stopping reconnection.`);
+      setWebSocketEnabled(false);
       return null;
     }
     
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      console.log('🔌 WebSocket already connected');
       return socketRef.current;
     }
     
-    const wsUrl = `${WS_URL}/ws/payments?token=${encodeURIComponent(authToken)}`;
+    const wsUrl = `${WS_URL}/ws/${encodeURIComponent(authToken)}`;
     console.log('🔌 Connecting WebSocket to:', wsUrl);
     
     try {
@@ -126,20 +144,27 @@ export const AuthProvider = ({ children }) => {
         console.error('❌ WebSocket error:', error);
       };
       
-      ws.onclose = () => {
-        console.log('🔌 WebSocket disconnected');
+      ws.onclose = (event) => {
+        console.log(`🔌 WebSocket disconnected (code: ${event.code})`);
         if (pingIntervalRef.current) {
           clearInterval(pingIntervalRef.current);
           pingIntervalRef.current = null;
         }
         
-        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (authToken && webSocketEnabled) {
-            console.log('🔄 Attempting to reconnect WebSocket...');
-            connectWebSocket(authToken);
-          }
-        }, 5000);
+        if (event.code !== 1000 && event.code !== 1001 && reconnectAttempts.current < maxReconnectAttempts) {
+          if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+          reconnectAttempts.current++;
+          const delay = 10000;
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (authToken && webSocketEnabled && reconnectAttempts.current < maxReconnectAttempts) {
+              console.log(`🔄 Attempting to reconnect WebSocket (attempt ${reconnectAttempts.current}/${maxReconnectAttempts})...`);
+              connectWebSocket(authToken);
+            }
+          }, delay);
+        } else if (reconnectAttempts.current >= maxReconnectAttempts) {
+          console.log(`🔌 Max reconnection attempts reached. WebSocket disabled.`);
+          setWebSocketEnabled(false);
+        }
       };
       
       socketRef.current = ws;
@@ -148,20 +173,8 @@ export const AuthProvider = ({ children }) => {
       console.error('Failed to create WebSocket:', err);
       return null;
     }
-  }, [webSocketEnabled]);
+  }, [webSocketEnabled, isProduction]);
 
-  const fetchWithTimeout = async (input, init = {}, timeout = 5000) => {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-      const response = await fetch(input, { ...init, signal: controller.signal });
-      return response;
-    } finally {
-      clearTimeout(id);
-    }
-  };
-
-  // DIRECT API CALL to get user data - most reliable method
   const fetchUserDirectly = useCallback(async (accessToken) => {
     if (!accessToken) return null;
     
@@ -178,6 +191,16 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const userData = await response.json();
         console.log('✅ Direct user fetch successful:', userData);
+        console.log('📌 User role_type:', userData.role_type);
+        
+        if (userData.subscription_end_date) {
+          const endDate = new Date(userData.subscription_end_date);
+          const now = new Date();
+          const daysRemaining = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+          localStorage.setItem('seller_days_remaining', daysRemaining > 0 ? daysRemaining.toString() : '0');
+          localStorage.setItem('seller_has_active_subscription', (userData.can_create_listings && daysRemaining > 0) ? 'true' : 'false');
+        }
+        
         return userData;
       } else {
         console.error('Direct user fetch failed with status:', response.status);
@@ -189,7 +212,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Initialize auth from localStorage - FIXED (only runs once)
+  // Initialize auth from localStorage
   useEffect(() => {
     if (isInitialized) return;
     
@@ -206,6 +229,7 @@ export const AuthProvider = ({ children }) => {
         
         if (freshUser) {
           console.log('AuthContext: Fresh user from API:', freshUser);
+          console.log('AuthContext: User role_type:', freshUser.role_type);
           setUser(freshUser);
           localStorage.setItem('user', JSON.stringify(freshUser));
           sessionStorage.setItem('user', JSON.stringify(freshUser));
@@ -213,7 +237,15 @@ export const AuthProvider = ({ children }) => {
           const userRole = freshUser.role_type || freshUser.role || 'buyer';
           const normalizedRole = userRole === 'user' ? 'buyer' : userRole;
           localStorage.setItem('user_role', normalizedRole);
-          localStorage.setItem('role_selected', 'true');
+          
+          // FIXED: If user is admin, automatically set role_selected to true
+          if (normalizedRole === 'admin') {
+            localStorage.setItem('role_selected', 'true');
+            console.log('✅ Admin user detected, role_selected set to true');
+          } else {
+            localStorage.setItem('role_selected', 'true');
+          }
+          
           setAuthReady(true);
         } else {
           console.error('AuthContext: Failed to fetch user, clearing auth');
@@ -221,9 +253,11 @@ export const AuthProvider = ({ children }) => {
           setAuthReady(true);
         }
         
-        setTimeout(() => {
-          connectWebSocket(storedToken);
-        }, 1000);
+        if (webSocketEnabled && !isProduction) {
+          setTimeout(() => {
+            connectWebSocket(storedToken);
+          }, 1000);
+        }
         
       } else {
         setAuthReady(true);
@@ -234,9 +268,12 @@ export const AuthProvider = ({ children }) => {
     };
     
     initAuth();
-  }, [clearAuthData, connectWebSocket, fetchUserDirectly, isInitialized]);
+  }, [clearAuthData, connectWebSocket, fetchUserDirectly, isInitialized, webSocketEnabled, isProduction]);
 
   const setAuthData = useCallback((accessToken, userData) => {
+    console.log('🔐 setAuthData called with user:', userData);
+    console.log('📌 User role_type:', userData.role_type);
+    
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('user_role', userData.role_type || 'dual');
@@ -251,10 +288,12 @@ export const AuthProvider = ({ children }) => {
     setToken(accessToken);
     setAuthReady(true);
     
-    setTimeout(() => {
-      connectWebSocket(accessToken);
-    }, 1000);
-  }, [connectWebSocket]);
+    if (webSocketEnabled && !isProduction) {
+      setTimeout(() => {
+        connectWebSocket(accessToken);
+      }, 1000);
+    }
+  }, [connectWebSocket, webSocketEnabled, isProduction]);
 
   const login = async (email, password) => {
     try {
@@ -277,6 +316,8 @@ export const AuthProvider = ({ children }) => {
       const userData = data.user;
       const accessToken = data.access_token;
       
+      console.log('📌 Login response user role:', userData.role_type);
+      
       setAuthData(accessToken, userData);
       
       toast.success(`Welcome back, ${userData.full_name || userData.username}!`);
@@ -291,12 +332,6 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(() => {
     clearAuthData();
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('user_role');
-    localStorage.removeItem('role_selected');
-    sessionStorage.clear();
-    
     toast.success('Logged out successfully');
     window.location.href = '/login';
   }, [clearAuthData]);
@@ -331,18 +366,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // FIXED: refreshUser with rate limiting to prevent infinite loops
   const refreshUser = useCallback(async () => {
     const currentToken = localStorage.getItem('access_token');
     if (!currentToken) return null;
     
-    // Prevent multiple simultaneous refreshes
     if (refreshInProgressRef.current) {
       console.log('⏳ Refresh already in progress, skipping...');
       return null;
     }
     
-    // Rate limit refreshes to once every 2 seconds
     const now = Date.now();
     if (now - lastRefreshTimeRef.current < 2000) {
       console.log('⏳ Rate limiting refresh, skipping...');
@@ -363,6 +395,12 @@ export const AuthProvider = ({ children }) => {
         const userRole = freshUser.role_type || freshUser.role || 'buyer';
         const normalizedRole = userRole === 'user' ? 'buyer' : userRole;
         localStorage.setItem('user_role', normalizedRole);
+        
+        // FIXED: If user is admin, ensure role_selected is true
+        if (normalizedRole === 'admin') {
+          localStorage.setItem('role_selected', 'true');
+        }
+        
         console.log('✅ User refreshed:', freshUser);
         return freshUser;
       }
@@ -432,7 +470,8 @@ export const AuthProvider = ({ children }) => {
     updateUser,
     clearAuthData,
     setAuthData,
-    userRole: user?.role_type || user?.role || localStorage.getItem('user_role')
+    userRole: user?.role_type || user?.role || localStorage.getItem('user_role'),
+    webSocketEnabled
   };
 
   return (

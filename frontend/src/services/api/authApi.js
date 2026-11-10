@@ -1,7 +1,6 @@
-import { API_BASE_URL } from '@/config/api';
 import axios from 'axios'
 
-const API_URL = API_BASE_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 const api = axios.create({
   baseURL: API_URL,
@@ -76,7 +75,7 @@ export const authApi = {
   // ============ BUYER/RENTER AUTH ============
   buyerLogin: async (username, password) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/buyer/auth/login`, {
+      const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -97,7 +96,7 @@ export const authApi = {
   
   buyerRegister: async (userData) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/buyer/auth/register`, {
+      const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -127,7 +126,7 @@ export const authApi = {
       throw new Error('No token found')
     }
     
-    const response = await fetch(`${API_BASE_URL}/buyer/profile`, {
+    const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/profile', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     
@@ -144,7 +143,7 @@ export const authApi = {
       throw new Error('No token found')
     }
     
-    const response = await fetch(`${API_BASE_URL}/buyer/profile`, {
+    const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/profile', {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -238,20 +237,20 @@ export const buyerAPI = {
   getProperties: async (params = {}) => {
     const token = localStorage.getItem('access_token')
     const queryParams = new URLSearchParams(params)
-    const response = await fetch(`${API_BASE_URL}/buyer/properties?${queryParams}`, {
+    const response = await fetch(`http://localhost:8000/api/buyer/properties?${queryParams}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     return response.json()
   },
   
   getProperty: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/buyer/properties/${id}`)
+    const response = await fetch(`http://localhost:8000/api/buyer/properties/${id}`)
     return response.json()
   },
   
   getSavedProperties: async () => {
     const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_BASE_URL}/buyer/saved-properties`, {
+    const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/saved-properties', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     return response.json()
@@ -259,7 +258,7 @@ export const buyerAPI = {
   
   saveProperty: async (listingId) => {
     const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_BASE_URL}/buyer/saved-properties`, {
+    const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/saved-properties', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -272,7 +271,7 @@ export const buyerAPI = {
   
   removeSavedProperty: async (listingId) => {
     const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_BASE_URL}/buyer/saved-properties/${listingId}`, {
+    const response = await fetch(`http://localhost:8000/api/buyer/saved-properties/${listingId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -281,7 +280,7 @@ export const buyerAPI = {
   
   contactOwner: async (propertyId, message) => {
     const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_BASE_URL}/buyer/contact-owner`, {
+    const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/contact-owner', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -294,7 +293,7 @@ export const buyerAPI = {
   
   getConversations: async () => {
     const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_BASE_URL}/buyer/conversations`, {
+    const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/conversations', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     return response.json()
@@ -302,7 +301,7 @@ export const buyerAPI = {
   
   getMessages: async (conversationId) => {
     const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_BASE_URL}/buyer/conversations/${conversationId}/messages`, {
+    const response = await fetch(`http://localhost:8000/api/buyer/conversations/${conversationId}/messages`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     return response.json()
@@ -310,7 +309,7 @@ export const buyerAPI = {
   
   sendMessage: async (conversationId, message) => {
     const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_BASE_URL}/buyer/messages`, {
+    const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/messages', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -323,7 +322,7 @@ export const buyerAPI = {
   
   getUnreadCount: async () => {
     const token = localStorage.getItem('access_token')
-    const response = await fetch(`${API_BASE_URL}/buyer/unread-count`, {
+    const response = await fetch((import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:8000') + '/api/buyer/unread-count', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     return response.json()

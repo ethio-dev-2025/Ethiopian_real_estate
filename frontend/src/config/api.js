@@ -1,17 +1,13 @@
-const configuredApiUrl = import.meta.env.VITE_API_URL?.trim().replace(/\/+$/, '');
+// Centralized API and WebSocket configuration
+const defaultRemoteBackend = 'https://ethiopian-real-estate-api.onrender.com';
+const rawApiUrl = import.meta.env.VITE_API_URL?.trim().replace(/\/+$/, '');
 
-if (import.meta.env.PROD && !configuredApiUrl) {
-  throw new Error('VITE_API_URL must be configured with the deployed backend URL.');
-}
-
-const apiOrigin = configuredApiUrl
-  ? configuredApiUrl.replace(/\/api$/i, '')
-  : import.meta.env.DEV
-    ? 'http://localhost:8000'
-    : '';
+const apiUrl = rawApiUrl || (import.meta.env.PROD ? `${defaultRemoteBackend}/api` : 'http://localhost:8000/api');
+const apiOrigin = apiUrl.replace(/\/api$/i, '');
 
 export const API_ORIGIN = apiOrigin;
 export const API_BASE_URL = `${apiOrigin}/api`;
-export const WS_ORIGIN = import.meta.env.VITE_WS_URL?.trim().replace(/\/+$/, '')
-  || apiOrigin.replace(/^http/i, 'ws');
+
+const rawWsUrl = import.meta.env.VITE_WS_URL?.trim().replace(/\/+$/, '');
+export const WS_ORIGIN = rawWsUrl || apiOrigin.replace(/^http/i, 'ws');
 export const WS_BASE_URL = `${WS_ORIGIN}/ws`;
