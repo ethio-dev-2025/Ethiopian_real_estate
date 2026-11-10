@@ -18,7 +18,16 @@ import {
   CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 
-const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+// ✅ Clean API base URL — safely strips trailing /api if present in env variables
+const API_BASE = (() => {
+  let env = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+  // Remove trailing slash and trailing /api if it exists
+  env = env.replace(/\/$/, '')
+  if (env.endsWith('/api')) {
+    env = env.slice(0, -4)
+  }
+  return env
+})()
 
 const AdminDashboardPage = () => {
   const { user, logout } = useAuth()
@@ -50,11 +59,30 @@ const AdminDashboardPage = () => {
   const [userGrowthData, setUserGrowthData] = useState([])
 
   useEffect(() => {
+    // ✅ 1. Verify Admin Access FIRST before making any API calls
+    const userData = localStorage.getItem('user')
+    if (!userData) {
+      navigate('/login')
+      return
+    }
+    try {
+      const parsedUser = JSON.parse(userData)
+      if (parsedUser.role_type !== 'admin') {
+        navigate('/')
+        return
+      }
+    } catch (e) {
+      navigate('/login')
+      return
+    }
+
+    // ✅ 2. If admin is verified, fetch data
     fetchDashboardData()
     fetchRecentActivities()
     fetchRecentUsers()
     fetchUserGrowth()
-  }, [])
+    setLoading(false)
+  }, [navigate])
 
   const getToken = () => localStorage.getItem('access_token')
 
@@ -63,7 +91,7 @@ const AdminDashboardPage = () => {
       const token = getToken()
       if (!token) return
       
-      const response = await fetch(`${API_URL}/api/admin/dashboard-stats`, {
+      const response = await fetch(`${API_BASE}/api/admin/dashboard-stats`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -103,38 +131,38 @@ const AdminDashboardPage = () => {
     if (!token) return
 
     try {
-      const usersRes = await fetch(`${API_URL}/api/admin/users?limit=1`, {
+      const usersRes = await fetch(`${API_BASE}/api/admin/users?limit=1`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const usersData = await usersRes.json()
       
-      const listingsRes = await fetch(`${API_URL}/api/admin/stats/listings`, {
+      const listingsRes = await fetch(`${API_BASE}/api/admin/stats/listings`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const listingsData = await listingsRes.json()
       
-      const verificationsRes = await fetch(`${API_URL}/api/admin/stats/verifications`, {
+      const verificationsRes = await fetch(`${API_BASE}/api/admin/stats/verifications`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const verificationsData = await verificationsRes.json()
       
-      const paymentsRes = await fetch(`${API_URL}/api/admin/real-payments?status=pending`, {
+      const paymentsRes = await fetch(`${API_BASE}/api/admin/real-payments?status=pending`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const paymentsData = await paymentsRes.json()
       
       setDashboardData({
-        total_users: usersData.total || 113,
+        total_users: usersData.total || 0,
         active_users: usersData.users?.filter(u => u.status === 'active').length || 0,
         pending_users: usersData.users?.filter(u => u.status === 'pending').length || 0,
-        total_listings: listingsData.total || 13,
-        active_listings: listingsData.active || 11,
+        total_listings: listingsData.total || 0,
+        active_listings: listingsData.active || 0,
         pending_listings: listingsData.pending || 0,
         total_revenue: 0,
         monthly_revenue: 0,
         pending_approvals: verificationsData.pending || 0,
         pending_verifications: verificationsData.pending || 0,
-        pending_payments: Array.isArray(paymentsData) ? paymentsData.length : 22,
+        pending_payments: Array.isArray(paymentsData) ? paymentsData.length : 0,
         total_transactions: 0,
         unread_messages: 0
       })
@@ -146,7 +174,7 @@ const AdminDashboardPage = () => {
   const fetchRecentActivities = async () => {
     try {
       const token = getToken()
-      const response = await fetch(`${API_URL}/api/admin/recent-activities?limit=5`, {
+      const response = await fetch(`${API_BASE}/api/admin/recent-activities?limit=5`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
@@ -170,7 +198,7 @@ const AdminDashboardPage = () => {
   const fetchRecentUsers = async () => {
     try {
       const token = getToken()
-      const response = await fetch(`${API_URL}/api/admin/users?limit=5`, {
+      const response = await fetch(`${API_BASE}/api/admin/users?limit=5`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
@@ -196,7 +224,7 @@ const AdminDashboardPage = () => {
   const fetchUserGrowth = async () => {
     try {
       const token = getToken()
-      const response = await fetch(`${API_URL}/api/admin/stats/users`, {
+      const response = await fetch(`${API_BASE}/api/admin/stats/users`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
@@ -228,12 +256,12 @@ const AdminDashboardPage = () => {
 
   const setDefaultUserGrowth = () => {
     setUserGrowthData([
-      { month: 'Jan', count: 45 },
-      { month: 'Feb', count: 52 },
-      { month: 'Mar', count: 67 },
-      { month: 'Apr', count: 78 },
-      { month: 'May', count: 82 },
-      { month: 'Jun', count: 95 }
+      { month: 'Jan', count: 0 },
+      { month: 'Feb', count: 0 },
+      { month: 'Mar', count: 0 },
+      { month: 'Apr', count: 0 },
+      { month: 'May', count: 0 },
+      { month: 'Jun', count: 0 }
     ])
   }
 
@@ -245,7 +273,7 @@ const AdminDashboardPage = () => {
       fetchRecentUsers(),
       fetchUserGrowth()
     ])
-    toast.success('Dashboard refreshed with real data!')
+    toast.success('Dashboard refreshed!')
     setTimeout(() => setRefreshing(false), 500)
   }
 
@@ -276,23 +304,6 @@ const AdminDashboardPage = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
 
-  useEffect(() => {
-    const userData = localStorage.getItem('user')
-    if (userData) {
-      try {
-        const user = JSON.parse(userData)
-        if (user.role_type !== 'admin') {
-          navigate('/')
-        }
-      } catch (e) {
-        navigate('/login')
-      }
-    } else {
-      navigate('/login')
-    }
-    setLoading(false)
-  }, [navigate])
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -303,7 +314,7 @@ const AdminDashboardPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* SIDEBAR - Updated colors */}
+      {/* SIDEBAR */}
       <aside className={`fixed top-0 left-0 z-40 h-screen bg-gradient-to-b from-primary-900 to-primary-800 text-white transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'}`}>
         <div className="flex flex-col h-full">
           {/* Logo */}
