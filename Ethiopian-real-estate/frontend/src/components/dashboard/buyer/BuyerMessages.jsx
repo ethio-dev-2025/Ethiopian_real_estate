@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import EmojiPicker from 'emoji-picker-react';
 import UserStatus from '../../common/UserStatus';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const formatMessageTime = (timestamp) => {
   if (!timestamp) return '';

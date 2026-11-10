@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Shield, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const VerifyEmailPage = () => {
   const navigate = useNavigate();

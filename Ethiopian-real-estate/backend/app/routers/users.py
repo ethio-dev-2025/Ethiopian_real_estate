@@ -327,17 +327,6 @@ async def get_user_by_username(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ RESET ADMIN PASSWORD (Temporary) ============
-@router.post("/reset-admin-password")
-async def reset_admin_password(db: Session = Depends(get_db)):
-    """Temporary endpoint to reset admin password"""
-    admin = db.query(User).filter(User.id == 2).first()
-    if admin:
-        new_password = "admin123"
-        admin.hashed_password = pwd_context.hash(new_password)
-        db.commit()
-        return {"success": True, "message": f"Password reset to {new_password} for {admin.email}"}
-    return {"success": False, "message": "Admin not found"}
 
 
 print("✅ Users router loaded successfully!")

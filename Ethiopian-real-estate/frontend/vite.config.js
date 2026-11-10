@@ -40,6 +40,7 @@ export default defineConfig({
   },
 
   build: {
+    outDir: 'dist',
     // Increase warning limit
     chunkSizeWarningLimit: 700,
 

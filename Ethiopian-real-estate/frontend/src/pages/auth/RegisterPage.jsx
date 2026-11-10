@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, User, Mail, Phone, Lock, UserPlus, Building2, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Ethiopian phone number validation
 const validateEthiopianPhone = (phone) => {
