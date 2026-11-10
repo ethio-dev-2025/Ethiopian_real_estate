@@ -1,3 +1,4 @@
+# backend/app/routers/payments.py
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -18,9 +19,9 @@ router = APIRouter()
 # Suppress SSL warnings
 warnings.filterwarnings("ignore")
 
-# Chapa configuration
-CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "CHASECK_TEST-fbdEa9IuLsnknOdqwiU8qSUtiNNKrips")
+CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY")
 CHAPA_BASE_URL = "https://api.chapa.co/v1"
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 class InitializePaymentRequest(BaseModel):
     plan_type: str
@@ -42,11 +43,14 @@ def get_chapa_client():
 
 def activate_user(user: User, plan_type: str, amount: float, transaction_id: str, db: Session):
     """Helper function to activate/renew a user"""
-    start_date = datetime.now()
+    start_date = datetime.utcnow()
     end_date = start_date + timedelta(days=180)
     
+    # Ensure plan_type is a string
+    plan_name = str(plan_type).lower() if plan_type else "seller"
+    
     print(f"🔧 ACTIVATING USER: {user.email}")
-    print(f"   - Plan: {plan_type}")
+    print(f"   - Plan: {plan_name}")
     print(f"   - Amount: {amount}")
     print(f"   - End Date: {end_date}")
     
@@ -55,7 +59,7 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
     user.payment_approved = True
     user.can_create_listings = True
     user.has_active_subscription = True
-    user.subscription_plan = plan_type
+    user.subscription_plan = plan_name
     user.subscription_start_date = start_date
     user.subscription_end_date = end_date
     user.activated_at = start_date
@@ -64,17 +68,17 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
     user.payment_status = "completed"
     
     # Set role-specific flags
-    if plan_type == "seller":
+    if plan_name == "seller":
         user.role_type = "seller"
         user.seller_enabled = True
         user.seller_approved = True
         user.seller_paid = True
-    elif plan_type == "landlord":
+    elif plan_name == "landlord":
         user.role_type = "landlord"
         user.landlord_enabled = True
         user.landlord_approved = True
         user.landlord_paid = True
-    elif plan_type == "dual":
+    elif plan_name == "dual":
         user.role_type = "dual"
         user.seller_enabled = True
         user.seller_approved = True
@@ -89,10 +93,10 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
     ).order_by(ActivationRequest.created_at.desc()).first()
     
     if activation_request:
-        activation_request.status = ActivationStatus.FULLY_ACTIVATED
+        activation_request.status = ActivationStatus.FULLY_ACTIVATED.value if hasattr(ActivationStatus.FULLY_ACTIVATED, 'value') else ActivationStatus.FULLY_ACTIVATED
         activation_request.payment_approved_by = user.id
-        activation_request.payment_approved_at = datetime.now()
-        activation_request.plan_type = plan_type
+        activation_request.payment_approved_at = datetime.utcnow()
+        activation_request.plan_type = plan_name
         activation_request.payment_amount = amount
         activation_request.payment_transaction_id = transaction_id
     else:
@@ -103,13 +107,13 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
             phone_number=user.phone or "",
             property_address="Subscription Activation",
             property_type="activation",
-            status=ActivationStatus.FULLY_ACTIVATED,
-            plan_type=plan_type,
+            status=ActivationStatus.FULLY_ACTIVATED.value if hasattr(ActivationStatus.FULLY_ACTIVATED, 'value') else ActivationStatus.FULLY_ACTIVATED,
+            plan_type=plan_name,
             payment_amount=amount,
             payment_transaction_id=transaction_id,
             payment_approved_by=user.id,
-            payment_approved_at=datetime.now(),
-            created_at=datetime.now()
+            payment_approved_at=datetime.utcnow(),
+            created_at=datetime.utcnow()
         )
         db.add(new_activation)
     
@@ -135,19 +139,21 @@ async def initialize_payment(
         payment = PaymentTransaction(
             user_id=current_user.id,
             tx_ref=tx_ref,
-            plan_type=payment_data.plan_type,
-            amount=payment_data.amount,
+            plan_type=str(payment_data.plan_type),
+            amount=float(payment_data.amount),
             currency="ETB",
             status="pending",
             payment_status="initiated",
-            created_at=datetime.now()
+            created_at=datetime.utcnow()
         )
         db.add(payment)
         db.commit()
         db.refresh(payment)
         
-        callback_url = f"http://localhost:8000/api/payment/webhook"
-        return_url = f"http://localhost:5173/payment/success?tx_ref={tx_ref}"
+        # Use the correct base URL for production
+        base_api_url = os.getenv("BASE_URL", "http://localhost:8000")
+        callback_url = f"{base_api_url}/api/payment/webhook"
+        return_url = f"{FRONTEND_URL}/payment/success?tx_ref={tx_ref}&plan={payment_data.plan_type}"
         
         print(f"   - Plan: {payment_data.plan_type}")
         print(f"   - Amount: {payment_data.amount} ETB")
@@ -171,8 +177,8 @@ async def initialize_payment(
                     "tx_ref": tx_ref,
                     "callback_url": callback_url,
                     "return_url": return_url,
-                    "title": f"{payment_data.plan_type.capitalize()} Plan - 6 Months Subscription",
-                    "description": f"6 months subscription for {payment_data.plan_type} account"
+                    "title": f"{str(payment_data.plan_type).capitalize()} Plan - Subscription",
+                    "description": f"Subscription for {payment_data.plan_type} account"
                 }
             )
             
@@ -220,10 +226,10 @@ async def payment_success(
         payment = db.query(PaymentTransaction).filter(PaymentTransaction.tx_ref == tx_ref).first()
         
         if not payment:
-            return HTMLResponse(content="""
+            return HTMLResponse(content=f"""
             <!DOCTYPE html>
             <html>
-            <head><title>Payment Error</title><meta http-equiv="refresh" content="3;url=/dashboard/subscription"></head>
+            <head><title>Payment Error</title><meta http-equiv="refresh" content="3;url={FRONTEND_URL}/dashboard/subscription"></head>
             <body style="font-family: Arial; text-align: center; padding: 50px;">
                 <h2>Payment Not Found</h2>
                 <p>Redirecting...</p>
@@ -235,7 +241,7 @@ async def payment_success(
             payment.status = "approved"
             payment.payment_status = "completed"
             payment.transaction_id = f"DIRECT-{tx_ref}"
-            payment.reviewed_at = datetime.now()
+            payment.reviewed_at = datetime.utcnow()
             db.commit()
             
             user = db.query(User).filter(User.id == payment.user_id).first()
@@ -247,7 +253,7 @@ async def payment_success(
         <html>
         <head>
             <title>Payment Successful</title>
-            <meta http-equiv="refresh" content="2;url=http://localhost:5173/dashboard">
+            <meta http-equiv="refresh" content="2;url={FRONTEND_URL}/dashboard">
             <style>
                 body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; }}
                 .container {{ background: white; border-radius: 20px; padding: 40px; max-width: 500px; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }}
@@ -272,7 +278,7 @@ async def payment_success(
                     You can now start creating listings.
                 </div>
                 <p>Redirecting to dashboard in 2 seconds...</p>
-                <p><a href="http://localhost:5173/dashboard">Click here if not redirected</a></p>
+                <p><a href="{FRONTEND_URL}/dashboard">Click here if not redirected</a></p>
             </div>
         </body>
         </html>
@@ -283,7 +289,7 @@ async def payment_success(
         return HTMLResponse(content=f"""
         <!DOCTYPE html>
         <html>
-        <head><title>Payment Error</title><meta http-equiv="refresh" content="3;url=http://localhost:5173/dashboard/subscription"></head>
+        <head><title>Payment Error</title><meta http-equiv="refresh" content="3;url={FRONTEND_URL}/dashboard/subscription"></head>
         <body style="font-family: Arial; text-align: center; padding: 50px;">
             <h2 style="color: red;">Error: {str(e)}</h2>
             <p>Redirecting to subscription page...</p>
@@ -317,7 +323,7 @@ async def chapa_webhook(request: Request, db: Session = Depends(get_db)):
             payment.status = "approved"
             payment.payment_status = "completed"
             payment.transaction_id = body.get("transaction_id", tx_ref)
-            payment.reviewed_at = datetime.now()
+            payment.reviewed_at = datetime.utcnow()
             db.commit()
             
             user = db.query(User).filter(User.id == payment.user_id).first()
@@ -389,7 +395,7 @@ async def verify_payment(
                     payment.status = "approved"
                     payment.payment_status = "completed"
                     payment.transaction_id = data.get("data", {}).get("transaction_id", tx_ref)
-                    payment.reviewed_at = datetime.now()
+                    payment.reviewed_at = datetime.utcnow()
                     db.commit()
                     
                     user = db.query(User).filter(User.id == payment.user_id).first()
@@ -534,6 +540,5 @@ async def get_payment_receipt(
     except Exception as e:
         print(f"Error getting receipt: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 print("✅ Payment router loaded successfully!")

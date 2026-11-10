@@ -1,15 +1,16 @@
+# backend/app/services/chapa_service.py
 import httpx
 import time
 import random
 import string
 import re
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from ..config import settings
 
 class ChapaService:
     def __init__(self):
         self.secret_key = settings.CHAPA_SECRET_KEY
-        self.base_url = settings.CHAPA_BASE_URL
+        self.base_url = settings.CHAPA_BASE_URL or "https://api.chapa.co/v1"
         self.headers = {
             "Authorization": f"Bearer {self.secret_key}",
             "Content-Type": "application/json"
@@ -43,7 +44,9 @@ class ChapaService:
         phone: str,
         plan_type: str,
         user_id: int,
-        tx_ref: Optional[str] = None
+        tx_ref: Optional[str] = None,
+        callback_url: Optional[str] = None,
+        return_url: Optional[str] = None
     ) -> Dict[str, Any]:
         """Initialize payment with Chapa"""
         
@@ -61,9 +64,9 @@ class ChapaService:
             "phone_number": phone,
             "tx_ref": tx_ref,
             "title": f"RealEstate Pro - {plan_type.title()} Plan",
-            "description": f"Monthly subscription for {plan_type} account - ${amount}",
-            "callback_url": f"{settings.BASE_URL}/api/payments/webhook",
-            "return_url": f"{settings.FRONTEND_URL}/payment/success?plan={plan_type}",
+            "description": f"Subscription for {plan_type} account - {amount} ETB",
+            "callback_url": callback_url or f"{settings.BASE_URL}/api/payment/webhook",
+            "return_url": return_url or f"{settings.FRONTEND_URL}/payment/success?tx_ref={tx_ref}",
             "meta": {
                 "plan_type": plan_type,
                 "user_id": user_id,
@@ -84,7 +87,6 @@ class ChapaService:
                 if response.status_code == 200:
                     result = response.json()
                     if result.get("status") == "success" and result.get("data", {}).get("checkout_url"):
-                        # Store transaction in database (optional)
                         return {
                             "success": True,
                             "checkout_url": result["data"]["checkout_url"],
@@ -124,6 +126,5 @@ class ChapaService:
         except Exception as e:
             print(f"Verification error: {e}")
             return {"success": False, "verified": False}
-
 
 chapa_service = ChapaService()
