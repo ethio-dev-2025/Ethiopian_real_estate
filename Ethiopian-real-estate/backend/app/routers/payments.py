@@ -6,22 +6,25 @@ import secrets
 from datetime import datetime, timedelta
 from ..database import get_db
 from ..models import User, PaymentTransaction, ActivationRequest
-from ..models.activation import ActivationStatus
 from .auth import get_current_user, get_current_admin_user
 from pydantic import BaseModel
 import httpx
 import os
 import warnings
 import json
+from fastapi.responses import HTMLResponse
 
 router = APIRouter()
 
 # Suppress SSL warnings
 warnings.filterwarnings("ignore")
 
-CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY")
+# Environment variables for production URLs
+CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "CHASECK_TEST-fbdEa9IuLsnknOdqwiU8qSUtiNNKrips")
 CHAPA_BASE_URL = "https://api.chapa.co/v1"
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://ethiopian-real-estate.onrender.com")
+BASE_URL = os.getenv("BASE_URL", "https://ethiopian-real-estate-api.onrender.com")
+
 
 class InitializePaymentRequest(BaseModel):
     plan_type: str
@@ -46,8 +49,8 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
     start_date = datetime.utcnow()
     end_date = start_date + timedelta(days=180)
     
-    # Ensure plan_type is a string
-    plan_name = str(plan_type).lower() if plan_type else "seller"
+    # Ensure plan_type is a clean string
+    plan_name = str(plan_type).lower().strip() if plan_type else "seller"
     
     print(f"🔧 ACTIVATING USER: {user.email}")
     print(f"   - Plan: {plan_name}")
@@ -92,8 +95,11 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
         ActivationRequest.user_id == user.id
     ).order_by(ActivationRequest.created_at.desc()).first()
     
+    # 🎯 THE FIX: Use the string directly, never call .value or () on it
+    status_string = "fully_activated"
+    
     if activation_request:
-        activation_request.status = ActivationStatus.FULLY_ACTIVATED.value if hasattr(ActivationStatus.FULLY_ACTIVATED, 'value') else ActivationStatus.FULLY_ACTIVATED
+        activation_request.status = status_string
         activation_request.payment_approved_by = user.id
         activation_request.payment_approved_at = datetime.utcnow()
         activation_request.plan_type = plan_name
@@ -107,7 +113,7 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
             phone_number=user.phone or "",
             property_address="Subscription Activation",
             property_type="activation",
-            status=ActivationStatus.FULLY_ACTIVATED.value if hasattr(ActivationStatus.FULLY_ACTIVATED, 'value') else ActivationStatus.FULLY_ACTIVATED,
+            status=status_string,
             plan_type=plan_name,
             payment_amount=amount,
             payment_transaction_id=transaction_id,
@@ -150,9 +156,8 @@ async def initialize_payment(
         db.commit()
         db.refresh(payment)
         
-        # Use the correct base URL for production
-        base_api_url = os.getenv("BASE_URL", "http://localhost:8000")
-        callback_url = f"{base_api_url}/api/payment/webhook"
+        # ✅ Use Render URLs from Environment Variables
+        callback_url = f"{BASE_URL}/api/payment/webhook"
         return_url = f"{FRONTEND_URL}/payment/success?tx_ref={tx_ref}&plan={payment_data.plan_type}"
         
         print(f"   - Plan: {payment_data.plan_type}")
@@ -177,8 +182,8 @@ async def initialize_payment(
                     "tx_ref": tx_ref,
                     "callback_url": callback_url,
                     "return_url": return_url,
-                    "title": f"{str(payment_data.plan_type).capitalize()} Plan - Subscription",
-                    "description": f"Subscription for {payment_data.plan_type} account"
+                    "title": f"{str(payment_data.plan_type).capitalize()} Plan - 6 Months Subscription",
+                    "description": f"6 months subscription for {payment_data.plan_type} account"
                 }
             )
             
@@ -209,8 +214,6 @@ async def initialize_payment(
         traceback.print_exc()
         return {"success": False, "message": str(e)}
 
-
-from fastapi.responses import HTMLResponse
 
 @router.get("/success")
 async def payment_success(
@@ -437,33 +440,26 @@ async def get_all_payments(
         elif status == "approved":
             query = query.filter(PaymentTransaction.status == "approved")
         
-        # Get all payments first
         payments = query.all()
         
-        # Sort in Python with proper date parsing
         def parse_date(date_str):
             if not date_str:
                 return datetime.min
             try:
-                # Handle ISO format with timezone
                 if isinstance(date_str, datetime):
                     return date_str
-                # Parse string to datetime
                 return datetime.fromisoformat(str(date_str).replace('Z', '+00:00'))
             except Exception:
                 return datetime.min
         
-        # Sort by created_at descending (newest first)
         payments.sort(key=lambda p: p.created_at if p.created_at else datetime.min, reverse=True)
         
         result = []
         for payment in payments:
             user = db.query(User).filter(User.id == payment.user_id).first()
             
-            # Format the date consistently
             created_at_str = None
             if payment.created_at:
-                # Ensure consistent format
                 created_at_str = payment.created_at.isoformat()
             
             result.append({
@@ -484,15 +480,9 @@ async def get_all_payments(
                 "user_can_create_listings": user.can_create_listings if user else False
             })
         
-        # Final sort in Python as string
         result.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         
         print(f"✅ Returning {len(result)} payments, sorted newest first")
-        if len(result) > 0:
-            print(f"   Newest payment: {result[0].get('user_name')} - {result[0].get('created_at')}")
-        if len(result) > 1:
-            print(f"   Second: {result[1].get('user_name')} - {result[1].get('created_at')}")
-        
         return result
         
     except Exception as e:
@@ -500,6 +490,7 @@ async def get_all_payments(
         import traceback
         traceback.print_exc()
         return []
+
 
 @router.get("/receipt/{payment_id}")
 async def get_payment_receipt(
@@ -540,5 +531,6 @@ async def get_payment_receipt(
     except Exception as e:
         print(f"Error getting receipt: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 print("✅ Payment router loaded successfully!")

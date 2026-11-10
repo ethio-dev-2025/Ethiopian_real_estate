@@ -1,14 +1,7 @@
-// src/hooks/useSubscription.js
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-// ✅ Clean API base URL for production
-const API_BASE = (() => {
-  let env = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-  env = env.replace(/\/$/, '');
-  if (env.endsWith('/api')) env = env.slice(0, -4);
-  return env;
-})();
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const useSubscription = () => {
   const { user, refreshUser, forceRefreshUser } = useAuth();
@@ -45,7 +38,7 @@ const useSubscription = () => {
         return;
       }
 
-      const response = await fetch(`${API_BASE}/api/activation/status`, {
+      const response = await fetch(`${API_URL}/api/activation/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -74,7 +67,6 @@ const useSubscription = () => {
         return;
       }
       
-      // Fallback to user object if API fails
       if (user) {
         let daysRemaining = 0;
         const endDate = user.subscription_end_date;
@@ -109,7 +101,7 @@ const useSubscription = () => {
   const forceRefreshSubscription = useCallback(async () => {
     setSubscription(prev => ({ ...prev, loading: true }));
     try {
-      if (forceRefreshUser) await forceRefreshUser();
+      await forceRefreshUser();
       await new Promise(resolve => setTimeout(resolve, 500));
       await fetchSubscription();
     } catch (error) {
@@ -121,7 +113,11 @@ const useSubscription = () => {
 
   useEffect(() => {
     fetchSubscription();
-    const interval = setInterval(fetchSubscription, 15000);
+    
+    const interval = setInterval(() => {
+      fetchSubscription();
+    }, 10000);
+    
     return () => clearInterval(interval);
   }, [fetchSubscription]);
 

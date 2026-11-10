@@ -1,26 +1,20 @@
 // src/components/dashboard/seller/SellerSubscription.jsx
 import React, { useState, useEffect } from 'react';
-import { CreditCard, CheckCircle, Shield, Home, Crown, Loader, X, Wallet } from 'lucide-react';
+import { CreditCard, CheckCircle, Shield, Home, Crown, Lock, Wallet, X, Loader, AlertCircle, Clock, Calendar, Zap } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import useSubscription from '../../../hooks/useSubscription';
 import toast from 'react-hot-toast';
 
-// ✅ Clean API base URL
-const API_BASE = (() => {
-  let env = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-  env = env.replace(/\/$/, '');
-  if (env.endsWith('/api')) env = env.slice(0, -4);
-  return env;
-})();
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const SellerSubscription = () => {
   const { user, refreshUser, forceRefreshUser } = useAuth();
   const { forceRefreshSubscription } = useSubscription();
-  
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [activationStatus, setActivationStatus] = useState(null);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   useEffect(() => {
@@ -31,11 +25,11 @@ const SellerSubscription = () => {
 
       if (status === 'success' && tx_ref && !verifyingPayment) {
         setVerifyingPayment(true);
-        console.log('💰 Payment success detected!');
+        console.log('💰 Payment success detected in subscription page!');
         
         try {
           const token = localStorage.getItem('access_token');
-          const response = await fetch(`${API_BASE}/api/payment/verify?tx_ref=${tx_ref}`, {
+          const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${tx_ref}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           
@@ -43,15 +37,20 @@ const SellerSubscription = () => {
           console.log('📦 Verification result:', data);
           
           if (data.success && data.activated) {
-            toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Account activated.');
+            toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Your account is now activated.');
             
-            if (forceRefreshSubscription) await forceRefreshSubscription();
-            if (forceRefreshUser) await forceRefreshUser();
+            await forceRefreshSubscription();
+            await forceRefreshUser();
             
             await new Promise(resolve => setTimeout(resolve, 1000));
+            
             await fetchActivationStatus();
+            await fetchSubscriptionInfo();
+            
+            await forceRefreshUser();
             
             window.history.replaceState({}, document.title, '/dashboard/subscription');
+            
             window.location.reload();
           } else {
             toast.error(data.message || 'Payment verification failed');
@@ -70,31 +69,51 @@ const SellerSubscription = () => {
 
   useEffect(() => {
     fetchActivationStatus();
+    fetchSubscriptionInfo();
   }, [refreshUser, user]);
 
   const fetchActivationStatus = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE}/api/activation/status`, {
+      const response = await fetch(`${API_URL}/api/activation/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📊 Activation status:', data);
-        setActivationStatus(data);
+      const data = await response.json();
+      console.log('📊 Activation status:', data);
+      setActivationStatus(data);
 
-        if (data?.status === 'fully_activated' && forceRefreshUser) {
-          await forceRefreshUser();
-        }
+      if (data?.status === 'fully_activated') {
+        await forceRefreshUser();
       }
     } catch (error) {
       console.error('Error fetching status:', error);
     }
   };
 
+  const fetchSubscriptionInfo = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/api/subscription/my-subscription`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSubscriptionInfo(data);
+      }
+    } catch (error) {
+      console.error('Error fetching subscription:', error);
+    }
+  };
+
   const getDaysRemaining = () => {
     if (user?.subscription_end_date) {
       const end = new Date(user.subscription_end_date);
+      const now = new Date();
+      const diff = end - now;
+      return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    }
+    if (subscriptionInfo?.subscription_end_date) {
+      const end = new Date(subscriptionInfo.subscription_end_date);
       const now = new Date();
       const diff = end - now;
       return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
@@ -106,11 +125,14 @@ const SellerSubscription = () => {
   };
 
   const daysRemaining = getDaysRemaining();
+  const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 30;
+  const isExpired = daysRemaining <= 0;
   
   const hasActiveSubscription = 
     user?.has_active_subscription === true ||
     user?.can_create_listings === true ||
     user?.is_activated === true ||
+    subscriptionInfo?.has_subscription === true ||
     daysRemaining > 0 ||
     activationStatus?.status === 'fully_activated';
 
@@ -134,6 +156,16 @@ const SellerSubscription = () => {
           <h2 className="text-2xl font-bold text-green-700 mb-2">Subscription Active!</h2>
           <p className="text-green-600">Your account is fully activated and ready to use.</p>
         </div>
+        
+        <PaymentModal 
+          showPaymentModal={showPaymentModal}
+          setShowPaymentModal={setShowPaymentModal}
+          selectedPlan={selectedPlan}
+          setSelectedPlan={setSelectedPlan}
+          loading={loading}
+          setLoading={setLoading}
+          user={user}
+        />
       </div>
     );
   }
@@ -160,7 +192,7 @@ const SellerSubscription = () => {
         <p className="text-text-muted mt-1">Choose a 6-month plan to activate your account</p>
         {activationStatus?.status === 'documents_approved' && (
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-            <CheckCircle className="w-4 h-4" /> Documents Approved! Please subscribe to activate.
+            <CheckCircle className="w-4 h-4" /> Documents Approved!
           </div>
         )}
       </div>
@@ -204,42 +236,33 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
   if (!showPaymentModal) return null;
   
   const plans = [
-    { id: 'seller', name: 'Seller Plan', price: 1194 },
-    { id: 'landlord', name: 'Landlord Plan', price: 894 },
+    { id: 'seller', name: 'Seller Plan', price: 894 },
+    { id: 'landlord', name: 'Landlord Plan', price: 1194 },
     { id: 'dual', name: 'Dual Plan', price: 1788 }
   ];
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
-  const amount = selectedPlanData?.price || 0;
+  const amount = selectedPlanData?.price;
 
   const redirectToChapa = async () => {
     setLoading(true);
     
     try {
       const token = localStorage.getItem('access_token');
-      if (!token) {
-        toast.error('Please log in again');
-        setLoading(false);
-        return;
-      }
-
       const fullName = user?.full_name || user?.username || 'User';
-      const nameParts = fullName.trim().split(' ');
-      const firstName = nameParts[0] || 'User';
+      const nameParts = fullName.split(' ');
+      const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || 'User';
       
-      // ✅ GUARANTEED NO STR CALLABLE ERRORS HERE
       const requestData = {
-        plan_type: String(selectedPlan), 
-        amount: Number(amount),
-        email: user?.email || 'user@example.com',
+        plan_type: selectedPlan,
+        amount: amount,
+        email: user?.email,
         first_name: firstName,
         last_name: lastName,
         phone: user?.phone || '0911111111'
       };
       
-      console.log("🚀 Sending to backend:", requestData);
-
-      const response = await fetch(`${API_BASE}/api/payment/initialize`, {
+      const response = await fetch(`${API_URL}/api/payment/initialize`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -283,7 +306,7 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
           <div className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-4">
             <h3 className="font-semibold text-text-primary mb-2">{selectedPlanData?.name}</h3>
             <p className="text-2xl font-bold text-primary-600">
-              ETB {amount.toLocaleString()}<span className="text-sm">/6 months</span>
+              ETB {amount?.toLocaleString()}<span className="text-sm">/6 months</span>
             </p>
           </div>
           <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800">
@@ -302,4 +325,4 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
   );
 };
 
-export default SellerSubscription;
+export default SellerSubscription
