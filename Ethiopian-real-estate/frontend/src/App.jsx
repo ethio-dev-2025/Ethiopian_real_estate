@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';   // ✅ ADDED: static import
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { PresenceProvider } from './context/PresenceContext';
@@ -51,7 +52,7 @@ const PaymentSuccessHandler = ({ children }) => {
             await new Promise(resolve => setTimeout(resolve, 1000));
             await forceRefreshUser();
             
-            const { toast } = await import('react-hot-toast');
+            // ✅ Removed: const { toast } = await import('react-hot-toast');
             toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Your account is now activated.');
             
             if (window.location.pathname !== '/payment/success') {
@@ -59,7 +60,7 @@ const PaymentSuccessHandler = ({ children }) => {
             }
           } else {
             console.warn('Payment verification failed:', data);
-            const { toast } = await import('react-hot-toast');
+            // ✅ Removed: const { toast } = await import('react-hot-toast');
             toast.error('Payment verification failed. Please contact support.');
           }
         } catch (error) {
