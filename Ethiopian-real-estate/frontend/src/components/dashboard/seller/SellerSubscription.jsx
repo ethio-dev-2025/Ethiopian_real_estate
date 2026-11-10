@@ -21,7 +21,6 @@ const SellerSubscription = () => {
   const [loading, setLoading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [activationStatus, setActivationStatus] = useState(null);
-  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   useEffect(() => {
@@ -50,9 +49,7 @@ const SellerSubscription = () => {
             if (forceRefreshUser) await forceRefreshUser();
             
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
             await fetchActivationStatus();
-            await fetchSubscriptionInfo();
             
             window.history.replaceState({}, document.title, '/dashboard/subscription');
             window.location.reload();
@@ -73,7 +70,6 @@ const SellerSubscription = () => {
 
   useEffect(() => {
     fetchActivationStatus();
-    fetchSubscriptionInfo();
   }, [refreshUser, user]);
 
   const fetchActivationStatus = async () => {
@@ -96,30 +92,9 @@ const SellerSubscription = () => {
     }
   };
 
-  const fetchSubscriptionInfo = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE}/api/subscription/my-subscription`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSubscriptionInfo(data);
-      }
-    } catch (error) {
-      console.error('Error fetching subscription:', error);
-    }
-  };
-
   const getDaysRemaining = () => {
     if (user?.subscription_end_date) {
       const end = new Date(user.subscription_end_date);
-      const now = new Date();
-      const diff = end - now;
-      return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-    }
-    if (subscriptionInfo?.subscription_end_date) {
-      const end = new Date(subscriptionInfo.subscription_end_date);
       const now = new Date();
       const diff = end - now;
       return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
@@ -131,14 +106,11 @@ const SellerSubscription = () => {
   };
 
   const daysRemaining = getDaysRemaining();
-  const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 30;
-  const isExpired = daysRemaining <= 0;
   
   const hasActiveSubscription = 
     user?.has_active_subscription === true ||
     user?.can_create_listings === true ||
     user?.is_activated === true ||
-    subscriptionInfo?.has_subscription === true ||
     daysRemaining > 0 ||
     activationStatus?.status === 'fully_activated';
 
@@ -188,7 +160,7 @@ const SellerSubscription = () => {
         <p className="text-text-muted mt-1">Choose a 6-month plan to activate your account</p>
         {activationStatus?.status === 'documents_approved' && (
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-            <CheckCircle className="w-4 h-4" /> Documents Approved!
+            <CheckCircle className="w-4 h-4" /> Documents Approved! Please subscribe to activate.
           </div>
         )}
       </div>
@@ -232,8 +204,8 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
   if (!showPaymentModal) return null;
   
   const plans = [
-    { id: 'seller', name: 'Seller Plan', price: 894 },
-    { id: 'landlord', name: 'Landlord Plan', price: 1194 },
+    { id: 'seller', name: 'Seller Plan', price: 1194 },
+    { id: 'landlord', name: 'Landlord Plan', price: 894 },
     { id: 'dual', name: 'Dual Plan', price: 1788 }
   ];
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
@@ -251,12 +223,13 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
       }
 
       const fullName = user?.full_name || user?.username || 'User';
-      const nameParts = fullName.split(' ');
-      const firstName = nameParts[0];
+      const nameParts = fullName.trim().split(' ');
+      const firstName = nameParts[0] || 'User';
       const lastName = nameParts.slice(1).join(' ') || 'User';
       
+      // ✅ GUARANTEED NO STR CALLABLE ERRORS HERE
       const requestData = {
-        plan_type: String(selectedPlan), // ✅ Force string
+        plan_type: String(selectedPlan), 
         amount: Number(amount),
         email: user?.email || 'user@example.com',
         first_name: firstName,
@@ -264,6 +237,8 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
         phone: user?.phone || '0911111111'
       };
       
+      console.log("🚀 Sending to backend:", requestData);
+
       const response = await fetch(`${API_BASE}/api/payment/initialize`, {
         method: 'POST',
         headers: {

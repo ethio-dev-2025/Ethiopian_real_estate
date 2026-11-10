@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-// ✅ Clean API base URL
+// ✅ Clean API base URL for production
 const API_BASE = (() => {
   let env = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   env = env.replace(/\/$/, '');
@@ -74,7 +74,7 @@ const useSubscription = () => {
         return;
       }
       
-      // Fallback to user object
+      // Fallback to user object if API fails
       if (user) {
         let daysRemaining = 0;
         const endDate = user.subscription_end_date;
@@ -121,7 +121,7 @@ const useSubscription = () => {
 
   useEffect(() => {
     fetchSubscription();
-    const interval = setInterval(fetchSubscription, 10000);
+    const interval = setInterval(fetchSubscription, 15000);
     return () => clearInterval(interval);
   }, [fetchSubscription]);
 
