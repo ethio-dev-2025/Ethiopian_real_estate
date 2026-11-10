@@ -13,23 +13,16 @@ const PaymentSuccessPage = () => {
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState(5);
   
-  const tx_ref = searchParams.get('tx_ref');
-  const status = searchParams.get('status');
+  const txRef = searchParams.get('tx_ref');
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tx_ref = urlParams.get('tx_ref');
-    const status = urlParams.get('status');
-    
-    console.log('📦 PaymentSuccessPage params:', { tx_ref, status });
-    
-    if (tx_ref) {
-      verifyPayment(tx_ref);
+    if (txRef) {
+      verifyPayment(txRef);
     } else {
       setError('No payment reference found');
       setLoading(false);
     }
-  }, []);
+  }, [txRef]);
 
   useEffect(() => {
     if (!loading && !error && paymentData) {
@@ -47,8 +40,8 @@ const PaymentSuccessPage = () => {
     }
   }, [loading, error, paymentData, navigate]);
 
-  const verifyPayment = async () => {
-    console.log('🔍 Verifying payment with tx_ref:', tx_ref);
+  const verifyPayment = async (paymentReference) => {
+    console.log('🔍 Verifying payment with tx_ref:', paymentReference);
     
     try {
       const token = localStorage.getItem('access_token');
@@ -58,7 +51,7 @@ const PaymentSuccessPage = () => {
         return;
       }
       
-      const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${tx_ref}`, {
+      const response = await fetch(`${API_URL}/api/payment/verify?tx_ref=${encodeURIComponent(paymentReference)}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -69,6 +62,10 @@ const PaymentSuccessPage = () => {
       const data = await response.json();
       console.log('📦 Verification response:', data);
       
+      if (!response.ok) {
+        throw new Error(data.message || data.detail || 'Payment verification failed');
+      }
+
       if (data.success && data.activated) {
         const userResponse = await fetch(`${API_URL}/api/auth/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -87,8 +84,8 @@ const PaymentSuccessPage = () => {
         const user = userStr ? JSON.parse(userStr) : {};
         
         setPaymentData({
-          transaction_id: tx_ref,
-          amount: data.amount || 894,
+          transaction_id: data.transaction_id || paymentReference,
+          amount: data.amount ?? 894,
           plan: data.plan_type || (data.renewed ? 'Renewed Plan' : 'Seller Plan'),
           status: 'completed',
           payment_method: 'Chapa / Telebirr',
@@ -105,7 +102,7 @@ const PaymentSuccessPage = () => {
       }
     } catch (error) {
       console.error('Verification error:', error);
-      setError('Failed to verify payment. Please contact support.');
+      setError(error.message || 'Failed to verify payment. Please contact support.');
     } finally {
       setLoading(false);
     }
