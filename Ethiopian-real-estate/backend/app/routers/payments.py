@@ -17,7 +17,7 @@ router = APIRouter()
 
 warnings.filterwarnings("ignore")
 
-CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "CHASECK_TEST-fbdEa9IuLsnknOdqwiU8qSUtiNNKrips")
+CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "").strip()
 CHAPA_BASE_URL = "https://api.chapa.co/v1"
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://ethiopian-real-estate.onrender.com")
 BASE_URL = os.getenv("BASE_URL", "https://ethiopian-real-estate-api.onrender.com")
@@ -31,7 +31,7 @@ class InitializePaymentRequest(BaseModel):
     phone: str
 
 def get_chapa_client():
-    return httpx.AsyncClient(verify=False, timeout=60.0, follow_redirects=True)
+    return httpx.AsyncClient(timeout=60.0, follow_redirects=True)
 
 def activate_user(user: User, plan_type: str, amount: float, transaction_id: str, db: Session):
     start_date = datetime.utcnow()
@@ -115,6 +115,12 @@ async def initialize_payment(
     db: Session = Depends(get_db)
 ):
     try:
+        if not CHAPA_SECRET_KEY:
+            return {
+                "success": False,
+                "message": "Chapa payments are not configured. Set CHAPA_SECRET_KEY in the backend environment."
+            }
+
         plan_str = str(payment_data.plan_type).lower().strip()
         amount_val = float(payment_data.amount)
         
@@ -168,10 +174,22 @@ async def initialize_payment(
                         "checkout_url": data["data"]["checkout_url"],
                         "tx_ref": tx_ref
                     }
-                else:
-                    return {"success": False, "message": data.get("message", "Payment initialization failed")}
+                error_message = data.get("message", "Payment initialization failed")
+            elif response.status_code == 401:
+                error_message = "Chapa rejected the API key. Check CHAPA_SECRET_KEY in the backend environment."
             else:
-                return {"success": False, "message": f"Gateway error: {response.status_code}"}
+                error_text = response.text
+                try:
+                    error_data = response.json()
+                except ValueError:
+                    error_data = {}
+                error_message = error_data.get("message") or f"Chapa payment initialization failed (HTTP {response.status_code})."
+                print(f"Chapa initialization failed with HTTP {response.status_code}: {error_text[:500]}")
+
+            payment.status = "failed"
+            payment.payment_status = "failed"
+            db.commit()
+            return {"success": False, "message": error_message}
                 
     except Exception as e:
         print(f"❌ Error initializing payment: {e}")
@@ -246,6 +264,12 @@ async def chapa_webhook(request: Request, db: Session = Depends(get_db)):
 @router.get("/verify")
 async def verify_payment(tx_ref: str, transaction_id: str = None, db: Session = Depends(get_db)):
     try:
+        if not CHAPA_SECRET_KEY:
+            return {
+                "success": False,
+                "message": "Chapa payments are not configured. Set CHAPA_SECRET_KEY in the backend environment."
+            }
+
         if not tx_ref:
             return {"success": False, "message": "No payment reference"}
         
@@ -287,7 +311,12 @@ async def verify_payment(tx_ref: str, transaction_id: str = None, db: Session = 
                             "subscription_end_date": end_date.isoformat()
                         }
                 return {"success": False, "message": data.get("message", "Not successful")}
-            return {"success": False, "message": f"Failed: {response.status_code}"}
+            if response.status_code == 401:
+                return {
+                    "success": False,
+                    "message": "Chapa rejected the API key. Check CHAPA_SECRET_KEY in the backend environment."
+                }
+            return {"success": False, "message": f"Chapa verification failed (HTTP {response.status_code})."}
             
     except Exception as e:
         print(f"Verify error: {e}")
