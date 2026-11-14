@@ -8,7 +8,7 @@ from .routers import (
     auth, admin, listings, users, messages, notifications, 
     payments, settings as settings_router, password_reset, activation, buyer, 
     buyer_auth, admin_messages, websocket, transactions, contact_messages,
-    admin_notifications, subscription  # ✅ ADDED subscription
+    admin_notifications, subscription
 )
 from .database import init_db
 from .config import settings
@@ -29,28 +29,32 @@ app = FastAPI(title=settings.APP_NAME, docs_url="/docs")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ============ CORS CONFIGURATION ============
-configured_origins = os.getenv("CORS_ORIGINS", settings.FRONTEND_URL)
-frontend_origins = [
-    origin.strip().rstrip("/")
-    for origin in configured_origins.split(",")
-    if origin.strip()
-]
-
-allowed_origins = list(set([
+# ✅ Explicitly list ALL allowed origins. Do not rely on regex alone.
+# Your actual frontend URL must be here: https://ethiopian-real-estate-mel.onrender.com
+allowed_origins = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:3000",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
+    # ✅ Your actual deployed frontend URL
+    "https://ethiopian-real-estate-mel.onrender.com",
     "https://ethiopian-real-estate-1.onrender.com",
     "https://ethiopian-real-estate-api.onrender.com",
-    *frontend_origins,
-]))
+]
+
+# Also include any origins from the environment variable (if set)
+configured_origins = os.getenv("CORS_ORIGINS", "")
+if configured_origins:
+    for origin in configured_origins.split(","):
+        origin = origin.strip().rstrip("/")
+        if origin and origin not in allowed_origins:
+            allowed_origins.append(origin)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https://.*\.onrender\.com",
+    allow_origin_regex=r"https://.*\.onrender\.com",  # Keep as a safety net
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
@@ -76,7 +80,7 @@ app.include_router(websocket.router, prefix="/api", tags=["websocket"])
 app.include_router(admin_notifications.router, prefix="/api/admin", tags=["admin"])
 app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])
 app.include_router(contact_messages.router, prefix="/api/contact", tags=["contact"])
-app.include_router(subscription.router, prefix="/api/subscription", tags=["subscription"])  # ✅ ADDED
+app.include_router(subscription.router, prefix="/api/subscription", tags=["subscription"])
 
 # ============ HEALTH ENDPOINTS ============
 @app.get("/")
@@ -93,4 +97,4 @@ async def global_exception_handler(request, exc):
     print(f"Global error: {exc}")
     return {"status": "error", "message": str(exc)}
 
-print("✅ Server started with CORS properly configured!")
+print("✅ Server started with CORS properly configured for production!")

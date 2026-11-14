@@ -1,92 +1,114 @@
 # backend/create_remote_admin.py
-import os
 import bcrypt
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, text
 
-# Load environment variables from .env (which should have your Neon DATABASE_URL)
-load_dotenv()
+# ✅ Neon database URL
+NEON_DB_URL = "postgresql://neondb_owner:npg_bpX65nWGTUZN@ep-little-pine-bedmsd75-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    print("❌ ERROR: DATABASE_URL not found in .env file.")
-    exit(1)
-
-print(f"🔌 Connecting to database...")
-# Create the engine
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-db = SessionLocal()
-
-# Import your models
-from app.models.user import User
-
-# ==========================================
-# ADMIN CREDENTIALS
-# ==========================================
 ADMIN_EMAIL = "melkamuenyew90@gmail.com"
 ADMIN_PASSWORD = "Melkamu123@"
-ADMIN_USERNAME = "admin" # Change this if you prefer a different username
-ADMIN_NAME = "System Admin"
+ADMIN_USERNAME = "melkamu"
+ADMIN_FULL_NAME = "Melkamu Admin"
 
-# 1. Hash the password using raw bcrypt (matching your auth.py logic)
+print("🔌 Connecting to Neon...")
+engine = create_engine(NEON_DB_URL)
+
+# Hash password
 salt = bcrypt.gensalt()
-hashed_password = bcrypt.hashpw(ADMIN_PASSWORD.encode('utf-8'), salt).decode('utf-8')
+hashed_password = bcrypt.hashpw(ADMIN_PASSWORD.encode("utf-8"), salt).decode("utf-8")
+print(f"🔑 Password hashed successfully")
 
-try:
-    # 2. Check if the user already exists
-    existing_user = db.query(User).filter(User.email == ADMIN_EMAIL).first()
+with engine.connect() as conn:
+    # Check if admin exists
+    existing = conn.execute(
+        text("SELECT id, email, username FROM users WHERE email = :email OR username = :username LIMIT 1"),
+        {"email": ADMIN_EMAIL, "username": ADMIN_USERNAME}
+    ).first()
 
-    if existing_user:
-        print(f"⚠️ User with email {ADMIN_EMAIL} already exists.")
-        print(f"🔄 Updating password and ensuring admin role...")
-        
-        existing_user.hashed_password = hashed_password
-        existing_user.role_type = "admin"
-        existing_user.status = "active"
-        existing_user.is_active = True
-        existing_user.is_verified = True
-        existing_user.is_activated = True
-        existing_user.can_create_listings = True
-        existing_user.payment_approved = True
-        
-        db.commit()
-        print("✅ Admin password updated and role confirmed!")
-        
-    else:
-        print(f"🆕 Creating new admin user for {ADMIN_EMAIL}...")
-        
-        # Check if username is taken
-        username_check = db.query(User).filter(User.username == ADMIN_USERNAME).first()
-        if username_check:
-            print(f"❌ Error: Username '{ADMIN_USERNAME}' is already taken by another user.")
-            print("Please change the ADMIN_USERNAME in this script and try again.")
-            exit(1)
-
-        new_admin = User(
-            email=ADMIN_EMAIL,
-            username=ADMIN_USERNAME,
-            full_name=ADMIN_NAME,
-            hashed_password=hashed_password,
-            phone="",
-            role_type="admin",
-            status="active",
-            is_active=True,
-            is_verified=True,
-            is_activated=True,
-            can_create_listings=True,
-            payment_approved=True
+    if existing:
+        print(f"🔄 User exists (id={existing[0]}), updating...")
+        conn.execute(
+            text("""
+                UPDATE users
+                SET email = :email,
+                    username = :username,
+                    full_name = :full_name,
+                    hashed_password = :hashed_password,
+                    role_type = 'admin',
+                    status = 'active',
+                    is_active = TRUE,
+                    is_verified = TRUE,
+                    is_activated = TRUE,
+                    can_create_listings = TRUE,
+                    payment_approved = TRUE,
+                    has_active_subscription = TRUE
+                WHERE id = :id
+            """),
+            {
+                "id": existing[0],
+                "email": ADMIN_EMAIL,
+                "username": ADMIN_USERNAME,
+                "full_name": ADMIN_FULL_NAME,
+                "hashed_password": hashed_password,
+            }
         )
+        conn.commit()
+        print(f"✅ Admin updated: {ADMIN_EMAIL}")
+    else:
+        print(f"🆕 Creating new admin user...")
+        # Find max ID and add 1 (in case ID sequence is misaligned)
+        max_id = conn.execute(text("SELECT COALESCE(MAX(id), 0) FROM users")).scalar()
+        new_id = max_id + 1
         
-        db.add(new_admin)
-        db.commit()
-        print("✅ New admin user successfully created in the remote database!")
+        conn.execute(
+            text("""
+                INSERT INTO users (
+                    id, email, username, full_name, hashed_password, phone,
+                    role_type, status, is_active, is_verified, is_activated,
+                    can_create_listings, payment_approved, has_active_subscription,
+                    created_at
+                )
+                VALUES (
+                    :id, :email, :username, :full_name, :hashed_password, :phone,
+                    'admin', 'active', TRUE, TRUE, TRUE,
+                    TRUE, TRUE, TRUE,
+                    NOW()
+                )
+            """),
+            {
+                "id": new_id,
+                "email": ADMIN_EMAIL,
+                "username": ADMIN_USERNAME,
+                "full_name": ADMIN_FULL_NAME,
+                "hashed_password": hashed_password,
+                "phone": "0911000000",
+            }
+        )
+        conn.commit()
+        print(f"✅ Admin created with id={new_id}: {ADMIN_EMAIL}")
+
+    # Verify
+    verify = conn.execute(
+        text("SELECT id, email, role_type, status, hashed_password FROM users WHERE email = :email"),
+        {"email": ADMIN_EMAIL}
+    ).first()
+
+    if verify:
+        pwd_ok = bcrypt.checkpw(ADMIN_PASSWORD.encode("utf-8"), verify[4].encode("utf-8"))
+        print(f"\n{'='*50}")
+        print(f"✅ VERIFICATION:")
+        print(f"   ID: {verify[0]}")
+        print(f"   Email: {verify[1]}")
+        print(f"   Role: {verify[2]}")
+        print(f"   Status: {verify[3]}")
+        print(f"   Password verified: {pwd_ok}")
+        print(f"{'='*50}\n")
         
-except Exception as e:
-    print(f"❌ An error occurred: {e}")
-    db.rollback()
-finally:
-    db.close()
-    print("🔌 Database connection closed.")
+        if pwd_ok:
+            print(f"🎉 LOGIN READY:")
+            print(f"   Email: {ADMIN_EMAIL}")
+            print(f"   Password: {ADMIN_PASSWORD}")
+        else:
+            print(f"❌ Password mismatch — check hash function")
+
+print("🔌 Done!")
