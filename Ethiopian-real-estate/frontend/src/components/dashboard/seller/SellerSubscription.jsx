@@ -3,9 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { CreditCard, CheckCircle, Shield, Home, Crown, Loader, X, Wallet } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import useSubscription from '../../../hooks/useSubscription';
-import toast from 'react-hot-toast'; // ✅ MUST BE DEFAULT IMPORT
+import toast from 'react-hot-toast';
 
-// ✅ Clean API base URL for production
 const API_BASE = (() => {
   let env = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   env = env.replace(/\/$/, '');
@@ -31,7 +30,6 @@ const SellerSubscription = () => {
 
       if (status === 'success' && tx_ref && !verifyingPayment) {
         setVerifyingPayment(true);
-        console.log('💰 Payment success detected!');
         
         try {
           const token = localStorage.getItem('access_token');
@@ -40,7 +38,6 @@ const SellerSubscription = () => {
           });
           
           const data = await response.json();
-          console.log('📦 Verification result:', data);
           
           if (data.success && data.activated) {
             toast.success(data.renewed ? 'Subscription renewed successfully!' : 'Payment successful! Account activated.');
@@ -114,6 +111,9 @@ const SellerSubscription = () => {
     daysRemaining > 0 ||
     activationStatus?.status === 'fully_activated';
 
+  // ✅ Safely handle status text for rendering
+  const statusText = typeof activationStatus?.status === 'string' ? activationStatus.status : '';
+
   if (verifyingPayment) {
     return (
       <div className="text-center py-12">
@@ -158,7 +158,9 @@ const SellerSubscription = () => {
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-text-primary">Subscription Plans</h1>
         <p className="text-text-muted mt-1">Choose a 6-month plan to activate your account</p>
-        {activationStatus?.status === 'documents_approved' && (
+        
+        {/* ✅ Safe rendering of status text */}
+        {statusText === 'documents_approved' && (
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
             <CheckCircle className="w-4 h-4" /> Documents Approved! Please subscribe to activate.
           </div>
@@ -199,7 +201,6 @@ const SellerSubscription = () => {
   );
 };
 
-// PaymentModal Component
 const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, setSelectedPlan, loading, setLoading, user }) => {
   if (!showPaymentModal) return null;
   
@@ -227,7 +228,6 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
       const firstName = nameParts[0] || 'User';
       const lastName = nameParts.slice(1).join(' ') || 'User';
       
-      // ✅ FIXED: Force string and number types to prevent 'str' object is not callable
       const requestData = {
         plan_type: String(selectedPlan), 
         amount: Number(amount),
@@ -237,8 +237,6 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
         phone: user?.phone || '0911111111'
       };
       
-      console.log("🚀 Sending to backend:", requestData);
-
       const response = await fetch(`${API_BASE}/api/payment/initialize`, {
         method: 'POST',
         headers: {
@@ -249,7 +247,6 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
       });
       
       const data = await response.json();
-      console.log("📦 Backend response:", data);
       
       if (data.success && data.checkout_url) {
         toast.success('Redirecting to Chapa payment page...');

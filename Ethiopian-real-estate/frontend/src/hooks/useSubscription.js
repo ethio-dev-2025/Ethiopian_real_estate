@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-// ✅ Clean API base URL
 const API_BASE = (() => {
   let env = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   env = env.replace(/\/$/, '');
@@ -32,7 +31,6 @@ const useSubscription = () => {
       const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
       return days > 0 ? days : 0;
     } catch (e) {
-      console.error('Error calculating days:', e);
       return 0;
     }
   };
@@ -45,7 +43,6 @@ const useSubscription = () => {
         return;
       }
 
-      // ✅ ONLY call the activation status endpoint (which exists)
       const response = await fetch(`${API_BASE}/api/activation/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -54,28 +51,36 @@ const useSubscription = () => {
         const data = await response.json();
         console.log('📊 useSubscription - From API:', data);
         
-        let daysRemaining = data.days_remaining || 0;
+        // ✅ FORCE data to be handled safely as strings/numbers
+        let daysRemaining = Number(data.days_remaining) || 0;
         
         if (daysRemaining === 0 && data.subscription_end_date) {
           daysRemaining = calculateDaysRemaining(data.subscription_end_date);
         }
         
-        const hasActive = data.can_create_listings === true && daysRemaining > 0;
+        const canCreate = data.can_create_listings === true;
+        const hasActive = canCreate && daysRemaining > 0;
         
+        // ✅ Safely extract status text
+        const statusText = typeof data.status === 'string' ? data.status : '';
+        const planText = typeof data.subscription_plan === 'string' ? data.subscription_plan : null;
+        const messageText = typeof data.message === 'string' ? data.message : '';
+
         setSubscription({
           hasActiveSubscription: hasActive,
-          canCreateListings: data.can_create_listings === true && daysRemaining > 0,
+          canCreateListings: canCreate,
           daysRemaining: daysRemaining,
-          plan: data.subscription_plan || (hasActive ? 'seller' : null),
+          plan: planText || (hasActive ? 'seller' : null),
           endDate: data.subscription_end_date || null,
           isExpiringSoon: daysRemaining > 0 && daysRemaining <= 30,
-          message: hasActive ? `Active - ${daysRemaining} days remaining` : 'No active subscription',
+          message: hasActive ? `Active - ${daysRemaining} days remaining` : (messageText || 'No active subscription'),
+          status: statusText, // Include status safely
           loading: false
         });
         return;
       }
       
-      // Fallback to user object if API fails
+      // Fallback to user object
       if (user) {
         let daysRemaining = 0;
         const endDate = user.subscription_end_date;
@@ -84,8 +89,7 @@ const useSubscription = () => {
           daysRemaining = calculateDaysRemaining(endDate);
         }
         
-        const hasActive = (user.has_active_subscription === true || 
-                          user.can_create_listings === true) && daysRemaining > 0;
+        const hasActive = (user.has_active_subscription === true || user.can_create_listings === true) && daysRemaining > 0;
         
         setSubscription({
           hasActiveSubscription: hasActive,
@@ -95,6 +99,7 @@ const useSubscription = () => {
           endDate: endDate || null,
           isExpiringSoon: daysRemaining > 0 && daysRemaining <= 30,
           message: hasActive ? `Active - ${daysRemaining} days remaining` : 'No active subscription',
+          status: user.status || '',
           loading: false
         });
         return;
@@ -126,18 +131,10 @@ const useSubscription = () => {
     return () => clearInterval(interval);
   }, [fetchSubscription]);
 
-  const checkCanCreateListing = useCallback(async () => {
-    if (subscription.hasActiveSubscription && subscription.daysRemaining > 0) {
-      return { can_create: true, message: 'Subscription active' };
-    }
-    return { can_create: false, message: 'No active subscription' };
-  }, [subscription]);
-
   return {
     ...subscription,
     refreshSubscription: fetchSubscription,
     forceRefreshSubscription,
-    checkCanCreateListing,
     refreshUser
   };
 };
