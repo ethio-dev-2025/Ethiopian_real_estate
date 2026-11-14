@@ -22,10 +22,15 @@ warnings.filterwarnings("ignore")
 CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "CHASECK_TEST-fbdEa9IuLsnknOdqwiU8qSUtiNNKrips")
 CHAPA_BASE_URL = "https://api.chapa.co/v1"
 
-# ✅ HARDCODED PRODUCTION URLS to prevent localhost redirects
-# This overrides any missing or incorrect environment variables on Render
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://ethiopian-real-estate-mel.onrender.com")
-BASE_URL = os.getenv("BASE_URL", "https://ethiopian-real-estate.onrender.com")
+# =========================================================
+# ✅ HARDCODED PRODUCTION URLS
+# These will NOT be overridden by Render environment variables
+# =========================================================
+FRONTEND_URL = "https://ethiopian-real-estate-mel.onrender.com"
+BASE_URL = "https://ethiopian-real-estate.onrender.com"
+
+print(f"🔗 HARDCODED FRONTEND_URL: {FRONTEND_URL}")
+print(f"🔗 HARDCODED BASE_URL: {BASE_URL}")
 
 
 class InitializePaymentRequest(BaseModel):
@@ -144,10 +149,10 @@ async def initialize_payment(
         db.commit()
         db.refresh(payment)
         
-        # ✅ These will now be the Render URLs, not localhost
         callback_url = f"{BASE_URL}/api/payment/webhook"
         return_url = f"{FRONTEND_URL}/payment/success?tx_ref={tx_ref}&plan={plan_str}"
         
+        print(f"🔗 Callback URL: {callback_url}")
         print(f"🔗 Return URL: {return_url}")
         
         async with get_chapa_client() as client:
@@ -184,7 +189,6 @@ async def initialize_payment(
                     }
                 return {"success": False, "message": data.get("message", "Payment init failed")}
             
-            # ✅ FIXED: use response.text (NOT response.text())
             error_text = response.text
             print(f"❌ Chapa HTTP error: {response.status_code} - {error_text}")
             
@@ -227,10 +231,13 @@ async def payment_success(tx_ref: str, db: Session = Depends(get_db)):
         return HTMLResponse(content=f"""
         <html>
         <head><meta http-equiv='refresh' content='2;url={FRONTEND_URL}/dashboard'></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-            <h1 style="color: green;">Payment Successful!</h1>
-            <p>Your account has been activated. Redirecting to dashboard...</p>
-            <p><a href="{FRONTEND_URL}/dashboard">Click here if not redirected</a></p>
+        <body style="font-family: Arial; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0;">
+            <div style="background: white; border-radius: 20px; padding: 40px; max-width: 500px; margin: 50px auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                <h1 style="color: #10b981;">✅ Payment Successful!</h1>
+                <p style="color: #666;">Your account has been activated.</p>
+                <p style="color: #666;">Redirecting to dashboard...</p>
+                <p><a href="{FRONTEND_URL}/dashboard" style="color: #667eea;">Click here if not redirected</a></p>
+            </div>
         </body>
         </html>
         """)
