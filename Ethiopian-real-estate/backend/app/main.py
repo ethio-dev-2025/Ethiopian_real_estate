@@ -8,7 +8,7 @@ from .routers import (
     auth, admin, listings, users, messages, notifications, 
     payments, settings as settings_router, password_reset, activation, buyer, 
     buyer_auth, admin_messages, websocket, transactions, contact_messages,
-    admin_notifications
+    admin_notifications, subscription  # ✅ ADDED subscription
 )
 from .database import init_db
 from .config import settings
@@ -76,6 +76,7 @@ app.include_router(websocket.router, prefix="/api", tags=["websocket"])
 app.include_router(admin_notifications.router, prefix="/api/admin", tags=["admin"])
 app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])
 app.include_router(contact_messages.router, prefix="/api/contact", tags=["contact"])
+app.include_router(subscription.router, prefix="/api/subscription", tags=["subscription"])  # ✅ ADDED
 
 # ============ HEALTH ENDPOINTS ============
 @app.get("/")
