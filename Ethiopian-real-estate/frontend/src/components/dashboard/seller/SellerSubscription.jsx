@@ -111,7 +111,6 @@ const SellerSubscription = () => {
     daysRemaining > 0 ||
     activationStatus?.status === 'fully_activated';
 
-  // ✅ Safely handle status text for rendering
   const statusText = typeof activationStatus?.status === 'string' ? activationStatus.status : '';
 
   if (verifyingPayment) {
@@ -159,7 +158,6 @@ const SellerSubscription = () => {
         <h1 className="text-2xl font-bold text-text-primary">Subscription Plans</h1>
         <p className="text-text-muted mt-1">Choose a 6-month plan to activate your account</p>
         
-        {/* ✅ Safe rendering of status text */}
         {statusText === 'documents_approved' && (
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
             <CheckCircle className="w-4 h-4" /> Documents Approved! Please subscribe to activate.
@@ -186,8 +184,12 @@ const SellerSubscription = () => {
                     </li>
                   ))}
                 </ul>
+                {/* ✅ FIXED BUTTON: Forces string safely */}
                 <button
-                  onClick={() => { setSelectedPlan(plan.id); setShowPaymentModal(true); }}
+                  onClick={() => { 
+                    setSelectedPlan(String(plan.id)); 
+                    setShowPaymentModal(true); 
+                  }}
                   className="w-full py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
                 >
                   <CreditCard className="w-4 h-4" /> Subscribe for 6 Months
@@ -209,6 +211,8 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
     { id: 'landlord', name: 'Landlord Plan', price: 894 },
     { id: 'dual', name: 'Dual Plan', price: 1788 }
   ];
+  
+  // ✅ Safely find the plan
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
   const amount = selectedPlanData?.price || 0;
 
@@ -228,6 +232,7 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
       const firstName = nameParts[0] || 'User';
       const lastName = nameParts.slice(1).join(' ') || 'User';
       
+      // ✅ Strictly force strings and numbers
       const requestData = {
         plan_type: String(selectedPlan), 
         amount: Number(amount),
