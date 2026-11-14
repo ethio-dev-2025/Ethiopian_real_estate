@@ -3,9 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { CreditCard, CheckCircle, Shield, Home, Crown, Loader, X, Wallet } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import useSubscription from '../../../hooks/useSubscription';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; // ✅ MUST BE DEFAULT IMPORT
 
-// ✅ Clean API base URL
+// ✅ Clean API base URL for production
 const API_BASE = (() => {
   let env = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   env = env.replace(/\/$/, '');
@@ -69,7 +69,6 @@ const SellerSubscription = () => {
   }, [forceRefreshSubscription, forceRefreshUser]);
 
   useEffect(() => {
-    // ✅ ONLY fetch activation status. We deleted fetchSubscriptionInfo
     fetchActivationStatus();
   }, [refreshUser, user]);
 
@@ -228,6 +227,7 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
       const firstName = nameParts[0] || 'User';
       const lastName = nameParts.slice(1).join(' ') || 'User';
       
+      // ✅ FIXED: Force string and number types to prevent 'str' object is not callable
       const requestData = {
         plan_type: String(selectedPlan), 
         amount: Number(amount),
@@ -249,6 +249,7 @@ const PaymentModal = ({ showPaymentModal, setShowPaymentModal, selectedPlan, set
       });
       
       const data = await response.json();
+      console.log("📦 Backend response:", data);
       
       if (data.success && data.checkout_url) {
         toast.success('Redirecting to Chapa payment page...');
