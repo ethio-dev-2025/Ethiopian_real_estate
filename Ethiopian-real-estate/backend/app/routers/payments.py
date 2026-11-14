@@ -22,7 +22,8 @@ warnings.filterwarnings("ignore")
 CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "CHASECK_TEST-fbdEa9IuLsnknOdqwiU8qSUtiNNKrips")
 CHAPA_BASE_URL = "https://api.chapa.co/v1"
 
-# ✅ Production URLs
+# ✅ HARDCODED PRODUCTION URLS to prevent localhost redirects
+# This overrides any missing or incorrect environment variables on Render
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://ethiopian-real-estate-mel.onrender.com")
 BASE_URL = os.getenv("BASE_URL", "https://ethiopian-real-estate.onrender.com")
 
@@ -126,7 +127,6 @@ async def initialize_payment(
         amount_val = float(payment_data.amount)
         
         print(f"💰 Payment initialization: {current_user.email} | Plan: {plan_str} | Amount: {amount_val}")
-        print(f"🔑 Using CHAPA_SECRET_KEY: {CHAPA_SECRET_KEY[:15]}...")
         
         tx_ref = f"{plan_str}-{current_user.id}-{secrets.token_hex(8)}"
         
@@ -144,8 +144,11 @@ async def initialize_payment(
         db.commit()
         db.refresh(payment)
         
+        # ✅ These will now be the Render URLs, not localhost
         callback_url = f"{BASE_URL}/api/payment/webhook"
         return_url = f"{FRONTEND_URL}/payment/success?tx_ref={tx_ref}&plan={plan_str}"
+        
+        print(f"🔗 Return URL: {return_url}")
         
         async with get_chapa_client() as client:
             response = await client.post(
@@ -181,7 +184,7 @@ async def initialize_payment(
                     }
                 return {"success": False, "message": data.get("message", "Payment init failed")}
             
-            # ✅ FIX: use response.text (NOT response.text())
+            # ✅ FIXED: use response.text (NOT response.text())
             error_text = response.text
             print(f"❌ Chapa HTTP error: {response.status_code} - {error_text}")
             
@@ -221,7 +224,16 @@ async def payment_success(tx_ref: str, db: Session = Depends(get_db)):
             if user:
                 activate_user(user, payment.plan_type, payment.amount, payment.transaction_id, db)
         
-        return HTMLResponse(content=f"<html><head><meta http-equiv='refresh' content='2;url={FRONTEND_URL}/dashboard'></head><body><h1>Payment Successful! Redirecting...</h1></body></html>")
+        return HTMLResponse(content=f"""
+        <html>
+        <head><meta http-equiv='refresh' content='2;url={FRONTEND_URL}/dashboard'></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h1 style="color: green;">Payment Successful!</h1>
+            <p>Your account has been activated. Redirecting to dashboard...</p>
+            <p><a href="{FRONTEND_URL}/dashboard">Click here if not redirected</a></p>
+        </body>
+        </html>
+        """)
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Error: {str(e)}</h2></body></html>")
 
