@@ -29,21 +29,18 @@ app = FastAPI(title=settings.APP_NAME, docs_url="/docs")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ============ CORS CONFIGURATION ============
-# ✅ Explicitly list ALL allowed origins. Do not rely on regex alone.
-# Your actual frontend URL must be here: https://ethiopian-real-estate-mel.onrender.com
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:3000",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
-    # ✅ Your actual deployed frontend URL
     "https://ethiopian-real-estate-mel.onrender.com",
     "https://ethiopian-real-estate-1.onrender.com",
     "https://ethiopian-real-estate-api.onrender.com",
+    "https://ethiopian-real-estate.onrender.com",
 ]
 
-# Also include any origins from the environment variable (if set)
 configured_origins = os.getenv("CORS_ORIGINS", "")
 if configured_origins:
     for origin in configured_origins.split(","):
@@ -54,7 +51,7 @@ if configured_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https://.*\.onrender\.com",  # Keep as a safety net
+    allow_origin_regex=r"https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
@@ -91,7 +88,6 @@ def root():
 def health():
     return {"status": "ok", "message": "Server is running"}
 
-# ============ CATCH-ALL ERROR HANDLER ============
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     print(f"Global error: {exc}")
