@@ -11,16 +11,19 @@ from pydantic import BaseModel
 import httpx
 import os
 import warnings
+import json
 from fastapi.responses import HTMLResponse
 
 router = APIRouter()
 
+# Suppress SSL warnings
 warnings.filterwarnings("ignore")
 
-CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "").strip()
+CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "CHASECK_TEST-fbdEa9IuLsnknOdqwiU8qSUtiNNKrips")
 CHAPA_BASE_URL = "https://api.chapa.co/v1"
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://ethiopian-real-estate.onrender.com")
-BASE_URL = os.getenv("BASE_URL", "https://ethiopian-real-estate-api.onrender.com")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://ethiopian-real-estate-mel.onrender.com")
+BASE_URL = os.getenv("BASE_URL", "https://ethiopian-real-estate.onrender.com")
+
 
 class InitializePaymentRequest(BaseModel):
     plan_type: str
@@ -30,13 +33,16 @@ class InitializePaymentRequest(BaseModel):
     last_name: str
     phone: str
 
+
 def get_chapa_client():
-    return httpx.AsyncClient(timeout=60.0, follow_redirects=True)
+    return httpx.AsyncClient(verify=False, timeout=60.0, follow_redirects=True)
+
 
 def activate_user(user: User, plan_type: str, amount: float, transaction_id: str, db: Session):
     start_date = datetime.utcnow()
     end_date = start_date + timedelta(days=180)
     
+    # ✅ Force plan_type to be a clean string
     plan_name = str(plan_type).lower().strip() if plan_type else "seller"
     
     print(f"🔧 ACTIVATING USER: {user.email} | Plan: {plan_name}")
@@ -74,7 +80,6 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
         user.landlord_approved = True
         user.landlord_paid = True
     
-    # 🎯 Use string directly, no .value or ()
     status_string = "fully_activated"
     
     activation_request = db.query(ActivationRequest).filter(
@@ -108,6 +113,7 @@ def activate_user(user: User, plan_type: str, amount: float, transaction_id: str
     print(f"✅ User {user.email} ACTIVATED!")
     return end_date
 
+
 @router.post("/initialize")
 async def initialize_payment(
     payment_data: InitializePaymentRequest,
@@ -115,16 +121,11 @@ async def initialize_payment(
     db: Session = Depends(get_db)
 ):
     try:
-        if not CHAPA_SECRET_KEY:
-            return {
-                "success": False,
-                "message": "Chapa payments are not configured. Set CHAPA_SECRET_KEY in the backend environment."
-            }
-
+        # ✅ STRICT TYPE CONVERSION to prevent 'str' object is not callable
         plan_str = str(payment_data.plan_type).lower().strip()
         amount_val = float(payment_data.amount)
         
-        print(f"💰 Payment initialization for user: {current_user.email} | Plan: {plan_str} | Amount: {amount_val}")
+        print(f"💰 Payment initialization: {current_user.email} | Plan: {plan_str} | Amount: {amount_val}")
         
         tx_ref = f"{plan_str}-{current_user.id}-{secrets.token_hex(8)}"
         
@@ -140,6 +141,7 @@ async def initialize_payment(
         )
         db.add(payment)
         db.commit()
+        db.refresh(payment)
         
         callback_url = f"{BASE_URL}/api/payment/webhook"
         return_url = f"{FRONTEND_URL}/payment/success?tx_ref={tx_ref}&plan={plan_str}"
@@ -174,22 +176,8 @@ async def initialize_payment(
                         "checkout_url": data["data"]["checkout_url"],
                         "tx_ref": tx_ref
                     }
-                error_message = data.get("message", "Payment initialization failed")
-            elif response.status_code == 401:
-                error_message = "Chapa rejected the API key. Check CHAPA_SECRET_KEY in the backend environment."
-            else:
-                error_text = response.text
-                try:
-                    error_data = response.json()
-                except ValueError:
-                    error_data = {}
-                error_message = error_data.get("message") or f"Chapa payment initialization failed (HTTP {response.status_code})."
-                print(f"Chapa initialization failed with HTTP {response.status_code}: {error_text[:500]}")
-
-            payment.status = "failed"
-            payment.payment_status = "failed"
-            db.commit()
-            return {"success": False, "message": error_message}
+                return {"success": False, "message": data.get("message", "Payment init failed")}
+            return {"success": False, "message": f"Gateway error: {response.status_code}"}
                 
     except Exception as e:
         print(f"❌ Error initializing payment: {e}")
@@ -197,11 +185,11 @@ async def initialize_payment(
         traceback.print_exc()
         return {"success": False, "message": str(e)}
 
+
 @router.get("/success")
-async def payment_success(tx_ref: str, amount: str = None, plan: str = None, db: Session = Depends(get_db)):
+async def payment_success(tx_ref: str, db: Session = Depends(get_db)):
     try:
         payment = db.query(PaymentTransaction).filter(PaymentTransaction.tx_ref == tx_ref).first()
-        
         if not payment:
             return HTMLResponse(content=f"<html><head><meta http-equiv='refresh' content='3;url={FRONTEND_URL}/dashboard/subscription'></head><body>Payment not found.</body></html>")
         
@@ -217,9 +205,9 @@ async def payment_success(tx_ref: str, amount: str = None, plan: str = None, db:
                 activate_user(user, payment.plan_type, payment.amount, payment.transaction_id, db)
         
         return HTMLResponse(content=f"<html><head><meta http-equiv='refresh' content='2;url={FRONTEND_URL}/dashboard'></head><body><h1>Payment Successful! Redirecting...</h1></body></html>")
-        
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Error: {str(e)}</h2></body></html>")
+
 
 @router.post("/webhook")
 async def chapa_webhook(request: Request, db: Session = Depends(get_db)):
@@ -256,28 +244,17 @@ async def chapa_webhook(request: Request, db: Session = Depends(get_db)):
             return {"status": "failed"}
         
         return {"status": "ignored"}
-        
     except Exception as e:
-        print(f"Webhook error: {e}")
         return {"status": "error", "message": str(e)}
 
-@router.get("/verify")
-async def verify_payment(tx_ref: str, transaction_id: str = None, db: Session = Depends(get_db)):
-    try:
-        if not CHAPA_SECRET_KEY:
-            return {
-                "success": False,
-                "message": "Chapa payments are not configured. Set CHAPA_SECRET_KEY in the backend environment."
-            }
 
+@router.get("/verify")
+async def verify_payment(tx_ref: str, db: Session = Depends(get_db)):
+    try:
         if not tx_ref:
             return {"success": False, "message": "No payment reference"}
         
         payment = db.query(PaymentTransaction).filter(PaymentTransaction.tx_ref == tx_ref).first()
-        
-        if not payment and transaction_id:
-            payment = db.query(PaymentTransaction).filter(PaymentTransaction.transaction_id == transaction_id).first()
-        
         if not payment:
             return {"success": False, "message": "Payment not found"}
         
@@ -311,16 +288,10 @@ async def verify_payment(tx_ref: str, transaction_id: str = None, db: Session = 
                             "subscription_end_date": end_date.isoformat()
                         }
                 return {"success": False, "message": data.get("message", "Not successful")}
-            if response.status_code == 401:
-                return {
-                    "success": False,
-                    "message": "Chapa rejected the API key. Check CHAPA_SECRET_KEY in the backend environment."
-                }
-            return {"success": False, "message": f"Chapa verification failed (HTTP {response.status_code})."}
-            
+            return {"success": False, "message": f"Failed: {response.status_code}"}
     except Exception as e:
-        print(f"Verify error: {e}")
         return {"success": False, "message": str(e)}
+
 
 @router.get("/admin/payments")
 async def get_all_payments(status: str = "all", current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
@@ -353,10 +324,42 @@ async def get_all_payments(status: str = "all", current_user: User = Depends(get
                 "reviewed_at": payment.reviewed_at.isoformat() if payment.reviewed_at else None,
                 "user_is_activated": user.is_activated if user else False
             })
-        
         return result
     except Exception as e:
         print(f"Admin payments error: {e}")
         return []
+
+
+@router.get("/receipt/{payment_id}")
+async def get_payment_receipt(payment_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        payment = db.query(PaymentTransaction).filter(PaymentTransaction.id == payment_id).first()
+        if not payment:
+            raise HTTPException(status_code=404, detail="Payment not found")
+        
+        user = db.query(User).filter(User.id == payment.user_id).first()
+        return {
+            "success": True,
+            "receipt": {
+                "transaction_id": payment.transaction_id or payment.tx_ref,
+                "date": payment.created_at.isoformat() if payment.created_at else datetime.utcnow().isoformat(),
+                "plan_type": payment.plan_type,
+                "amount": payment.amount,
+                "currency": payment.currency or "ETB",
+                "status": payment.status,
+                "user_name": user.full_name or user.username if user else "Unknown",
+                "user_email": user.email if user else "Unknown",
+                "user_phone": user.phone if user else "N/A",
+                "payment_method": "Chapa",
+                "business_name": "EstateHub Real Estate",
+                "business_tin": "0071406415",
+                "business_phone": "+251-960724272",
+                "business_website": "www.estatehub.com",
+                "business_address": "Addis Ababa, Ethiopia"
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 print("✅ Payment router loaded successfully!")
