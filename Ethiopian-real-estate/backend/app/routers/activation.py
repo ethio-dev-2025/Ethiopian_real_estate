@@ -1,3 +1,4 @@
+# backend/app/routers/activation.py
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -6,7 +7,7 @@ import json
 import os
 import uuid
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from ..database import get_db
 from ..models import User, ActivationRequest, ActivationStatus
 from .auth import get_current_user, get_current_admin_user
@@ -141,7 +142,6 @@ async def submit_activation_request(
         )
         
         db.add(activation_request)
-        
         db.commit()
         db.refresh(activation_request)
         
@@ -181,7 +181,18 @@ async def get_activation_status(
         
         if current_user.subscription_end_date:
             subscription_end_date = current_user.subscription_end_date
-            days_remaining = (current_user.subscription_end_date - datetime.utcnow()).days
+            
+            # ✅ FIX: Handle timezone-aware vs naive datetimes
+            end_date = current_user.subscription_end_date
+            if end_date.tzinfo is not None:
+                # It's timezone-aware, compare with aware utcnow
+                now = datetime.now(timezone.utc)
+            else:
+                # It's timezone-naive, compare with naive utcnow
+                now = datetime.utcnow()
+            
+            days_remaining = (end_date - now).days
+            
             if days_remaining > 0:
                 has_valid_subscription = True
             else:
@@ -379,7 +390,6 @@ async def get_all_activation_requests(
         for req in requests:
             user = db.query(User).filter(User.id == req.user_id).first()
             
-            # Parse property_photos if it's a string
             property_photos = req.property_photos
             if property_photos and isinstance(property_photos, str):
                 try:
@@ -712,8 +722,6 @@ async def mark_verification_queue_viewed(
 ):
     """Mark that admin has viewed the verification queue"""
     try:
-        # You can store this in a database table or just return success
-        # For now, we'll just return success and the frontend will clear the badge
         return {"success": True, "message": "Queue marked as viewed"}
     except Exception as e:
         print(f"Error marking queue viewed: {e}")
