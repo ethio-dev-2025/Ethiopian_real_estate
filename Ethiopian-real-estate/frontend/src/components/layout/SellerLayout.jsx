@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import SellerSidebar from './SellerSidebar';
-import { Menu, Zap, Clock, Shield, CreditCard, AlertCircle } from 'lucide-react';
+import { Menu, Zap, Clock, Shield, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -67,7 +67,15 @@ const SellerLayout = ({ children }) => {
           }
         }
         
-        const hasActive = data.can_create_listings === true && days > 0;
+        // ✅ Check if user is active based on the API response
+        const isFullyActive = 
+          data.status === 'fully_activated' || 
+          data.status === 'active' ||
+          (data.is_activated === true && data.can_create_listings === true) ||
+          (data.has_active_subscription === true) ||
+          days > 0;
+
+        const hasActive = isFullyActive && days > 0;
         
         const newSharedStatus = {
           daysRemaining: days,
@@ -154,7 +162,25 @@ const SellerLayout = ({ children }) => {
   const getBadgeInfo = () => {
     const { status, daysRemaining, hasActiveSubscription } = sharedStatus;
     
-    // Check activation status first
+    // ✅ 1. FIRST PRIORITY: If the user has an active subscription, show Active (Green)
+    if (hasActiveSubscription && daysRemaining > 0) {
+      if (daysRemaining <= 30) {
+        return {
+          text: `${daysRemaining}d left`,
+          color: 'bg-orange-500',
+          icon: <Clock className="w-3 h-3" />,
+          action: '/dashboard/subscription'
+        };
+      }
+      return {
+        text: 'Active',
+        color: 'bg-green-500',
+        icon: <CheckCircle className="w-3 h-3" />,
+        action: '/dashboard/subscription'
+      };
+    }
+
+    // 2. Check activation status for non-active users
     if (status === 'documents_pending') {
       return {
         text: 'Pending Approval',
@@ -191,23 +217,6 @@ const SellerLayout = ({ children }) => {
       };
     }
     
-    if (status === 'fully_activated' && daysRemaining > 0) {
-      if (daysRemaining <= 30) {
-        return {
-          text: `${daysRemaining}d left`,
-          color: 'bg-orange-500',
-          icon: <Clock className="w-3 h-3" />,
-          action: '/dashboard/subscription'
-        };
-      }
-      return {
-        text: `${daysRemaining}d left`,
-        color: 'bg-green-500',
-        icon: <Clock className="w-3 h-3" />,
-        action: '/dashboard/subscription'
-      };
-    }
-    
     if (status === 'subscription_expired' || daysRemaining === 0) {
       return {
         text: 'Renew',
@@ -217,6 +226,7 @@ const SellerLayout = ({ children }) => {
       };
     }
     
+    // 3. Fallback (should rarely be reached if data is correct)
     return {
       text: 'Pending',
       color: 'bg-gray-500',
@@ -254,9 +264,6 @@ const SellerLayout = ({ children }) => {
   const handleBadgeClick = () => {
     navigate(badge.action);
   };
-
-  // Pass shared status to sidebar via context or prop
-  // Using window event for now
 
   return (
     <div className="min-h-screen bg-gray-50">
