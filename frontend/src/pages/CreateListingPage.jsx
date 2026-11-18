@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { 
   Home, DollarSign, MapPin, Bed, Bath, Square, 
   Upload, X, Plus, CheckCircle, AlertCircle, Eye,
-  Save, Send, Image, Trash2, Star, ChevronLeft, ChevronRight
+  Save, Send, Image, Trash2, Star, ChevronLeft, ChevronRight,
+  Loader, Shield
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -11,6 +13,12 @@ const API_URL = import.meta.env.VITE_API_URL?.replace('/api','') || import.meta.
 
 const CreateListingPage = () => {
   const { user } = useAuth()
+  const navigate = useNavigate()
+  
+  const [checkingActivation, setCheckingActivation] = useState(true)
+  const [isActivated, setIsActivated] = useState(false)
+  const [activationMessage, setActivationMessage] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
@@ -38,6 +46,45 @@ const CreateListingPage = () => {
   const fileInputRef = useRef(null)
 
   const getToken = () => localStorage.getItem('access_token')
+
+  // ✅ STEP 2: Block user if not activated
+  useEffect(() => {
+    const checkActivation = async () => {
+      try {
+        const token = getToken()
+        if (!token) {
+          setActivationMessage('Please log in to create listings.')
+          setCheckingActivation(false)
+          return
+        }
+
+        const res = await fetch(`${API_URL}/api/activation/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        
+        if (res.ok) {
+          const data = await res.json()
+          const active = 
+            data.status === 'fully_activated' || 
+            data.status === 'active' || 
+            data.is_activated === true ||
+            data.can_create_listings === true
+
+          if (active) {
+            setIsActivated(true)
+          } else {
+            setActivationMessage(data.message || 'Your account is not fully activated. Please complete the activation and payment steps.')
+          }
+        }
+      } catch (error) {
+        console.error(error)
+        setActivationMessage('Network error while checking activation.')
+      } finally {
+        setCheckingActivation(false)
+      }
+    }
+    checkActivation()
+  }, [])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -305,6 +352,33 @@ const CreateListingPage = () => {
             {formData.description && (<div className="mt-4"><h4 className="font-semibold mb-2">Description</h4><p className="text-gray-600">{formData.description}</p></div>)}
           </div>
         </div>
+      </div>
+    )
+  }
+
+  if (checkingActivation) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader className="w-12 h-12 text-primary-600 animate-spin mb-4" />
+        <p className="text-gray-500">Verifying your account...</p>
+      </div>
+    )
+  }
+
+  if (!isActivated) {
+    return (
+      <div className="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-lg border p-8 text-center">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-10 h-10 text-red-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Unable to Create Listing</h2>
+        <p className="text-gray-600 mb-6">{activationMessage || 'Your account is not fully activated.'}</p>
+        <button 
+          onClick={() => navigate('/dashboard/activation')}
+          className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
+        >
+          <Shield className="w-5 h-5" /> Go to Activation
+        </button>
       </div>
     )
   }
