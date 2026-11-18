@@ -15,12 +15,16 @@ const SellerLayout = ({ children }) => {
   const navigate = useNavigate();
   const { user, forceRefreshUser } = useAuth();
 
-  // Shared state that will be passed to sidebar via event
+  // ✅ Track whether the API has responded at least once
+  const [statusLoaded, setStatusLoaded] = useState(false);
+
   const [sharedStatus, setSharedStatus] = useState({
     daysRemaining: 0,
     hasActiveSubscription: false,
     status: 'pending',
-    message: ''
+    message: '',
+    can_create_listings: false,
+    is_activated: false
   });
 
   const calculateDaysRemaining = (endDateString) => {
@@ -39,19 +43,18 @@ const SellerLayout = ({ children }) => {
     try {
       const token = localStorage.getItem('access_token');
       if (!token) return;
-      
+
       const response = await fetch(`${API_URL}/api/activation/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 SellerLayout - Activation Status:', data);
+        console.log('📊 SellerLayout - Live Activation Status:', data);
         setActivationStatus(data);
-        
+
         let days = data.days_remaining || 0;
-        
-        // Calculate days from subscription_end_date if available
+
         let currentUser = user;
         if (!currentUser) {
           const storedUser = localStorage.getItem('user');
@@ -59,46 +62,40 @@ const SellerLayout = ({ children }) => {
             currentUser = JSON.parse(storedUser);
           }
         }
-        
+
         if (currentUser?.subscription_end_date && days === 0) {
           const calculatedDays = calculateDaysRemaining(currentUser.subscription_end_date);
-          if (calculatedDays > 0) {
-            days = calculatedDays;
-          }
+          if (calculatedDays > 0) days = calculatedDays;
         }
-        
-        // ✅ Check if user is active based on the API response
+
+        // ✅ Accept ANY of the active states
         const isFullyActive = 
           data.status === 'fully_activated' || 
           data.status === 'active' ||
-          (data.is_activated === true && data.can_create_listings === true) ||
-          (data.has_active_subscription === true) ||
+          data.is_activated === true ||
+          data.has_active_subscription === true ||
+          data.can_create_listings === true ||
           days > 0;
 
-        const hasActive = isFullyActive && days > 0;
-        
+        const hasActive = isFullyActive && (days > 0 || data.is_activated === true);
+
         const newSharedStatus = {
-          daysRemaining: days,
+          daysRemaining: days > 0 ? days : (isFullyActive ? 180 : 0),
           hasActiveSubscription: hasActive,
           status: data.status,
           message: data.message,
           can_create_listings: data.can_create_listings,
           is_activated: data.is_activated
         };
-        
+
         setSharedStatus(newSharedStatus);
-        
-        // Dispatch event for sidebar to sync
-        window.dispatchEvent(new CustomEvent('activation_status_update', { 
-          detail: newSharedStatus
-        }));
-        
-        // Also dispatch subscription update for backward compatibility
+        setStatusLoaded(true);
+
+        window.dispatchEvent(new CustomEvent('activation_status_update', { detail: newSharedStatus }));
         window.dispatchEvent(new CustomEvent('subscription_update', { 
           detail: { daysRemaining: days, hasActiveSubscription: hasActive }
         }));
-        
-        // Store in localStorage for persistence
+
         localStorage.setItem('seller_days_remaining', days.toString());
         localStorage.setItem('seller_has_active_subscription', hasActive.toString());
         localStorage.setItem('activation_status', JSON.stringify(newSharedStatus));
@@ -109,7 +106,6 @@ const SellerLayout = ({ children }) => {
   }, [user]);
 
   useEffect(() => {
-    // Load from localStorage first for immediate display
     const storedStatus = localStorage.getItem('activation_status');
     if (storedStatus) {
       try {
@@ -117,10 +113,8 @@ const SellerLayout = ({ children }) => {
         setSharedStatus(parsed);
       } catch (e) {}
     }
-    
+
     fetchActivationStatus();
-    
-    // Refresh every 30 seconds
     const interval = setInterval(fetchActivationStatus, 30000);
     return () => clearInterval(interval);
   }, [fetchActivationStatus]);
@@ -129,22 +123,16 @@ const SellerLayout = ({ children }) => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (mobile) {
-        setSidebarOpen(false);
-      } else {
-        setSidebarOpen(true);
-      }
+      setSidebarOpen(!mobile);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   useEffect(() => {
-    if (isMobile) {
-      setSidebarOpen(false);
-    }
+    if (isMobile) setSidebarOpen(false);
   }, [location.pathname, isMobile]);
 
   const getPageTitle = () => {
@@ -160,11 +148,11 @@ const SellerLayout = ({ children }) => {
   };
 
   const getBadgeInfo = () => {
-    const { status, daysRemaining, hasActiveSubscription } = sharedStatus;
-    
-    // ✅ 1. FIRST PRIORITY: If the user has an active subscription, show Active (Green)
-    if (hasActiveSubscription && daysRemaining > 0) {
-      if (daysRemaining <= 30) {
+    const { status, daysRemaining, hasActiveSubscription, is_activated, can_create_listings } = sharedStatus;
+
+    // ✅ First priority: if activated, always show Active (Green)
+    if (hasActiveSubscription || is_activated === true || can_create_listings === true || daysRemaining > 0) {
+      if (daysRemaining > 0 && daysRemaining <= 30) {
         return {
           text: `${daysRemaining}d left`,
           color: 'bg-orange-500',
@@ -180,59 +168,37 @@ const SellerLayout = ({ children }) => {
       };
     }
 
-    // 2. Check activation status for non-active users
-    if (status === 'documents_pending') {
+    // If API hasn't loaded yet, don't show "Pending" — show Loading
+    if (!statusLoaded) {
       return {
-        text: 'Pending Approval',
-        color: 'bg-red-500',
-        icon: <Shield className="w-3 h-3" />,
-        action: '/dashboard/activation'
-      };
-    }
-    
-    if (status === 'documents_approved') {
-      return {
-        text: 'Subscribe Now',
-        color: 'bg-yellow-500',
-        icon: <CreditCard className="w-3 h-3" />,
-        action: '/dashboard/subscription'
-      };
-    }
-    
-    if (status === 'payment_pending') {
-      return {
-        text: 'Payment Pending',
-        color: 'bg-orange-500',
+        text: 'Loading...',
+        color: 'bg-gray-400',
         icon: <Clock className="w-3 h-3" />,
-        action: '/dashboard/subscription'
+        action: '/dashboard'
       };
     }
-    
+
+    if (status === 'documents_pending') {
+      return { text: 'Pending Approval', color: 'bg-red-500', icon: <Shield className="w-3 h-3" />, action: '/dashboard/activation' };
+    }
+
+    if (status === 'documents_approved') {
+      return { text: 'Subscribe Now', color: 'bg-yellow-500', icon: <CreditCard className="w-3 h-3" />, action: '/dashboard/subscription' };
+    }
+
+    if (status === 'payment_pending') {
+      return { text: 'Payment Pending', color: 'bg-orange-500', icon: <Clock className="w-3 h-3" />, action: '/dashboard/subscription' };
+    }
+
     if (status === 'not_submitted') {
-      return {
-        text: 'inactive',
-        color: 'bg-red-500',
-        icon: <Shield className="w-3 h-3" />,
-        action: '/dashboard/activation'
-      };
+      return { text: 'Inactive', color: 'bg-red-500', icon: <Shield className="w-3 h-3" />, action: '/dashboard/activation' };
     }
-    
-    if (status === 'subscription_expired' || daysRemaining === 0) {
-      return {
-        text: 'Renew',
-        color: 'bg-red-500',
-        icon: <CreditCard className="w-3 h-3" />,
-        action: '/dashboard/subscription'
-      };
+
+    if (status === 'subscription_expired') {
+      return { text: 'Renew', color: 'bg-red-500', icon: <CreditCard className="w-3 h-3" />, action: '/dashboard/subscription' };
     }
-    
-    // 3. Fallback (should rarely be reached if data is correct)
-    return {
-      text: 'Pending',
-      color: 'bg-gray-500',
-      icon: <AlertCircle className="w-3 h-3" />,
-      action: '/dashboard/activation'
-    };
+
+    return { text: 'Pending', color: 'bg-gray-500', icon: <AlertCircle className="w-3 h-3" />, action: '/dashboard/activation' };
   };
 
   const badge = getBadgeInfo();
@@ -241,11 +207,11 @@ const SellerLayout = ({ children }) => {
     try {
       const storedUser = localStorage.getItem('user');
       let currentUser = user;
-      
+
       if (!currentUser && storedUser) {
         currentUser = JSON.parse(storedUser);
       }
-      
+
       if (currentUser?.full_name && currentUser.full_name !== 'vvvvv' && currentUser.full_name !== 'vvvvvvv') {
         return currentUser.full_name;
       }
@@ -272,46 +238,32 @@ const SellerLayout = ({ children }) => {
         setSidebarOpen={setSidebarOpen}
         isMobile={isMobile}
       />
-      
+
       <div className={`transition-all duration-300 ease-in-out
         ${sidebarOpen && !isMobile ? 'lg:ml-64' : !isMobile ? 'lg:ml-20' : ''}
       `}>
         <header className="sticky top-0 z-30 bg-white shadow-md lg:hidden">
           <div className="flex items-center justify-between px-4 py-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
               <Menu className="w-5 h-5 text-gray-600" />
             </button>
-            
             <h1 className="text-lg font-bold text-gray-900">{getPageTitle()}</h1>
-            
-            <button
-              onClick={handleBadgeClick}
-              className={`${badge.color} text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1`}
-            >
+            <button onClick={handleBadgeClick} className={`${badge.color} text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1`}>
               {badge.icon}
               <span>{badge.text}</span>
             </button>
           </div>
         </header>
-        
+
         <header className="hidden lg:block bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{getPageTitle()}</h1>
-                <p className="text-gray-500 text-sm mt-1">
-                  Welcome back, {getUserName()}
-                </p>
+                <p className="text-gray-500 text-sm mt-1">Welcome back, {getUserName()}</p>
               </div>
-              
               <div className="flex items-center gap-4">
-                <button
-                  onClick={handleBadgeClick}
-                  className={`${badge.color} text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 hover:opacity-80 transition`}
-                >
+                <button onClick={handleBadgeClick} className={`${badge.color} text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 hover:opacity-80 transition`}>
                   {badge.icon}
                   <span>{badge.text}</span>
                 </button>
@@ -319,7 +271,7 @@ const SellerLayout = ({ children }) => {
             </div>
           </div>
         </header>
-        
+
         <main className="p-4 sm:p-6 lg:p-8 overflow-x-hidden">
           {children}
         </main>
