@@ -47,7 +47,6 @@ const CreateListingPage = () => {
 
   const getToken = () => localStorage.getItem('access_token')
 
-  // ✅ STEP 2: Block user if not activated
   useEffect(() => {
     const checkActivation = async () => {
       try {
@@ -64,20 +63,25 @@ const CreateListingPage = () => {
         
         if (res.ok) {
           const data = await res.json()
+          console.log('📊 CreateListingPage Activation Check:', data)
+          
+          // ✅ Accept active via ANY indicator
           const active = 
             data.status === 'fully_activated' || 
             data.status === 'active' || 
             data.is_activated === true ||
-            data.can_create_listings === true
+            data.can_create_listings === true ||
+            data.has_active_subscription === true
 
           if (active) {
             setIsActivated(true)
+            setActivationMessage('')
           } else {
             setActivationMessage(data.message || 'Your account is not fully activated. Please complete the activation and payment steps.')
           }
         }
       } catch (error) {
-        console.error(error)
+        console.error('Activation check error:', error)
         setActivationMessage('Network error while checking activation.')
       } finally {
         setCheckingActivation(false)
