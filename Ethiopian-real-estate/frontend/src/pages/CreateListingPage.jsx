@@ -46,19 +46,13 @@ const CreateListingPage = () => {
 
   const handleAddAmenity = () => {
     if (amenityInput.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        amenities: [...prev.amenities, amenityInput.trim()]
-      }))
+      setFormData(prev => ({ ...prev, amenities: [...prev.amenities, amenityInput.trim()] }))
       setAmenityInput('')
     }
   }
 
   const handleRemoveAmenity = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      amenities: prev.amenities.filter((_, i) => i !== index)
-    }))
+    setFormData(prev => ({ ...prev, amenities: prev.amenities.filter((_, i) => i !== index) }))
   }
 
   const handleImageUpload = async (e) => {
@@ -73,10 +67,7 @@ const CreateListingPage = () => {
     for (const file of files) {
       const reader = new FileReader()
       await new Promise((resolve) => {
-        reader.onloadend = () => {
-          newPreviews.push(reader.result)
-          resolve()
-        }
+        reader.onloadend = () => { newPreviews.push(reader.result); resolve() }
         reader.readAsDataURL(file)
       })
     }
@@ -112,11 +103,8 @@ const CreateListingPage = () => {
   const handleRemoveImage = (index) => {
     setImages(images.filter((_, i) => i !== index))
     setImagePreviews(imagePreviews.filter((_, i) => i !== index))
-    if (coverImageIndex === index) {
-      setCoverImageIndex(0)
-    } else if (coverImageIndex > index) {
-      setCoverImageIndex(coverImageIndex - 1)
-    }
+    if (coverImageIndex === index) setCoverImageIndex(0)
+    else if (coverImageIndex > index) setCoverImageIndex(coverImageIndex - 1)
   }
 
   const setAsCover = (index) => {
@@ -276,19 +264,7 @@ const CreateListingPage = () => {
       const publishData = await publishResponse.json()
       if (publishData.success) {
         toast.success(publishData.message)
-        setFormData({
-          title: '',
-          description: '',
-          listing_type: 'sale',
-          property_type: 'house',
-          address: '',
-          city: '',
-          price: '',
-          bedrooms: '',
-          bathrooms: '',
-          sqft: '',
-          amenities: []
-        })
+        setFormData({ title: '', description: '', listing_type: 'sale', property_type: 'house', address: '', city: '', price: '', bedrooms: '', bathrooms: '', sqft: '', amenities: [] })
         setImages([])
         setImagePreviews([])
         setCoverImageIndex(0)
@@ -306,7 +282,6 @@ const CreateListingPage = () => {
 
   const PreviewModal = () => {
     if (!previewMode) return null
-    
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -316,20 +291,7 @@ const CreateListingPage = () => {
           </div>
           <div className="p-6">
             <div className="relative h-64 bg-gray-200 rounded-lg overflow-hidden mb-4">
-              {imagePreviews.length > 0 ? (
-                <>
-                  <img src={imagePreviews[coverImageIndex]} alt="Cover" className="w-full h-64 object-cover" />
-                  {imagePreviews.length > 1 && (
-                    <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
-                      {imagePreviews.map((_, idx) => (
-                        <button key={idx} onClick={() => setCoverImageIndex(idx)} className={`w-2 h-2 rounded-full ${idx === coverImageIndex ? 'bg-white' : 'bg-white/50'}`} />
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="w-full h-64 flex items-center justify-center"><Home className="w-12 h-12 text-gray-400" /></div>
-              )}
+              {imagePreviews.length > 0 ? (<img src={imagePreviews[coverImageIndex]} alt="Cover" className="w-full h-64 object-cover" />) : (<div className="w-full h-64 flex items-center justify-center"><Home className="w-12 h-12 text-gray-400" /></div>)}
             </div>
             <h3 className="text-xl font-bold">{formData.title || 'Untitled'}</h3>
             <div className="flex items-center gap-1 text-gray-500 mt-1"><MapPin className="w-4 h-4" /><span>{formData.city || 'Location not set'}</span></div>
@@ -339,9 +301,7 @@ const CreateListingPage = () => {
               <div className="flex items-center gap-1"><Bath className="w-4 h-4" /> {formData.bathrooms || 0} baths</div>
               <div className="flex items-center gap-1"><Square className="w-4 h-4" /> {formData.sqft || 0} sqft</div>
             </div>
-            {formData.amenities.length > 0 && (
-              <div className="mt-4"><h4 className="font-semibold mb-2">Amenities</h4><div className="flex flex-wrap gap-2">{formData.amenities.map((amenity, idx) => (<span key={idx} className="px-2 py-1 bg-gray-100 rounded-full text-xs">{amenity}</span>))}</div></div>
-            )}
+            {formData.amenities.length > 0 && (<div className="mt-4"><h4 className="font-semibold mb-2">Amenities</h4><div className="flex flex-wrap gap-2">{formData.amenities.map((amenity, idx) => (<span key={idx} className="px-2 py-1 bg-gray-100 rounded-full text-xs">{amenity}</span>))}</div></div>)}
             {formData.description && (<div className="mt-4"><h4 className="font-semibold mb-2">Description</h4><p className="text-gray-600">{formData.description}</p></div>)}
           </div>
         </div>
@@ -352,7 +312,6 @@ const CreateListingPage = () => {
   return (
     <div className="max-w-4xl mx-auto">
       <PreviewModal />
-      
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <div className="bg-gradient-to-r from-primary-800 to-primary-900 p-6 text-white">
           <h1 className="text-2xl font-bold">Create New Listing</h1>
