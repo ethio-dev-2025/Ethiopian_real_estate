@@ -21,7 +21,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const [uploading, setUploading] = useState(false);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
   
-  // Shared status state - synced with layout
+  // ✅ Initialize with a robust fallback
   const [sharedStatus, setSharedStatus] = useState(() => {
     const stored = localStorage.getItem('activation_status');
     if (stored) {
@@ -46,10 +46,50 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
 
   const { t } = useLanguage()
 
-  const settingsMenuItems = [
-    { id: 'profile', labelKey: 'profile_information', label: 'Profile Information', icon: User, tab: 'profile' },
-    { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' }
-  ];
+  // ✅ Force fetch from API on mount to ensure sidebar is in sync
+  useEffect(() => {
+    const fetchLiveStatus = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+        
+        const response = await fetch(`${API_URL}/api/activation/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📡 Sidebar independent fetch:', data);
+          
+          let days = data.days_remaining || 0;
+          
+          // If API says active, enforce active status regardless of string
+          const isFullyActive = 
+            data.status === 'fully_activated' || 
+            data.status === 'active' ||
+            (data.is_activated === true && data.can_create_listings === true) ||
+            (data.has_active_subscription === true) ||
+            days > 0;
+
+          const newStatus = {
+            daysRemaining: days,
+            hasActiveSubscription: isFullyActive,
+            status: data.status || 'active',
+            message: data.message,
+            can_create_listings: data.can_create_listings !== false, // Default to true if active
+            is_activated: data.is_activated
+          };
+          
+          setSharedStatus(newStatus);
+          localStorage.setItem('activation_status', JSON.stringify(newStatus));
+        }
+      } catch (error) {
+        console.error('Sidebar status fetch error:', error);
+      }
+    };
+    
+    fetchLiveStatus();
+  }, []);
 
   // Listen for activation status updates from layout
   useEffect(() => {
@@ -184,84 +224,58 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const getUserStatus = () => {
     const { status, daysRemaining, hasActiveSubscription, can_create_listings, is_activated } = sharedStatus;
     
-    // Use shared status for consistent display
-    if (status === 'fully_activated' && daysRemaining > 0) {
+    // ✅ 1. FIRST PRIORITY: If active by any logic, show Active
+    if (hasActiveSubscription || status === 'fully_activated' || status === 'active' || is_activated === true) {
+      if (daysRemaining <= 30 && daysRemaining > 0) {
+        return { 
+          text: 'Active', 
+          color: 'green', 
+          dotColor: 'bg-green-500', 
+          action: null,
+          daysRemaining: daysRemaining
+        };
+      }
       return { 
         text: 'Active', 
         color: 'green', 
         dotColor: 'bg-green-500', 
         action: null,
-        daysRemaining: daysRemaining
+        daysRemaining: daysRemaining || 180 // Default to 180 if missing
       };
     }
     
+    // 2. Fallback statuses
     if (status === 'documents_approved') {
-      return { 
-        text: 'Subscribe Now', 
-        color: 'yellow', 
-        dotColor: 'bg-yellow-500', 
-        action: '/dashboard/subscription',
-        daysRemaining: 0
-      };
+      return { text: 'Subscribe Now', color: 'yellow', dotColor: 'bg-yellow-500', action: '/dashboard/subscription', daysRemaining: 0 };
     }
     
     if (status === 'payment_pending') {
-      return { 
-        text: 'Payment Pending', 
-        color: 'yellow', 
-        dotColor: 'bg-yellow-500', 
-        action: '/dashboard/subscription',
-        daysRemaining: 0
-      };
+      return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500', action: '/dashboard/subscription', daysRemaining: 0 };
     }
     
     if (status === 'documents_pending') {
-      return { 
-        text: 'Pending Approval', 
-        color: 'red', 
-        dotColor: 'bg-red-500', 
-        action: '/dashboard/activation',
-        daysRemaining: 0
-      };
+      return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
     }
     
     if (status === 'subscription_expired') {
-      return { 
-        text: 'Expired', 
-        color: 'red', 
-        dotColor: 'bg-red-500', 
-        action: '/dashboard/subscription',
-        daysRemaining: 0
-      };
+      return { text: 'Expired', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/subscription', daysRemaining: 0 };
     }
     
     if (status === 'not_submitted') {
-      return { 
-        text: 'pending', 
-        color: 'red', 
-        dotColor: 'bg-red-500', 
-        action: '/dashboard/activation',
-        daysRemaining: 0
-      };
+      return { text: 'pending', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
     }
     
     if (status === 'rejected') {
-      return { 
-        text: 'Rejected', 
-        color: 'red', 
-        dotColor: 'bg-red-500', 
-        action: '/dashboard/activation',
-        daysRemaining: 0
-      };
+      return { text: 'Rejected', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
     }
     
-    // Fallback to user object
+    // 3. Fallback to user object from AuthContext
     if (user?.role_type === 'admin') {
       return { text: 'Active', color: 'green', dotColor: 'bg-green-500', action: null, daysRemaining: 999 };
     }
 
-    if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining > 0) {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500', action: null, daysRemaining: daysRemaining };
+    if (user?.has_active_subscription === true || user?.can_create_listings === true) {
+      return { text: 'Active', color: 'green', dotColor: 'bg-green-500', action: null, daysRemaining: 180 };
     }
 
     return { text: 'Pending', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
