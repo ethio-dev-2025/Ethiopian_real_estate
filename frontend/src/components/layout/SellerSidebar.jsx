@@ -21,13 +21,10 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const [uploading, setUploading] = useState(false);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
   
-  // Shared status state - synced with layout
   const [sharedStatus, setSharedStatus] = useState(() => {
     const stored = localStorage.getItem('activation_status');
     if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch (e) {}
+      try { return JSON.parse(stored); } catch (e) {}
     }
     return {
       daysRemaining: 0,
@@ -51,28 +48,20 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
     { id: 'security', labelKey: 'security', label: 'Security', icon: Lock, tab: 'security' }
   ];
 
-  // Listen for activation status updates from layout
   useEffect(() => {
     const handleStatusUpdate = (event) => {
       if (event.detail) {
-        console.log('📡 Sidebar received activation status update:', event.detail);
         setSharedStatus(event.detail);
         localStorage.setItem('activation_status', JSON.stringify(event.detail));
       }
     };
-    
     window.addEventListener('activation_status_update', handleStatusUpdate);
-    
-    return () => {
-      window.removeEventListener('activation_status_update', handleStatusUpdate);
-    };
+    return () => window.removeEventListener('activation_status_update', handleStatusUpdate);
   }, []);
 
-  // Also listen for legacy subscription updates
   useEffect(() => {
     const handleSubscriptionUpdate = (event) => {
       if (event.detail) {
-        console.log('📡 Sidebar received subscription update:', event.detail);
         setSharedStatus(prev => ({
           ...prev,
           daysRemaining: event.detail.daysRemaining,
@@ -80,12 +69,8 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
         }));
       }
     };
-    
     window.addEventListener('subscription_update', handleSubscriptionUpdate);
-    
-    return () => {
-      window.removeEventListener('subscription_update', handleSubscriptionUpdate);
-    };
+    return () => window.removeEventListener('subscription_update', handleSubscriptionUpdate);
   }, []);
 
   useEffect(() => {
@@ -108,28 +93,18 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   useEffect(() => {
     const handleUnreadUpdate = (event) => {
       if (event.detail?.count !== undefined) {
-        console.log('📬 Sidebar received unread update:', event.detail.count);
         setTotalUnreadCount(event.detail.count);
       }
     };
-    
     window.addEventListener('seller_unread_update', handleUnreadUpdate);
-    
     const savedCount = localStorage.getItem('seller_unread_count');
-    if (savedCount) {
-      setTotalUnreadCount(parseInt(savedCount));
-    }
-    
-    return () => {
-      window.removeEventListener('seller_unread_update', handleUnreadUpdate);
-    };
+    if (savedCount) setTotalUnreadCount(parseInt(savedCount));
+    return () => window.removeEventListener('seller_unread_update', handleUnreadUpdate);
   }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
+    return () => { isMountedRef.current = false; };
   }, []);
 
   useEffect(() => {
@@ -147,29 +122,16 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
 
   const getUserName = () => {
     if (!user) return 'Seller';
-    if (user.full_name && user.full_name !== 'vvvvv' && user.full_name !== 'vvvvvvv' && user.full_name.trim() !== '') {
-      return user.full_name;
-    }
-    if (user.username && user.username !== 'vvvvv' && user.username !== 'vvvvvvv' && user.username.trim() !== '') {
-      return user.username;
-    }
-    if (user.email) {
-      const emailName = user.email.split('@')[0];
-      if (emailName && emailName !== 'vvvvv' && emailName !== 'vvvvvvv' && emailName.trim() !== '') {
-        return emailName;
-      }
-    }
+    if (user.full_name && user.full_name !== 'vvvvv' && user.full_name !== 'vvvvvvv' && user.full_name.trim() !== '') return user.full_name;
+    if (user.username && user.username !== 'vvvvv' && user.username !== 'vvvvvvv' && user.username.trim() !== '') return user.username;
+    if (user.email) return user.email.split('@')[0];
     return 'Seller';
   };
 
   const getUserInitial = () => {
     const name = getUserName();
-    if (name && name !== 'Seller') {
-      return name.charAt(0).toUpperCase();
-    }
-    if (user?.email) {
-      return user.email.charAt(0).toUpperCase();
-    }
+    if (name && name !== 'Seller') return name.charAt(0).toUpperCase();
+    if (user?.email) return user.email.charAt(0).toUpperCase();
     return 'S';
   };
 
@@ -184,84 +146,46 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const getUserStatus = () => {
     const { status, daysRemaining, hasActiveSubscription, can_create_listings, is_activated } = sharedStatus;
     
-    // Use shared status for consistent display
-    if (status === 'fully_activated' && daysRemaining > 0) {
+    // ✅ STRICT MATCH with CreateListingPage check
+    const isFullyActive = 
+      status === 'fully_activated' || 
+      status === 'active' || 
+      is_activated === true ||
+      can_create_listings === true ||
+      hasActiveSubscription === true ||
+      (daysRemaining && daysRemaining > 0);
+      
+    if (isFullyActive) {
       return { 
         text: 'Active', 
         color: 'green', 
         dotColor: 'bg-green-500', 
         action: null,
-        daysRemaining: daysRemaining
+        daysRemaining: daysRemaining > 0 ? daysRemaining : 180
       };
     }
     
     if (status === 'documents_approved') {
-      return { 
-        text: 'Subscribe Now', 
-        color: 'yellow', 
-        dotColor: 'bg-yellow-500', 
-        action: '/dashboard/subscription',
-        daysRemaining: 0
-      };
+      return { text: 'Subscribe Now', color: 'yellow', dotColor: 'bg-yellow-500', action: '/dashboard/subscription', daysRemaining: 0 };
     }
-    
     if (status === 'payment_pending') {
-      return { 
-        text: 'Payment Pending', 
-        color: 'yellow', 
-        dotColor: 'bg-yellow-500', 
-        action: '/dashboard/subscription',
-        daysRemaining: 0
-      };
+      return { text: 'Payment Pending', color: 'yellow', dotColor: 'bg-yellow-500', action: '/dashboard/subscription', daysRemaining: 0 };
     }
-    
     if (status === 'documents_pending') {
-      return { 
-        text: 'Pending Approval', 
-        color: 'red', 
-        dotColor: 'bg-red-500', 
-        action: '/dashboard/activation',
-        daysRemaining: 0
-      };
+      return { text: 'Pending Approval', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
     }
-    
     if (status === 'subscription_expired') {
-      return { 
-        text: 'Expired', 
-        color: 'red', 
-        dotColor: 'bg-red-500', 
-        action: '/dashboard/subscription',
-        daysRemaining: 0
-      };
+      return { text: 'Expired', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/subscription', daysRemaining: 0 };
     }
-    
     if (status === 'not_submitted') {
-      return { 
-        text: 'pending', 
-        color: 'red', 
-        dotColor: 'bg-red-500', 
-        action: '/dashboard/activation',
-        daysRemaining: 0
-      };
+      return { text: 'Pending', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
     }
-    
     if (status === 'rejected') {
-      return { 
-        text: 'Rejected', 
-        color: 'red', 
-        dotColor: 'bg-red-500', 
-        action: '/dashboard/activation',
-        daysRemaining: 0
-      };
+      return { text: 'Rejected', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
     }
     
-    // Fallback to user object
     if (user?.role_type === 'admin') {
       return { text: 'Active', color: 'green', dotColor: 'bg-green-500', action: null, daysRemaining: 999 };
-    }
-
-    if ((user?.has_active_subscription === true || user?.can_create_listings === true) && daysRemaining > 0) {
-      return { text: 'Active', color: 'green', dotColor: 'bg-green-500', action: null, daysRemaining: daysRemaining };
     }
 
     return { text: 'Pending', color: 'red', dotColor: 'bg-red-500', action: '/dashboard/activation', daysRemaining: 0 };
@@ -270,9 +194,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const status = getUserStatus();
 
   const handleStatusClick = () => {
-    if (status.action) {
-      navigate(status.action);
-    }
+    if (status.action) navigate(status.action);
   };
 
   const toggleDropdown = (e) => {
@@ -309,16 +231,8 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be less than 5MB');
-      return;
-    }
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image size must be less than 5MB'); return; }
 
     setUploading(true);
     const toastId = toast.loading('Uploading profile picture...');
@@ -345,9 +259,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
         const updatedUser = { ...currentUser, avatar_url: newImageUrl };
         localStorage.setItem('user', JSON.stringify(updatedUser));
         
-        if (updateUser) {
-          updateUser(updatedUser);
-        }
+        if (updateUser) updateUser(updatedUser);
         
         toast.success('Profile picture updated!', { id: toastId });
         await refreshUser();
@@ -355,7 +267,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
         toast.error(data.message || 'Failed to upload image', { id: toastId });
       }
     } catch (error) {
-      console.error('Upload error:', error);
       toast.error('Failed to upload image', { id: toastId });
     } finally {
       setUploading(false);
@@ -366,10 +277,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
   return (
     <>
       {isMobile && sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300" onClick={() => setSidebarOpen(false)} />
       )}
       
       <aside className={`fixed top-0 left-0 z-40 h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white transition-all duration-300 shadow-xl
@@ -377,15 +285,10 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
         ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}
       `}>
         <div className="flex flex-col h-full">
-          {/* Logo Section */}
           <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigation('/dashboard')}>
-                <img 
-                  src="/assets/images/image.png" 
-                  alt="EstateHub" 
-                  className="w-10 h-10 object-contain rounded-lg shadow-md"
-                />
+                <img src="/assets/images/image.png" alt="EstateHub" className="w-10 h-10 object-contain rounded-lg shadow-md" />
                 {sidebarOpen && (
                   <div className="overflow-hidden">
                     <span className="text-xl font-bold tracking-tight block">EstateHub</span>
@@ -394,17 +297,13 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                 )}
               </div>
               {!isMobile && (
-                <button 
-                  onClick={() => setSidebarOpen(!sidebarOpen)} 
-                  className="p-2 rounded-lg hover:bg-white/10 transition-all hidden md:block"
-                >
+                <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-white/10 transition-all hidden md:block">
                   {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                 </button>
               )}
             </div>
           </div>
 
-          {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1 mt-4">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -416,17 +315,12 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                   key={item.id}
                   onClick={() => handleNavigation(item.path)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 relative group
-                    ${isActive 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                    }`}
+                    ${isActive ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   {sidebarOpen && (
                     <>
-                      <span className="flex-1 text-left text-sm font-medium">
-                        {t(item.labelKey) || item.label}
-                      </span>
+                      <span className="flex-1 text-left text-sm font-medium">{t(item.labelKey) || item.label}</span>
                       {hasBadge && (
                         <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 min-w-5 text-center shadow-md animate-pulse">
                           {item.badge > 99 ? '99+' : item.badge}
@@ -442,31 +336,22 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
               );
             })}
 
-            {/* Settings Dropdown */}
             <div className="relative">
               <button
                 ref={settingsButtonRef}
                 onClick={toggleDropdown}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150
-                  ${location.pathname === '/dashboard/settings'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                  }`}
+                  ${location.pathname === '/dashboard/settings' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
               >
                 <div className="flex items-center gap-3">
                   <Settings className="w-5 h-5 flex-shrink-0" />
                   {sidebarOpen && <span className="text-sm font-medium">Settings</span>}
                 </div>
-                {sidebarOpen && (
-                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSettingsDropdownOpen ? 'rotate-180' : ''}`} />
-                )}
+                {sidebarOpen && <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSettingsDropdownOpen ? 'rotate-180' : ''}`} />}
               </button>
               
               {sidebarOpen && isSettingsDropdownOpen && (
-                <div 
-                  ref={settingsDropdownRef}
-                  className="absolute left-3 right-3 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50"
-                >
+                <div ref={settingsDropdownRef} className="absolute left-3 right-3 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50">
                   {settingsMenuItems.map((item) => {
                     const Icon = item.icon;
                     const currentTab = new URLSearchParams(location.search).get('tab') || 'profile';
@@ -476,10 +361,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                         key={item.id}
                         onClick={() => handleSettingsNavigation(item.tab)}
                         className={`w-full flex items-center gap-3 px-4 py-2.5 transition text-left
-                          ${isActive 
-                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }`}
+                          ${isActive ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                       >
                         <Icon className="w-4 h-4 flex-shrink-0" />
                         <span className="text-sm">{t(item.labelKey) || item.label}</span>
@@ -491,7 +373,6 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
             </div>
           </nav>
 
-          {/* User Profile Section */}
           <div className="p-4 pt-0 pb-5 mt-auto">
             <div className={`flex items-center ${sidebarOpen ? 'gap-3' : 'flex-col gap-2'}`}>
               <div className="relative group">
@@ -500,12 +381,7 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {profileImage && !imageError ? (
-                    <img
-                      src={profileImage}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                      onError={() => setImageError(true)}
-                    />
+                    <img src={profileImage} alt="Profile" className="w-full h-full object-cover" onError={() => setImageError(true)} />
                   ) : (
                     <span className="text-white font-bold text-sm">{getUserInitial()}</span>
                   )}
@@ -515,27 +391,17 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 )}
-                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                     onClick={() => fileInputRef.current?.click()}>
+                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                   <Camera className="w-3 h-3 text-white" />
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
               </div>
               
               {sidebarOpen && (
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm truncate">{getUserName()}</p>
                   <p className="text-xs text-slate-400 truncate">{getRoleDisplay()}</p>
-                  <button 
-                    onClick={handleStatusClick}
-                    className="flex items-center gap-1 mt-1 hover:opacity-80 transition"
-                  >
+                  <button onClick={handleStatusClick} className="flex items-center gap-1 mt-1 hover:opacity-80 transition">
                     <div className={`w-2 h-2 ${status.dotColor} rounded-full animate-pulse`}></div>
                     <span className={`text-xs ${status.color === 'green' ? 'text-green-400' : status.color === 'yellow' ? 'text-yellow-400' : 'text-red-400'}`}>
                       {status.text}
@@ -551,12 +417,8 @@ const SellerSidebar = ({ sidebarOpen, setSidebarOpen, isMobile }) => {
             </div>
           </div>
           
-          {/* Logout Button */}
           <div className="p-4 border-t border-white/10">
-            <button 
-              onClick={handleLogout} 
-              className="w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-red-600 hover:text-white transition-all duration-150"
-            >
+            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-red-600 hover:text-white transition-all duration-150">
               <LogOut className="w-5 h-5 flex-shrink-0" />
               {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
             </button>
